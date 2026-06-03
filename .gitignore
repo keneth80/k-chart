@@ -30,3 +30,8 @@ __MACOSX/
 # Archives
 *.zip
 *.tgz
+
+CHANGELOG.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+README 2.md
