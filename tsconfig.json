@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+        // leave JSX as it is
+        // resolve modules as you would expect
+        "moduleResolution": "node",
+        // leave imports as they are
+        "module": "es6",
+        // do not transpile stuff like classes, async/await, ...
+        "target": "es5",
+        "lib": [
+            "es2015", "es6", "esnext", "dom"
+        ],
+        "declaration": true,
+        "esModuleInterop": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "strictNullChecks": false,
+        "strictPropertyInitialization": false,
+        // produce a source map
+        "sourceMap": true,
+        "rootDir": "./src",
+        "baseUrl": ".",
+        "ignoreDeprecations": "6.0",
+        "outDir": "dist",
+        "paths": {
+          "components/*": ["./src/components/*"],
+          "assets/*": ["./src/assets/*"]
+        },
+        "allowSyntheticDefaultImports": true
+    },
+    "include": [
+        "./src/**/*"
+    ],
+    "exclude": [
+        "./node_modules/**/*",
+        "./src/main copy.ts"
+    ]
+}

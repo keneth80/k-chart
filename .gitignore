@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+lib/
+coverage/
+stats.json
+src/main copy.ts
+src/index-old.html
+src/lib/crossfilter.min.js
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor files
+.DS_Store
+__MACOSX/
+.idea/
+.vscode/
+
+# Archives
+*.zip
+*.tgz

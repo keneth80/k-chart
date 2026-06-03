@@ -1,0 +1,23 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es5",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "outDir": "lib",
+        "rootDir": "src",
+        "noEmit": false
+    },
+    "include": [
+        "src/index.ts",
+        "src/types/**/*.d.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "src/main.ts",
+        "src/main copy.ts"
+    ]
+}
+

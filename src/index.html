@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>KChart Playground</title>
+    </head>
+    <body>
+        <header class="app-header">
+            <div class="brand">
+                <span class="brand-mark">K</span>
+                <div class="brand-copy">
+                    <strong>KChart</strong>
+                    <span>Functional hybrid chart runtime</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <nav class="top-tabs" aria-label="Primary">
+                    <a class="active">Examples</a>
+                    <a>API</a>
+                </nav>
+                <div class="theme-toggle" aria-label="Theme">
+                    <button type="button" class="theme-toggle-button active" data-theme-option="dark">Dark</button>
+                    <button type="button" class="theme-toggle-button" data-theme-option="light">Light</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="example-shell">
+            <aside class="example-sidebar">
+                <div class="sidebar-section">
+                    <h2>Line</h2>
+                    <button type="button" class="sidebar-item active" data-sidebar-example="line">SVG</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="canvas-line">Canvas</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="webgl-line">WebGL</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="canvas-bigdata-line">Canvas BigData</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="webgl-large-line">WebGL Large</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Bar</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="column">Column</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="stacked-column">Stacked Column</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Point</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="plot">SVG Plot</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="canvas-point">Canvas</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="webgl-point">WebGL</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Area</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="area">SVG Area</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Custom</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="circle">SVG Circle</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="topology">Topology</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Axis</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="axis-custom-margin">Custom Margin</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Tooltip</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="tooltip-template">Template Change</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="tooltip-custom">Custom Template</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Update</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="update-series">Series</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="update-data">Data</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="real-time">Real Time</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Hybrid</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="multi-options">Options + Multi</button>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Option</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="option-spec-area">Spec Area</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="option-guide-line">Guide Line</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="option-cursor-line">Cursor Line</button>
+                </div>
+            </aside>
+
+            <section class="example-workspace">
+                <section class="example-gallery">
+                    <div class="gallery-header">
+                        <div>
+                            <h1>Examples</h1>
+                            <p><span id="example-filter-summary">SVG line renderer</span></p>
+                        </div>
+                        <div class="gallery-actions">
+                            <span id="current-theme-label">Dark metallic theme</span>
+                        </div>
+                    </div>
+
+                    <div class="container-button-bar">
+                        <button type="button" class="example-card active" data-example="line" data-chart-type="line" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Line Series</strong>
+                            <span class="sparkline line-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="circle" data-chart-type="custom" data-renderer="svg">
+                            <span class="example-card-type">Custom SVG</span>
+                            <strong>Circle Renderer</strong>
+                            <span class="sparkline dots-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="canvas-line" data-chart-type="line" data-renderer="canvas">
+                            <span class="example-card-type">Canvas</span>
+                            <strong>Line Renderer</strong>
+                            <span class="sparkline line-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="webgl-line" data-chart-type="line" data-renderer="webgl">
+                            <span class="example-card-type">WebGL</span>
+                            <strong>Line Renderer</strong>
+                            <span class="sparkline line-c"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="canvas-bigdata-line" data-chart-type="line" data-renderer="canvas">
+                            <span class="example-card-type">Canvas</span>
+                            <strong>BigData Line</strong>
+                            <span class="sparkline bars-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="webgl-large-line" data-chart-type="line" data-renderer="webgl">
+                            <span class="example-card-type">WebGL</span>
+                            <strong>BigData Line</strong>
+                            <span class="sparkline line-c"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="column" data-chart-type="bar" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Column Series</strong>
+                            <span class="sparkline columns-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="stacked-column" data-chart-type="bar" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Stacked Column</strong>
+                            <span class="sparkline columns-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="plot" data-chart-type="point" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Plot Series</strong>
+                            <span class="sparkline dots-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="area" data-chart-type="area" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Area Series</strong>
+                            <span class="sparkline area-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="canvas-point" data-chart-type="point" data-renderer="canvas">
+                            <span class="example-card-type">Canvas</span>
+                            <strong>Point Renderer</strong>
+                            <span class="sparkline bars-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="webgl-point" data-chart-type="point" data-renderer="webgl">
+                            <span class="example-card-type">WebGL</span>
+                            <strong>Point Renderer</strong>
+                            <span class="sparkline dots-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="multi-options" data-chart-type="multi" data-renderer="hybrid">
+                            <span class="example-card-type">Hybrid</span>
+                            <strong>Options + Multi</strong>
+                            <span class="sparkline line-c"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="option-spec-area" data-chart-type="option" data-renderer="svg">
+                            <span class="example-card-type">Option</span>
+                            <strong>Spec Area</strong>
+                            <span class="sparkline area-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="option-guide-line" data-chart-type="option" data-renderer="svg">
+                            <span class="example-card-type">Option</span>
+                            <strong>Guide Line</strong>
+                            <span class="sparkline axis-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="option-cursor-line" data-chart-type="option" data-renderer="svg">
+                            <span class="example-card-type">Option</span>
+                            <strong>Cursor Line</strong>
+                            <span class="sparkline line-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="axis-custom-margin" data-chart-type="axis" data-renderer="svg">
+                            <span class="example-card-type">Axis</span>
+                            <strong>Custom Margin</strong>
+                            <span class="sparkline axis-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="tooltip-template" data-chart-type="tooltip" data-renderer="svg">
+                            <span class="example-card-type">Tooltip</span>
+                            <strong>Template Change</strong>
+                            <span class="sparkline tooltip-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="tooltip-custom" data-chart-type="tooltip" data-renderer="svg">
+                            <span class="example-card-type">Tooltip</span>
+                            <strong>Custom Template</strong>
+                            <span class="sparkline tooltip-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="topology" data-chart-type="topology" data-renderer="svg">
+                            <span class="example-card-type">SVG</span>
+                            <strong>Topology</strong>
+                            <span class="sparkline topology-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="update-series" data-chart-type="update" data-renderer="svg">
+                            <span class="example-card-type">Update</span>
+                            <strong>Series</strong>
+                            <span class="sparkline line-d"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="update-data" data-chart-type="update" data-renderer="svg">
+                            <span class="example-card-type">Update</span>
+                            <strong>Data</strong>
+                            <span class="sparkline area-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="real-time" data-chart-type="line" data-renderer="svg">
+                            <span class="example-card-type">Realtime</span>
+                            <strong>Line Series</strong>
+                            <span class="sparkline pulse-a"></span>
+                        </button>
+                        <div class="empty-examples" aria-live="polite">
+                            <strong>No examples</strong>
+                            <span>Try another chart type or renderer.</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="container-chart-example">
+                    <aside class="container-control">
+                        <div class="control-header">
+                            <strong>Usage</strong>
+                            <span>TypeScript</span>
+                        </div>
+                        <div class="container-control-configuration">
+                            <pre><code id="json-configuration"></code></pre>
+                        </div>
+                    </aside>
+                    <section class="preview-panel">
+                        <div class="preview-header">
+                            <strong>Preview</strong>
+                            <span>Class-free KChart runtime</span>
+                        </div>
+                        <div id="chart-div" class="container-chart"></div>
+                    </section>
+                </section>
+            </section>
+        </main>
+    </body>
+</html>

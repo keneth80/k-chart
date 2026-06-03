@@ -1,0 +1,11 @@
+#result {
+    border: 2px solid #888;
+    background-color: #eee;
+}
+
+svg {
+    display: block;
+    width: 500px;
+    height: 350px;
+    background-color: #fff;
+}

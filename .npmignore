@@ -1,0 +1,14 @@
+node_modules/
+src/main.ts
+src/main copy.ts
+src/index-old.html
+src/lib/crossfilter.min.js
+dist/
+coverage/
+stats.json
+webpack-config/
+.github/
+.DS_Store
+__MACOSX/
+*.zip
+
