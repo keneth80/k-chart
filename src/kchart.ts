@@ -92,6 +92,7 @@ export interface KChartSeries<T = any> {
     color?: string;
     render(context: KChartRenderContext<T>): void;
     tooltip?(context: KChartSeriesTooltipContext<T>): KChartSeriesTooltipResult<T> | null | undefined;
+    clearTooltip?(context: KChartLayerContext): void;
     destroy?(context: KChartLayerContext): void;
 }
 
@@ -1197,6 +1198,9 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                         };
                     }
                 }
+                if (series.tooltip) {
+                    return;
+                }
                 if (!series.xField || !series.yField) {
                     return;
                 }
@@ -1367,6 +1371,11 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                 .style('opacity', 1);
         })
         .on('mouseleave', () => {
+            state.series.forEach((series: KChartSeries<T>) => {
+                if (!state.hiddenSeries.has(series.selector)) {
+                    series.clearTooltip?.(state.layers);
+                }
+            });
             tooltip.style('opacity', 0);
             guideLine.style('opacity', 0);
             guideMarkerGroup.style('opacity', 0);
