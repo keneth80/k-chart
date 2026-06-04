@@ -364,6 +364,43 @@ tooltip: {
 }
 ```
 
+Custom renderer가 한 series 안에서 여러 SVG/Canvas/WebGL 요소를 그리는 경우에는 series 단위 `tooltip(context)` hook을 사용할 수 있습니다. 예를 들어 stacked column, range bar, box plot처럼 하나의 datum에서 여러 시각 요소가 나올 때 core tooltip overlay는 이 hook이 돌려준 위치와 HTML을 그대로 사용합니다.
+
+```ts
+const stackedSeries = createCustomSeries<Point>({
+    selector: 'stacked-column',
+    displayName: 'Stacked Column',
+    xField: 'x',
+    yField: 'value',
+    render({ group, data, xScale, yScale }) {
+        // draw stacked rects with the chart scales
+    },
+    tooltip({ data, scales, mouseX, mouseY }) {
+        const xScale = scales.find((scale) => scale.field === 'x');
+        const yScale = scales.find((scale) => scale.field === 'value');
+        if (!xScale || !yScale) {
+            return undefined;
+        }
+
+        const hit = data.find((point) => {
+            const x = xScale.scale(point.x);
+            return Math.abs(mouseX - x) < 12;
+        });
+        if (!hit) {
+            return undefined;
+        }
+
+        return {
+            data: hit,
+            x: xScale.scale(hit.x),
+            y: yScale.scale(hit.value),
+            distance: 0,
+            html: `<strong>${hit.label}</strong><br/>A: ${hit.a}<br/>B: ${hit.b}`
+        };
+    }
+});
+```
+
 ## React / Next.js
 
 KChart touches the DOM, so create it in a Client Component after mount.

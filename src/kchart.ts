@@ -63,6 +63,27 @@ export interface KChartRenderContext<T = any> extends KChartLayerContext {
     seriesIndex: number;
 }
 
+export interface KChartSeriesTooltipContext<T = any> extends KChartLayerContext {
+    data: T[];
+    scales: KChartResolvedScale<T>[];
+    size: KChartSize;
+    plotSize: KChartSize;
+    margin: KChartMargin;
+    color: string;
+    seriesIndex: number;
+    mouseX: number;
+    mouseY: number;
+}
+
+export interface KChartSeriesTooltipResult<T = any> {
+    data: T;
+    x: number;
+    y: number;
+    color?: string;
+    distance?: number;
+    html?: string;
+}
+
 export interface KChartSeries<T = any> {
     selector: string;
     displayName?: string;
@@ -70,6 +91,7 @@ export interface KChartSeries<T = any> {
     yField?: keyof T & string;
     color?: string;
     render(context: KChartRenderContext<T>): void;
+    tooltip?(context: KChartSeriesTooltipContext<T>): KChartSeriesTooltipResult<T> | null | undefined;
     destroy?(context: KChartLayerContext): void;
 }
 
@@ -1133,6 +1155,7 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                 distance: number;
                 x: number;
                 y: number;
+                html?: string;
             } | null = null;
             const guideMarkers: Array<{
                 x: number;
@@ -1146,6 +1169,33 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
             state.series.forEach((series: KChartSeries<T>, index: number) => {
                 if (state.hiddenSeries.has(series.selector)) {
                     return;
+                }
+                const color = series.color ?? state.colors[index % state.colors.length];
+                const customTooltip = series.tooltip?.({
+                    ...state.layers,
+                    data: state.data,
+                    scales: state.scales,
+                    size: state.size,
+                    plotSize: state.plotSize,
+                    margin: state.margin,
+                    color,
+                    seriesIndex: index,
+                    mouseX,
+                    mouseY
+                });
+                if (customTooltip) {
+                    const distance = customTooltip.distance ?? Math.hypot(mouseX - customTooltip.x, mouseY - customTooltip.y);
+                    if (!nearest || distance < nearest.distance) {
+                        nearest = {
+                            data: customTooltip.data,
+                            series,
+                            color: customTooltip.color ?? color,
+                            distance,
+                            x: customTooltip.x,
+                            y: customTooltip.y,
+                            html: customTooltip.html
+                        };
+                    }
                 }
                 if (!series.xField || !series.yField) {
                     return;
@@ -1167,7 +1217,7 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                         nearest = {
                             data: datum,
                             series,
-                            color: series.color ?? state.colors[index % state.colors.length],
+                            color,
                             distance,
                             x,
                             y
@@ -1187,7 +1237,7 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                                 guideMarkers.push({
                                     x,
                                     y,
-                                    color: series.color ?? state.colors[index % state.colors.length],
+                                    color,
                                     label,
                                     value: datum[series.yField],
                                     xValue: datum[series.xField]
@@ -1311,7 +1361,7 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
             }
 
             tooltip
-                .html(formatTooltip(state, nearest.data, nearest.series, nearest.color))
+                .html(nearest.html ?? formatTooltip(state, nearest.data, nearest.series, nearest.color))
                 .style('left', `${state.margin.left + nearest.x + 12}px`)
                 .style('top', `${state.margin.top + nearest.y + 12}px`)
                 .style('opacity', 1);
