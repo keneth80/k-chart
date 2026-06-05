@@ -1,9 +1,15 @@
 {
-    "name": "kchart",
+    "name": "@keneth80/k-chart",
     "version": "1.0.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
     "files": [
         "lib/index.js",
         "lib/index.js.map",
@@ -17,6 +23,9 @@
         "LICENSE",
         "CHANGELOG.md"
     ],
+    "publishConfig": {
+        "access": "public"
+    },
     "scripts": {
         "result": "lite-server -c lite-server-config.json",
         "build": "npm run build:lib && npm run build-demo",
@@ -25,7 +34,9 @@
         "build-prod": "cross-env NODE_ENV=production webpack --mode production",
         "typecheck": "tsc --noEmit",
         "dev": "webpack-dev-server --host 127.0.0.1 --port 9003 --mode development",
+        "prepublishOnly": "npm run typecheck",
         "prepack": "npm run build:lib",
+        "pack:dry": "npm pack --dry-run",
         "bundle-analyze": "webpack --profile --json > stats.json",
         "bundle-analyze-open": "webpack-bundle-analyzer stats.json --port=9900"
     },
@@ -40,6 +51,14 @@
     ],
     "author": "Kenneth Kang",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/keneth80/k-chart.git"
+    },
+    "bugs": {
+        "url": "https://github.com/keneth80/k-chart/issues"
+    },
+    "homepage": "https://github.com/keneth80/k-chart#readme",
     "devDependencies": {
         "@babel/core": "^7.29.7",
         "@babel/plugin-proposal-decorators": "^7.29.7",

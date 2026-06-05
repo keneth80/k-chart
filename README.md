@@ -28,7 +28,13 @@ createKChart(config)
 - `render(context)`는 `group`, `data`, `scales`, `xScale`, `yScale`, `plotSize`, `color`, `getCanvas`, `getWebglCanvas`를 받습니다.
 - Canvas/WebGL 시각화도 renderer 안에서 필요한 layer를 받아 직접 그릴 수 있습니다.
 
-## Install And Build
+## Install
+
+```bash
+npm install @keneth80/k-chart
+```
+
+## Local Development
 
 ```bash
 npm install
@@ -50,7 +56,7 @@ import {
     createKChart,
     createLineSeries,
     KChartController
-} from 'kchart';
+} from '@keneth80/k-chart';
 
 interface TrafficPoint {
     time: string;
@@ -93,7 +99,7 @@ chart.render();
 import {
     createKChart,
     createCustomSeries
-} from 'kchart';
+} from '@keneth80/k-chart';
 
 interface CirclePoint {
     x: number;
@@ -152,7 +158,7 @@ import {
     createCanvasPointSeries,
     createWebglLineSeries,
     createWebglPointSeries
-} from 'kchart';
+} from '@keneth80/k-chart';
 
 const canvasLine = createCanvasLineSeries<Point>({
     selector: 'canvas-line',
@@ -320,7 +326,7 @@ import {
     createKChart,
     createSpecAreaOption,
     createWebglLineSeries
-} from 'kchart';
+} from '@keneth80/k-chart';
 
 createKChart({
     selector: '#chart',
@@ -409,7 +415,7 @@ KChart touches the DOM, so create it in a Client Component after mount.
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createKChart, createLineSeries, KChartController } from 'kchart';
+import { createKChart, createLineSeries, KChartController } from '@keneth80/k-chart';
 
 export function TrafficChart({ data }) {
     const rootRef = useRef<HTMLDivElement | null>(null);

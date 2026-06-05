@@ -35,7 +35,7 @@ import {
     createCustomSeries,
     KChartController,
     KChartSeries
-} from 'kchart';
+} from '@keneth80/k-chart';
 ```
 
 `src/index.ts` exports only `src/kchart.ts`, so package consumers do not receive the old class-based API.
