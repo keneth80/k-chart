@@ -94,6 +94,20 @@ const createLargeData = (length: number): DemoPoint[] => Array.from({ length }, 
 
 const largeCanvasData = createLargeData(50000);
 const largeWebglData = createLargeData(120000);
+const createKChartRenderWorker = (): Worker => {
+    const debugWindow = window as typeof window & {__kchartWorkerCreated?: number};
+    debugWindow.__kchartWorkerCreated = (debugWindow.__kchartWorkerCreated ?? 0) + 1;
+    console.info(`[KChart Demo] creating render worker #${debugWindow.__kchartWorkerCreated}`);
+
+    return new Worker(
+        new URL('./kchart-render.worker.ts', import.meta.url),
+        { type: 'module' }
+    );
+};
+const asyncLineRender = {
+    enabled: true,
+    workerFactory: createKChartRenderWorker
+};
 const largeWebglGuideLines = [
     { value: 1200, label: '1' },
     { value: 6200, label: '2' },
@@ -757,10 +771,11 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
 const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     if (kind === 'canvas-line' || kind === 'canvas-bigdata-line') {
         const prefix = `demo-${kind}`;
+        const asyncRender = kind === 'canvas-bigdata-line' ? asyncLineRender : undefined;
         return [
-            createCanvasLineSeries({ selector: `${prefix}-value`, displayName: kind === 'canvas-bigdata-line' ? '50k Value' : 'Canvas Value', xField: 'x', yField: 'value', color: '#5db8ff', lineWidth: 2 }),
-            createCanvasLineSeries({ selector: `${prefix}-volume`, displayName: kind === 'canvas-bigdata-line' ? '50k Volume' : 'Canvas Volume', xField: 'x', yField: 'volume', color: '#56d08f', lineWidth: 2 }),
-            createCanvasLineSeries({ selector: `${prefix}-extra`, displayName: kind === 'canvas-bigdata-line' ? '50k Extra' : 'Canvas Extra', xField: 'x', yField: 'extra', color: '#f3b45b', lineWidth: 2 })
+            createCanvasLineSeries({ selector: `${prefix}-value`, displayName: kind === 'canvas-bigdata-line' ? '50k Value' : 'Canvas Value', xField: 'x', yField: 'value', color: '#5db8ff', lineWidth: 2, asyncRender }),
+            createCanvasLineSeries({ selector: `${prefix}-volume`, displayName: kind === 'canvas-bigdata-line' ? '50k Volume' : 'Canvas Volume', xField: 'x', yField: 'volume', color: '#56d08f', lineWidth: 2, asyncRender }),
+            createCanvasLineSeries({ selector: `${prefix}-extra`, displayName: kind === 'canvas-bigdata-line' ? '50k Extra' : 'Canvas Extra', xField: 'x', yField: 'extra', color: '#f3b45b', lineWidth: 2, asyncRender })
         ];
     }
     if (kind === 'webgl-line' || kind === 'webgl-large-line') {
@@ -773,7 +788,8 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 xField: 'x',
                 yField: `signal${index}`,
                 color,
-                lineWidth: 1
+                lineWidth: 1,
+                asyncRender: asyncLineRender
             }));
         }
 

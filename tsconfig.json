@@ -4,7 +4,7 @@
         // resolve modules as you would expect
         "moduleResolution": "node",
         // leave imports as they are
-        "module": "es6",
+        "module": "es2020",
         // do not transpile stuff like classes, async/await, ...
         "target": "es5",
         "lib": [
