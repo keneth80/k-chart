@@ -909,7 +909,8 @@ const resolveLinePoints = <T = any>(
     xField: keyof T & string,
     yField: keyof T & string
 ): Float32Array => {
-    const points: number[] = [];
+    const points = new Float32Array(data.length * 2);
+    let pointIndex = 0;
 
     data.forEach((point: T) => {
         if (point[xField] === undefined || point[yField] === undefined) {
@@ -920,11 +921,70 @@ const resolveLinePoints = <T = any>(
         const y = resolveScalePosition(yScale, point[yField]);
 
         if (Number.isFinite(x) && Number.isFinite(y)) {
-            points.push(x, y);
+            points[pointIndex] = x;
+            points[pointIndex + 1] = y;
+            pointIndex += 2;
         }
     });
 
-    return new Float32Array(points);
+    return pointIndex === points.length
+        ? points
+        : points.slice(0, pointIndex);
+};
+
+const resolveWebglLineVertices = (
+    points: Float32Array,
+    width: number,
+    height: number
+): Float32Array => {
+    const vertices = new Float32Array(points.length);
+
+    for (let index = 0; index < points.length; index += 2) {
+        vertices[index] = (points[index] / width) * 2 - 1;
+        vertices[index + 1] = 1 - (points[index + 1] / height) * 2;
+    }
+
+    return vertices;
+};
+
+const resolveWebglPointInterleavedData = <T = any>(
+    data: T[],
+    xScale: KChartResolvedScale<T>,
+    yScale: KChartResolvedScale<T>,
+    xField: keyof T & string,
+    yField: keyof T & string,
+    width: number,
+    height: number,
+    resolveSize: (point: T) => number
+): {buffer: Float32Array, count: number} => {
+    const buffer = new Float32Array(data.length * 3);
+    let pointCount = 0;
+
+    data.forEach((point: T) => {
+        if (point[xField] === undefined || point[yField] === undefined) {
+            return;
+        }
+
+        const x = resolveScalePosition(xScale, point[xField]);
+        const y = resolveScalePosition(yScale, point[yField]);
+
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return;
+        }
+
+        const offset = pointCount * 3;
+        buffer[offset] = (x / width) * 2 - 1;
+        buffer[offset + 1] = 1 - (y / height) * 2;
+        buffer[offset + 2] = resolveSize(point);
+        pointCount += 1;
+    });
+
+    return {
+        buffer: pointCount * 3 === buffer.length
+            ? buffer
+            : buffer.subarray(0, pointCount * 3),
+        count: pointCount
+    };
 };
 
 const resolveCanvasPixelSize = (canvas: HTMLCanvasElement): KChartSize => ({
@@ -2187,20 +2247,18 @@ export const createWebglPointSeries = <T = any>(
             return;
         }
 
-        const vertices: number[] = [];
-        const sizes: number[] = [];
-        data.forEach((point: T) => {
-            if (point[configuration.xField] === undefined || point[configuration.yField] === undefined) {
-                return;
-            }
-
-            const x = resolveScalePosition(xScale, point[configuration.xField]);
-            const y = resolveScalePosition(yScale, point[configuration.yField]);
-            vertices.push((x / canvas.width) * 2 - 1, 1 - (y / canvas.height) * 2);
-            sizes.push(typeof configuration.pointSize === 'function'
+        const { buffer, count } = resolveWebglPointInterleavedData(
+            data,
+            xScale,
+            yScale,
+            configuration.xField,
+            configuration.yField,
+            canvas.width,
+            canvas.height,
+            (point: T) => typeof configuration.pointSize === 'function'
                 ? configuration.pointSize(point)
-                : configuration.pointSize ?? 8);
-        });
+                : configuration.pointSize ?? 8
+        );
 
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 0);
@@ -2209,23 +2267,21 @@ export const createWebglPointSeries = <T = any>(
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-        const positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        const interleavedBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, interleavedBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, buffer, gl.STATIC_DRAW);
+        const stride = 3 * Float32Array.BYTES_PER_ELEMENT;
         const positionLocation = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(positionLocation);
-        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, stride, 0);
 
-        const sizeBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sizes), gl.STATIC_DRAW);
         const sizeLocation = gl.getAttribLocation(program, 'a_size');
         gl.enableVertexAttribArray(sizeLocation);
-        gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
 
         const colorLocation = gl.getUniformLocation(program, 'u_color');
         gl.uniform4fv(colorLocation, new Float32Array(parseColor(configuration.color ?? color)));
-        gl.drawArrays(gl.POINTS, 0, sizes.length);
+        gl.drawArrays(gl.POINTS, 0, count);
     },
     destroy({ svg }) {
         destroyCanvasByClass(svg, `kchart-webgl-canvas-${configuration.canvasName ?? configuration.selector}`);
@@ -2284,16 +2340,7 @@ export const createWebglLineSeries = <T = any>(
             return;
         }
 
-        const vertices: number[] = [];
-        data.forEach((point: T) => {
-            if (point[configuration.xField] === undefined || point[configuration.yField] === undefined) {
-                return;
-            }
-
-            const x = resolveScalePosition(xScale, point[configuration.xField]);
-            const y = resolveScalePosition(yScale, point[configuration.yField]);
-            vertices.push((x / canvas.width) * 2 - 1, 1 - (y / canvas.height) * 2);
-        });
+        const vertices = resolveWebglLineVertices(points, canvas.width, canvas.height);
 
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 0);
@@ -2305,7 +2352,7 @@ export const createWebglLineSeries = <T = any>(
 
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
         const positionLocation = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);

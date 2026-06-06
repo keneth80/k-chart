@@ -7,6 +7,8 @@
 - Added `startKChartRenderWorker` for OffscreenCanvas worker rendering.
 - Added optional `asyncRender` support for Canvas and WebGL line series.
 - Added automatic main-thread fallback when OffscreenCanvas or a worker factory is unavailable.
+- Optimized WebGL point rendering with an interleaved position/size buffer.
+- Reduced WebGL line renderer array conversion overhead by building typed arrays directly.
 
 ## 1.1.0
 
