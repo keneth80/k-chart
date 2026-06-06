@@ -55,6 +55,11 @@ export interface KChartDownsampleConfiguration<T = any> {
     yAccessor?: (point: T) => number;
 }
 
+export interface KChartAsyncRenderConfiguration {
+    enabled?: boolean;
+    workerFactory?: () => Worker;
+}
+
 export interface KChartLayerContext {
     svg: Selection<SVGSVGElement, unknown, any, any>;
     rootGroup: Selection<SVGGElement, unknown, any, any>;
@@ -137,6 +142,7 @@ export interface KChartCanvasLineSeriesConfiguration<T = any> {
     lineWidth?: number;
     canvasName?: string;
     downsample?: boolean | KChartDownsampleConfiguration<T>;
+    asyncRender?: KChartAsyncRenderConfiguration;
 }
 
 export interface KChartCanvasPointSeriesConfiguration<T = any> {
@@ -171,6 +177,7 @@ export interface KChartWebglLineSeriesConfiguration<T = any> {
     lineWidth?: number;
     canvasName?: string;
     downsample?: boolean | KChartDownsampleConfiguration<T>;
+    asyncRender?: KChartAsyncRenderConfiguration;
 }
 
 export interface KChartTitleConfiguration {
@@ -314,6 +321,30 @@ const defaultMargin: KChartMargin = {
     bottom: 36,
     left: 44
 };
+
+type KChartWorkerRenderer = '2d' | 'webgl';
+
+interface KChartAsyncCanvasEntry {
+    worker: Worker;
+    renderer: KChartWorkerRenderer;
+    canvasId: string;
+    failed: boolean;
+}
+
+interface KChartLineRenderPayload {
+    type: 'kchart:render-line';
+    canvasId: string;
+    renderer: KChartWorkerRenderer;
+    width: number;
+    height: number;
+    color: string;
+    lineWidth: number;
+    points: Float32Array;
+}
+
+const transferredCanvases = new WeakSet<HTMLCanvasElement>();
+const asyncCanvasEntries = new WeakMap<HTMLCanvasElement, KChartAsyncCanvasEntry>();
+let asyncCanvasId = 0;
 
 const hasTitleText = <T = any>(config: KChartConfiguration<T>): boolean => Boolean(config.title?.text?.trim());
 
@@ -467,6 +498,8 @@ const ensureCanvas = (
     renderer: '2d' | 'webgl'
 ): HTMLCanvasElement => {
     const className = `kchart-${renderer}-canvas-${name}`;
+    const width = Math.max(size.width - margin.left - margin.right, 0);
+    const height = Math.max(size.height - margin.top - margin.bottom, 0);
     const canvas = container.selectAll<HTMLCanvasElement, unknown>(`canvas.${className}`)
         .data([undefined])
         .join('canvas')
@@ -476,12 +509,16 @@ const ensureCanvas = (
         .style('pointer-events', 'none')
         .style('left', `${margin.left}px`)
         .style('top', `${margin.top}px`)
-        .style('width', `${Math.max(size.width - margin.left - margin.right, 0)}px`)
-        .style('height', `${Math.max(size.height - margin.top - margin.bottom, 0)}px`)
+        .style('width', `${width}px`)
+        .style('height', `${height}px`)
+        .attr('data-kchart-width', String(width))
+        .attr('data-kchart-height', String(height))
         .node();
 
-    canvas.width = Math.max(size.width - margin.left - margin.right, 0);
-    canvas.height = Math.max(size.height - margin.top - margin.bottom, 0);
+    if (!transferredCanvases.has(canvas)) {
+        canvas.width = width;
+        canvas.height = height;
+    }
 
     return canvas;
 };
@@ -785,6 +822,140 @@ const resolveSeriesRenderData = <T = any>(
     return downsampleLTTB(state.data, threshold, xAccessor, yAccessor);
 };
 
+const getAsyncCanvasEntry = (
+    canvas: HTMLCanvasElement,
+    renderer: KChartWorkerRenderer,
+    asyncRender?: KChartAsyncRenderConfiguration
+): KChartAsyncCanvasEntry | null => {
+    if (!asyncRender?.enabled || !asyncRender.workerFactory || typeof canvas.transferControlToOffscreen !== 'function') {
+        return null;
+    }
+
+    const existing = asyncCanvasEntries.get(canvas);
+    if (existing) {
+        return existing.failed || existing.renderer !== renderer ? null : existing;
+    }
+
+    try {
+        const worker = asyncRender.workerFactory();
+        const canvasId = `kchart-offscreen-${asyncCanvasId += 1}`;
+        const offscreenCanvas = canvas.transferControlToOffscreen();
+        const entry: KChartAsyncCanvasEntry = {
+            worker,
+            renderer,
+            canvasId,
+            failed: false
+        };
+
+        worker.onerror = () => {
+            entry.failed = true;
+        };
+        worker.postMessage({
+            type: 'kchart:init-canvas',
+            canvasId,
+            renderer,
+            canvas: offscreenCanvas
+        }, [offscreenCanvas]);
+        transferredCanvases.add(canvas);
+        asyncCanvasEntries.set(canvas, entry);
+
+        return entry;
+    } catch (_error) {
+        return null;
+    }
+};
+
+const destroyAsyncCanvas = (canvas: HTMLCanvasElement): void => {
+    const entry = asyncCanvasEntries.get(canvas);
+
+    if (!entry) {
+        return;
+    }
+
+    try {
+        entry.worker.postMessage({
+            type: 'kchart:destroy-canvas',
+            canvasId: entry.canvasId
+        });
+        entry.worker.terminate();
+    } catch (_error) {
+        entry.worker.terminate();
+    }
+
+    asyncCanvasEntries.delete(canvas);
+};
+
+const destroyCanvasByClass = (
+    svg: Selection<SVGSVGElement, unknown, any, any>,
+    className: string
+): void => {
+    const parent = svg.node()?.parentElement;
+
+    if (!parent) {
+        return;
+    }
+
+    select(parent).selectAll<HTMLCanvasElement, unknown>(`canvas.${className}`)
+        .each(function destroyCanvas() {
+            destroyAsyncCanvas(this);
+        })
+        .remove();
+};
+
+const resolveLinePoints = <T = any>(
+    data: T[],
+    xScale: KChartResolvedScale<T>,
+    yScale: KChartResolvedScale<T>,
+    xField: keyof T & string,
+    yField: keyof T & string
+): Float32Array => {
+    const points: number[] = [];
+
+    data.forEach((point: T) => {
+        if (point[xField] === undefined || point[yField] === undefined) {
+            return;
+        }
+
+        const x = resolveScalePosition(xScale, point[xField]);
+        const y = resolveScalePosition(yScale, point[yField]);
+
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            points.push(x, y);
+        }
+    });
+
+    return new Float32Array(points);
+};
+
+const resolveCanvasPixelSize = (canvas: HTMLCanvasElement): KChartSize => ({
+    width: Number(canvas.dataset.kchartWidth) || canvas.width,
+    height: Number(canvas.dataset.kchartHeight) || canvas.height
+});
+
+const renderLineWithWorker = (
+    canvas: HTMLCanvasElement,
+    renderer: KChartWorkerRenderer,
+    asyncRender: KChartAsyncRenderConfiguration | undefined,
+    payload: Omit<KChartLineRenderPayload, 'type' | 'canvasId' | 'renderer'>
+): boolean => {
+    const entry = getAsyncCanvasEntry(canvas, renderer, asyncRender);
+
+    if (!entry) {
+        return false;
+    }
+
+    const message: KChartLineRenderPayload = {
+        type: 'kchart:render-line',
+        canvasId: entry.canvasId,
+        renderer,
+        ...payload
+    };
+
+    entry.worker.postMessage(message, [message.points.buffer]);
+
+    return true;
+};
+
 const parseColor = (color: string): [number, number, number, number] => {
     if (color.startsWith('#')) {
         const value = color.slice(1);
@@ -851,6 +1022,165 @@ const createProgram = (
     }
 
     return program;
+};
+
+export const startKChartRenderWorker = (
+    workerScope: Worker = self as any
+): void => {
+    interface WorkerCanvasEntry {
+        canvas: OffscreenCanvas;
+        renderer: KChartWorkerRenderer;
+        context2d?: OffscreenCanvasRenderingContext2D;
+        gl?: WebGLRenderingContext;
+        program?: WebGLProgram;
+    }
+
+    const canvases = new Map<string, WorkerCanvasEntry>();
+
+    const resolveWorkerProgram = (entry: WorkerCanvasEntry): WebGLProgram | null => {
+        if (entry.program) {
+            return entry.program;
+        }
+
+        if (!entry.gl) {
+            return null;
+        }
+
+        const vertexSource = `
+            attribute vec2 a_position;
+
+            void main() {
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+        const fragmentSource = `
+            precision mediump float;
+            uniform vec4 u_color;
+
+            void main() {
+                gl_FragColor = u_color;
+            }
+        `;
+        entry.program = createProgram(entry.gl, vertexSource, fragmentSource) ?? undefined;
+
+        return entry.program ?? null;
+    };
+
+    const drawCanvasLine = (
+        entry: WorkerCanvasEntry,
+        message: KChartLineRenderPayload
+    ): void => {
+        const context = entry.context2d;
+        if (!context) {
+            return;
+        }
+
+        entry.canvas.width = message.width;
+        entry.canvas.height = message.height;
+        context.clearRect(0, 0, message.width, message.height);
+        context.beginPath();
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.lineWidth = message.lineWidth;
+        context.strokeStyle = message.color;
+
+        for (let index = 0; index < message.points.length; index += 2) {
+            const x = message.points[index];
+            const y = message.points[index + 1];
+
+            if (index === 0) {
+                context.moveTo(x, y);
+            } else {
+                context.lineTo(x, y);
+            }
+        }
+
+        context.stroke();
+    };
+
+    const drawWebglLine = (
+        entry: WorkerCanvasEntry,
+        message: KChartLineRenderPayload
+    ): void => {
+        const gl = entry.gl;
+        if (!gl) {
+            return;
+        }
+
+        entry.canvas.width = message.width;
+        entry.canvas.height = message.height;
+
+        const vertices = new Float32Array(message.points.length);
+        for (let index = 0; index < message.points.length; index += 2) {
+            vertices[index] = (message.points[index] / message.width) * 2 - 1;
+            vertices[index + 1] = 1 - (message.points[index + 1] / message.height) * 2;
+        }
+
+        const program = resolveWorkerProgram(entry);
+        if (!program) {
+            return;
+        }
+
+        gl.viewport(0, 0, message.width, message.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.lineWidth(message.lineWidth);
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        const positionLocation = gl.getAttribLocation(program, 'a_position');
+        gl.enableVertexAttribArray(positionLocation);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        const colorLocation = gl.getUniformLocation(program, 'u_color');
+        gl.uniform4fv(colorLocation, new Float32Array(parseColor(message.color)));
+        gl.drawArrays(gl.LINE_STRIP, 0, vertices.length / 2);
+        gl.deleteBuffer(positionBuffer);
+    };
+
+    workerScope.onmessage = (event: MessageEvent<any>) => {
+        const message = event.data;
+
+        if (message.type === 'kchart:init-canvas') {
+            const canvas = message.canvas as OffscreenCanvas;
+            const renderer = message.renderer as KChartWorkerRenderer;
+            const entry: WorkerCanvasEntry = {
+                canvas,
+                renderer
+            };
+
+            if (renderer === '2d') {
+                entry.context2d = canvas.getContext('2d') ?? undefined;
+            } else {
+                entry.gl = canvas.getContext('webgl', { alpha: true }) as WebGLRenderingContext | null ?? undefined;
+            }
+
+            canvases.set(message.canvasId, entry);
+            return;
+        }
+
+        if (message.type === 'kchart:destroy-canvas') {
+            canvases.delete(message.canvasId);
+            return;
+        }
+
+        if (message.type === 'kchart:render-line') {
+            const entry = canvases.get(message.canvasId);
+            if (!entry) {
+                return;
+            }
+
+            if (message.renderer === '2d') {
+                drawCanvasLine(entry, message);
+            } else {
+                drawWebglLine(entry, message);
+            }
+        }
+    };
 };
 
 const renderTitle = <T = any>(state: KChartState<T>): void => {
@@ -1713,6 +2043,18 @@ export const createCanvasLineSeries = <T = any>(
         }
 
         const canvas = getCanvas(configuration.canvasName ?? configuration.selector);
+        const canvasSize = resolveCanvasPixelSize(canvas);
+        const points = resolveLinePoints(data, xScale, yScale, configuration.xField, configuration.yField);
+        if (renderLineWithWorker(canvas, '2d', configuration.asyncRender, {
+            width: canvasSize.width,
+            height: canvasSize.height,
+            color: configuration.color ?? color,
+            lineWidth: configuration.lineWidth ?? 2,
+            points
+        })) {
+            return;
+        }
+
         const context = canvas.getContext('2d');
         if (!context) {
             return;
@@ -1746,10 +2088,7 @@ export const createCanvasLineSeries = <T = any>(
         context.stroke();
     },
     destroy({ svg }) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            select(parent).selectAll(`canvas.kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`).remove();
-        }
+        destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
 
@@ -1799,10 +2138,7 @@ export const createCanvasPointSeries = <T = any>(
         });
     },
     destroy({ svg }) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            select(parent).selectAll(`canvas.kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`).remove();
-        }
+        destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
 
@@ -1892,10 +2228,7 @@ export const createWebglPointSeries = <T = any>(
         gl.drawArrays(gl.POINTS, 0, sizes.length);
     },
     destroy({ svg }) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            select(parent).selectAll(`canvas.kchart-webgl-canvas-${configuration.canvasName ?? configuration.selector}`).remove();
-        }
+        destroyCanvasByClass(svg, `kchart-webgl-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
 
@@ -1914,6 +2247,18 @@ export const createWebglLineSeries = <T = any>(
         }
 
         const canvas = getWebglCanvas(configuration.canvasName ?? configuration.selector);
+        const canvasSize = resolveCanvasPixelSize(canvas);
+        const points = resolveLinePoints(data, xScale, yScale, configuration.xField, configuration.yField);
+        if (renderLineWithWorker(canvas, 'webgl', configuration.asyncRender, {
+            width: canvasSize.width,
+            height: canvasSize.height,
+            color: configuration.color ?? color,
+            lineWidth: configuration.lineWidth ?? 1,
+            points
+        })) {
+            return;
+        }
+
         const gl = canvas.getContext('webgl', { alpha: true });
         if (!gl) {
             return;
@@ -1970,10 +2315,7 @@ export const createWebglLineSeries = <T = any>(
         gl.drawArrays(gl.LINE_STRIP, 0, vertices.length / 2);
     },
     destroy({ svg }) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            select(parent).selectAll(`canvas.kchart-webgl-canvas-${configuration.canvasName ?? configuration.selector}`).remove();
-        }
+        destroyCanvasByClass(svg, `kchart-webgl-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
 

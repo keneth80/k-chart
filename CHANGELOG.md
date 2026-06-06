@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+
+- Added `startKChartRenderWorker` for OffscreenCanvas worker rendering.
+- Added optional `asyncRender` support for Canvas and WebGL line series.
+- Added automatic main-thread fallback when OffscreenCanvas or a worker factory is unavailable.
+
 ## 1.1.0
 
 ### Added

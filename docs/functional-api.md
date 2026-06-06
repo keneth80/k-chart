@@ -174,6 +174,34 @@ import { downsampleLTTB } from '@keneth80/k-chart';
 const sampled = downsampleLTTB(data, 1000, (point) => point.x, (point) => point.signal);
 ```
 
+### OffscreenCanvas Worker Rendering
+
+`createCanvasLineSeries`와 `createWebglLineSeries`는 `asyncRender` 옵션을 지원합니다. worker 파일에서는 `startKChartRenderWorker()`를 호출하고, series에는 worker를 만드는 factory를 넘깁니다.
+
+```ts
+// kchart-render.worker.ts
+import { startKChartRenderWorker } from '@keneth80/k-chart';
+
+startKChartRenderWorker();
+```
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'trace',
+    xField: 'x',
+    yField: 'signal',
+    asyncRender: {
+        enabled: true,
+        workerFactory: () => new Worker(
+            new URL('./kchart-render.worker.ts', import.meta.url),
+            { type: 'module' }
+        )
+    }
+});
+```
+
+OffscreenCanvas를 지원하지 않거나 worker 생성에 실패하면 기존 메인 스레드 렌더러로 fallback됩니다.
+
 ## Display Options
 
 ```ts

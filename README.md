@@ -262,6 +262,42 @@ import { downsampleLTTB } from '@keneth80/k-chart';
 const sampled = downsampleLTTB(data, 1200, (point) => point.x, (point) => point.y);
 ```
 
+## OffscreenCanvas Worker Rendering
+
+Canvas/WebGL line series는 `asyncRender` 옵션으로 OffscreenCanvas + Web Worker 렌더링을 사용할 수 있습니다. SVG, axis, legend, tooltip DOM은 메인 스레드에 남고, Canvas/WebGL line draw 호출만 worker에서 실행됩니다. 미지원 환경이거나 `workerFactory`가 없으면 기존 메인 스레드 렌더러로 동작합니다.
+
+Worker 파일을 하나 만듭니다.
+
+```ts
+// kchart-render.worker.ts
+import { startKChartRenderWorker } from '@keneth80/k-chart';
+
+startKChartRenderWorker();
+```
+
+series에서는 worker를 생성하는 factory를 넘깁니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'webgl-large-line',
+    xField: 'x',
+    yField: 'signal',
+    downsample: {
+        enabled: true,
+        threshold: ({ plotSize }) => Math.floor(plotSize.width)
+    },
+    asyncRender: {
+        enabled: true,
+        workerFactory: () => new Worker(
+            new URL('./kchart-render.worker.ts', import.meta.url),
+            { type: 'module' }
+        )
+    }
+});
+```
+
+같은 옵션은 `createCanvasLineSeries`에서도 사용할 수 있습니다.
+
 직접 제어가 필요하면 `render(context)` 안에서 Canvas/WebGL layer를 받을 수도 있습니다.
 
 ```ts
