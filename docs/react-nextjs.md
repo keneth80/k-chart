@@ -4,6 +4,8 @@ KChart core package(`@keneth80/k-chart`)는 framework-agnostic 함수형 chart r
 
 현재 React wrapper는 `kchart-next-playground` 저장소의 `packages/react/src`에 로컬 예제로 들어 있습니다. 이 문서는 React/Next.js 프로젝트에서 core API를 직접 쓰는 방법과, wrapper 컴포넌트를 만들어 재사용하는 방법을 설명합니다.
 
+복사해서 사용할 수 있는 wrapper 예제 파일도 제공합니다: [examples/react-wrapper.tsx](../examples/react-wrapper.tsx)
+
 ## Client Component에서 사용
 
 KChart는 DOM element, SVG, Canvas, WebGL layer를 직접 만들기 때문에 Next.js App Router에서는 반드시 Client Component 안에서 mount 이후 생성해야 합니다.
@@ -72,6 +74,8 @@ export function TrafficChart({ data }: { data: TrafficPoint[] }) {
 ## 재사용 가능한 React Wrapper
 
 여러 화면에서 같은 방식으로 차트를 쓴다면 wrapper 컴포넌트를 만들어두는 편이 좋습니다.
+
+전체 파일 예제: [examples/react-wrapper.tsx](../examples/react-wrapper.tsx)
 
 ```tsx
 'use client';

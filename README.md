@@ -54,6 +54,7 @@ Then open `http://127.0.0.1:9003/`.
 - [Functional API Guide](docs/functional-api.md)
 - [React And Next.js Guide](docs/react-nextjs.md)
 - [Release Guide](docs/release.md)
+- [React Wrapper Example](examples/react-wrapper.tsx)
 
 ## Quick Start
 

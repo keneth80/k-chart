@@ -22,7 +22,8 @@
         "README.md",
         "LICENSE",
         "CHANGELOG.md",
-        "docs/*.md"
+        "docs/*.md",
+        "examples/*"
     ],
     "publishConfig": {
         "access": "public"
