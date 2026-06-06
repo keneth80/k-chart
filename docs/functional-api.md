@@ -133,7 +133,11 @@ const chart = createKChart<Point>({
             xField: 'x',
             yField: 'y',
             color: '#5db8ff',
-            lineWidth: 1
+            lineWidth: 1,
+            downsample: {
+                enabled: true,
+                threshold: ({ plotSize }) => Math.floor(plotSize.width)
+            }
         }),
         createWebglPointSeries({
             selector: 'webgl-points',
@@ -144,6 +148,30 @@ const chart = createKChart<Point>({
         })
     ]
 });
+```
+
+### Downsampling
+
+`createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`는 `downsample` 옵션을 지원합니다. `true`를 넘기면 현재 plot width를 기준으로 LTTB가 적용되고, 객체를 넘기면 threshold와 x/y accessor를 직접 지정할 수 있습니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'trace',
+    xField: 'x',
+    yField: 'signal',
+    downsample: {
+        enabled: true,
+        threshold: ({ plotSize }) => Math.floor(plotSize.width * 1.5)
+    }
+});
+```
+
+알고리즘 자체도 export됩니다.
+
+```ts
+import { downsampleLTTB } from '@keneth80/k-chart';
+
+const sampled = downsampleLTTB(data, 1000, (point) => point.x, (point) => point.signal);
 ```
 
 ## Display Options

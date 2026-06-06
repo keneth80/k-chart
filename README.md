@@ -190,7 +190,11 @@ const webglLine = createWebglLineSeries<Point>({
     xField: 'x',
     yField: 'y',
     color: '#5db8ff',
-    lineWidth: 1
+    lineWidth: 1,
+    downsample: {
+        enabled: true,
+        threshold: ({ plotSize }) => Math.floor(plotSize.width)
+    }
 });
 ```
 
@@ -219,6 +223,43 @@ createKChart({
     ],
     series: [webglLine]
 }).render();
+```
+
+## LTTB Downsampling
+
+Line 계열 series는 `downsample` 옵션으로 LTTB(Largest Triangle Three Buckets) 다운샘플링을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.
+
+```ts
+createCanvasLineSeries<Point>({
+    selector: 'canvas-large-line',
+    xField: 'x',
+    yField: 'y',
+    downsample: true
+});
+```
+
+`downsample: true`는 기본 threshold를 현재 plot width 픽셀 수로 잡습니다. 더 세밀하게 제어하려면 threshold나 accessor를 직접 지정할 수 있습니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'webgl-large-line',
+    xField: 'time',
+    yField: 'signal',
+    downsample: {
+        enabled: true,
+        threshold: ({ plotSize }) => Math.max(400, Math.floor(plotSize.width * 1.5)),
+        xAccessor: (point) => point.time.getTime(),
+        yAccessor: (point) => point.signal
+    }
+});
+```
+
+필요하면 알고리즘만 직접 사용할 수도 있습니다.
+
+```ts
+import { downsampleLTTB } from '@keneth80/k-chart';
+
+const sampled = downsampleLTTB(data, 1200, (point) => point.x, (point) => point.y);
 ```
 
 직접 제어가 필요하면 `render(context)` 안에서 Canvas/WebGL layer를 받을 수도 있습니다.

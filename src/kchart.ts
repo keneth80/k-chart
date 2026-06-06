@@ -40,6 +40,21 @@ export interface KChartResolvedScale<T = any> extends KChartAxis<T> {
     scale: any;
 }
 
+export interface KChartDownsampleContext<T = any> {
+    data: T[];
+    plotSize: KChartSize;
+    series: KChartSeries<T>;
+    xField?: keyof T & string;
+    yField?: keyof T & string;
+}
+
+export interface KChartDownsampleConfiguration<T = any> {
+    enabled?: boolean;
+    threshold?: number | ((context: KChartDownsampleContext<T>) => number);
+    xAccessor?: (point: T) => number;
+    yAccessor?: (point: T) => number;
+}
+
 export interface KChartLayerContext {
     svg: Selection<SVGSVGElement, unknown, any, any>;
     rootGroup: Selection<SVGGElement, unknown, any, any>;
@@ -90,6 +105,7 @@ export interface KChartSeries<T = any> {
     xField?: keyof T & string;
     yField?: keyof T & string;
     color?: string;
+    downsample?: boolean | KChartDownsampleConfiguration<T>;
     render(context: KChartRenderContext<T>): void;
     tooltip?(context: KChartSeriesTooltipContext<T>): KChartSeriesTooltipResult<T> | null | undefined;
     clearTooltip?(context: KChartLayerContext): void;
@@ -109,6 +125,7 @@ export interface KChartLineSeriesConfiguration<T = any> {
         fill?: string;
         stroke?: string;
     };
+    downsample?: boolean | KChartDownsampleConfiguration<T>;
 }
 
 export interface KChartCanvasLineSeriesConfiguration<T = any> {
@@ -119,6 +136,7 @@ export interface KChartCanvasLineSeriesConfiguration<T = any> {
     color?: string;
     lineWidth?: number;
     canvasName?: string;
+    downsample?: boolean | KChartDownsampleConfiguration<T>;
 }
 
 export interface KChartCanvasPointSeriesConfiguration<T = any> {
@@ -152,6 +170,7 @@ export interface KChartWebglLineSeriesConfiguration<T = any> {
     color?: string;
     lineWidth?: number;
     canvasName?: string;
+    downsample?: boolean | KChartDownsampleConfiguration<T>;
 }
 
 export interface KChartTitleConfiguration {
@@ -616,6 +635,154 @@ const resolveScalePosition = <T = any>(
     return typeof scale.scale.bandwidth === 'function'
         ? position + scale.scale.bandwidth() / 2
         : position;
+};
+
+export const downsampleLTTB = <T = any>(
+    data: T[],
+    threshold: number,
+    xAccessor: (point: T) => number,
+    yAccessor: (point: T) => number
+): T[] => {
+    const dataLength = data.length;
+    const targetLength = Math.floor(threshold);
+
+    if (dataLength <= 2 || !Number.isFinite(targetLength) || targetLength <= 0 || targetLength >= dataLength) {
+        return data;
+    }
+
+    if (targetLength === 1) {
+        return [data[0]];
+    }
+
+    if (targetLength === 2) {
+        return [data[0], data[dataLength - 1]];
+    }
+
+    const sampled: T[] = [data[0]];
+    const bucketSize = (dataLength - 2) / (targetLength - 2);
+    let previousSelectedIndex = 0;
+
+    for (let bucketIndex = 0; bucketIndex < targetLength - 2; bucketIndex += 1) {
+        const averageStart = Math.floor((bucketIndex + 1) * bucketSize) + 1;
+        const averageEnd = Math.min(Math.floor((bucketIndex + 2) * bucketSize) + 1, dataLength);
+        const averageLength = Math.max(averageEnd - averageStart, 1);
+        let averageX = 0;
+        let averageY = 0;
+
+        for (let index = averageStart; index < averageEnd; index += 1) {
+            averageX += xAccessor(data[index]);
+            averageY += yAccessor(data[index]);
+        }
+
+        if (averageEnd <= averageStart) {
+            averageX = xAccessor(data[dataLength - 1]);
+            averageY = yAccessor(data[dataLength - 1]);
+        } else {
+            averageX /= averageLength;
+            averageY /= averageLength;
+        }
+
+        const rangeStart = Math.floor(bucketIndex * bucketSize) + 1;
+        const rangeEnd = Math.min(Math.floor((bucketIndex + 1) * bucketSize) + 1, dataLength - 1);
+        const pointAX = xAccessor(data[previousSelectedIndex]);
+        const pointAY = yAccessor(data[previousSelectedIndex]);
+        let maxArea = -1;
+        let maxAreaIndex = rangeStart;
+
+        for (let index = rangeStart; index < rangeEnd; index += 1) {
+            const pointBX = xAccessor(data[index]);
+            const pointBY = yAccessor(data[index]);
+            const area = Math.abs(
+                (pointAX - averageX) * (pointBY - pointAY)
+                - (pointAX - pointBX) * (averageY - pointAY)
+            ) * 0.5;
+
+            if (Number.isFinite(area) && area > maxArea) {
+                maxArea = area;
+                maxAreaIndex = index;
+            }
+        }
+
+        sampled.push(data[maxAreaIndex]);
+        previousSelectedIndex = maxAreaIndex;
+    }
+
+    sampled.push(data[dataLength - 1]);
+
+    return sampled;
+};
+
+const resolveDownsampleValue = (value: any, scale?: KChartResolvedScale<any>): number => {
+    if (value instanceof Date) {
+        return value.getTime();
+    }
+
+    if (scale?.type === 'time' && typeof value === 'string') {
+        return new Date(value).getTime();
+    }
+
+    return Number(value);
+};
+
+const resolveDownsampleAccessor = <T = any>(
+    field: keyof T & string | undefined,
+    scale: KChartResolvedScale<T> | undefined
+): ((point: T) => number) | undefined => {
+    if (!field) {
+        return undefined;
+    }
+
+    return (point: T) => resolveDownsampleValue(point[field], scale);
+};
+
+const resolveDownsampleThreshold = <T = any>(
+    downsample: boolean | KChartDownsampleConfiguration<T>,
+    context: KChartDownsampleContext<T>
+): number => {
+    if (typeof downsample === 'boolean') {
+        return Math.max(3, Math.floor(context.plotSize.width));
+    }
+
+    if (typeof downsample.threshold === 'function') {
+        return downsample.threshold(context);
+    }
+
+    return downsample.threshold ?? Math.max(3, Math.floor(context.plotSize.width));
+};
+
+const resolveSeriesRenderData = <T = any>(
+    state: KChartState<T>,
+    series: KChartSeries<T>,
+    xScale?: KChartResolvedScale<T>,
+    yScale?: KChartResolvedScale<T>
+): T[] => {
+    const downsample = series.downsample;
+
+    if (!downsample || (typeof downsample !== 'boolean' && downsample.enabled === false)) {
+        return state.data;
+    }
+
+    const xAccessor = typeof downsample === 'boolean'
+        ? resolveDownsampleAccessor(series.xField, xScale)
+        : downsample.xAccessor ?? resolveDownsampleAccessor(series.xField, xScale);
+    const yAccessor = typeof downsample === 'boolean'
+        ? resolveDownsampleAccessor(series.yField, yScale)
+        : downsample.yAccessor ?? resolveDownsampleAccessor(series.yField, yScale);
+
+    if (!xAccessor || !yAccessor) {
+        return state.data;
+    }
+
+    const context: KChartDownsampleContext<T> = {
+        data: state.data,
+        plotSize: state.plotSize,
+        series,
+        xField: series.xField,
+        yField: series.yField
+    };
+    const threshold = resolveDownsampleThreshold(downsample, context);
+
+    return downsampleLTTB(state.data, threshold, xAccessor, yAccessor);
 };
 
 const parseColor = (color: string): [number, number, number, number] => {
@@ -1409,12 +1576,13 @@ const renderSeries = <T = any>(state: KChartState<T>): void => {
             .data([series])
             .join('g')
             .attr('class', `${series.selector}-group`);
+        const renderData = resolveSeriesRenderData(state, series, xScale, yScale);
 
         series.render({
             ...state.layers,
             group: seriesGroup,
             seriesGroup,
-            data: state.data,
+            data: renderData,
             scales: state.scales,
             xScale,
             yScale,
@@ -1483,6 +1651,7 @@ export const createLineSeries = <T = any>(
     xField: configuration.xField,
     yField: configuration.yField,
     color: configuration.color,
+    downsample: configuration.downsample,
     render({ group, data, xScale, yScale, color }) {
         if (!xScale || !yScale) {
             return;
@@ -1537,6 +1706,7 @@ export const createCanvasLineSeries = <T = any>(
     xField: configuration.xField,
     yField: configuration.yField,
     color: configuration.color,
+    downsample: configuration.downsample,
     render({ getCanvas, data, xScale, yScale, color }) {
         if (!xScale || !yScale) {
             return;
@@ -1737,6 +1907,7 @@ export const createWebglLineSeries = <T = any>(
     xField: configuration.xField,
     yField: configuration.yField,
     color: configuration.color,
+    downsample: configuration.downsample,
     render({ getWebglCanvas, data, xScale, yScale, color }) {
         if (!xScale || !yScale) {
             return;

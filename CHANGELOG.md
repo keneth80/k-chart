@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+
+- Added exported `downsampleLTTB` utility for generic TypeScript data arrays.
+- Added optional LTTB `downsample` support for SVG, Canvas, and WebGL line series.
+
 ## 1.0.0
 
 ### Added
