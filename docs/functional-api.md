@@ -324,7 +324,7 @@ const canvasSeries = createCustomSeries<Point>({
 
 ## React / Next.js Pattern
 
-DOM을 직접 사용하므로 Client Component에서 mount 이후 생성합니다.
+DOM을 직접 사용하므로 Client Component에서 mount 이후 생성합니다. 자세한 wrapper 예제와 Next.js 설정은 [React And Next.js Guide](react-nextjs.md)를 참고합니다.
 
 ```tsx
 'use client';

@@ -49,6 +49,12 @@ npm run dev
 
 Then open `http://127.0.0.1:9003/`.
 
+## Guides
+
+- [Functional API Guide](docs/functional-api.md)
+- [React And Next.js Guide](docs/react-nextjs.md)
+- [Release Guide](docs/release.md)
+
 ## Quick Start
 
 ```ts
@@ -488,53 +494,9 @@ const stackedSeries = createCustomSeries<Point>({
 
 KChart touches the DOM, so create it in a Client Component after mount.
 
-```tsx
-'use client';
+See the full guide: [React And Next.js Guide](docs/react-nextjs.md).
 
-import { useEffect, useRef } from 'react';
-import { createKChart, createLineSeries, KChartController } from '@keneth80/k-chart';
-
-export function TrafficChart({ data }) {
-    const rootRef = useRef<HTMLDivElement | null>(null);
-    const chartRef = useRef<KChartController | null>(null);
-
-    useEffect(() => {
-        if (!rootRef.current) {
-            return;
-        }
-
-        const chart = createKChart({
-            selector: rootRef.current,
-            data,
-            axes: [
-                { field: 'time', type: 'string', placement: 'bottom' },
-                { field: 'value', type: 'number', placement: 'left' }
-            ],
-            series: [
-                createLineSeries({
-                    selector: 'traffic',
-                    xField: 'time',
-                    yField: 'value'
-                })
-            ]
-        });
-
-        chart.render();
-        chartRef.current = chart;
-
-        return () => {
-            chart.destroy();
-            chartRef.current = null;
-        };
-    }, []);
-
-    useEffect(() => {
-        chartRef.current?.updateData(data);
-    }, [data]);
-
-    return <div ref={rootRef} style={{ width: '100%', height: 420 }} />;
-}
-```
+Note: the current `@keneth80/k-chart` package does not include an official React plugin package yet. The Next playground has a local wrapper example under `packages/react/src`.
 
 ## Migration Status
 
