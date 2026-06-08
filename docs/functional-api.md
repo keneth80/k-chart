@@ -174,6 +174,37 @@ import { downsampleLTTB } from '@keneth80/k-chart';
 const sampled = downsampleLTTB(data, 1000, (point) => point.x, (point) => point.signal);
 ```
 
+### Zoom
+
+차트 레벨의 `zoom` 옵션은 number/time 축의 domain을 갱신하고 기존 렌더 파이프라인을 다시 실행합니다. 별도 series API 없이 SVG, Canvas, WebGL renderer가 같은 확대 상태를 공유합니다.
+
+```ts
+createKChart<Point>({
+    selector: '#chart',
+    data,
+    axes: [
+        { field: 'x', type: 'number', placement: 'bottom' },
+        { field: 'signal', type: 'number', placement: 'left' }
+    ],
+    series: [
+        createWebglLineSeries({
+            selector: 'trace',
+            xField: 'x',
+            yField: 'signal'
+        })
+    ],
+    zoom: {
+        enabled: true,
+        mode: 'both',
+        direction: 'x',
+        scaleExtent: [1, 80],
+        resetOnDoubleClick: true
+    }
+});
+```
+
+`mode`는 `'wheel'`, `'select'`, `'both'`를 지원합니다. `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다. `direction`은 `'x'`, `'y'`, `'xy'`를 지원합니다. string/point 축은 순서형 축이라 현재 zoom 대상에서 제외됩니다.
+
 ### OffscreenCanvas Worker Rendering
 
 `createCanvasLineSeries`와 `createWebglLineSeries`는 `asyncRender` 옵션을 지원합니다. worker 파일에서는 `startKChartRenderWorker()`를 호출하고, series에는 worker를 만드는 factory를 넘깁니다.

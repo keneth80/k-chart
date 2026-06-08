@@ -232,6 +232,37 @@ createKChart({
 }).render();
 ```
 
+## Zoom
+
+`zoom` 옵션을 켜면 number/time 축의 domain을 런타임에 갱신하면서 SVG, Canvas, WebGL series를 다시 렌더링합니다. 기본적으로 wheel/trackpad 확대, 드래그 pan, 더블클릭 reset을 지원합니다.
+
+```ts
+createKChart({
+    selector: '#chart',
+    data: largeData,
+    axes: [
+        { field: 'x', type: 'number', placement: 'bottom', min: 0, max: 119999 },
+        { field: 'y', type: 'number', placement: 'left', min: 0, max: 100 }
+    ],
+    series: [webglLine],
+    zoom: {
+        enabled: true,
+        mode: 'both',
+        direction: 'x',
+        scaleExtent: [1, 80],
+        resetOnDoubleClick: true,
+        onZoom: ({ xDomain }) => {
+            console.log('visible x domain', xDomain);
+        }
+    }
+}).render();
+```
+
+- `direction`: `'x'`, `'y'`, `'xy'` 중 하나입니다. 대용량 line 차트는 보통 `'x'`가 가장 자연스럽습니다.
+- `mode`: `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다.
+- `scaleExtent`: 최소/최대 확대 배율입니다.
+- `resetOnDoubleClick`: `false`로 지정하면 더블클릭 reset을 끌 수 있습니다.
+
 ## LTTB Downsampling
 
 Line 계열 series는 `downsample` 옵션으로 LTTB(Largest Triangle Three Buckets) 다운샘플링을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.

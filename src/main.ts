@@ -940,6 +940,13 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? ({ data: item, color }) => `<div style="color:${color};font-weight:700">Custom Tooltip</div><div>${item.label}: ${item.value} / ${item.volume}</div>`
                     : undefined
         },
+        zoom: isBigData ? {
+            enabled: true,
+            mode: 'both',
+            direction: 'x',
+            scaleExtent: [1, 80],
+            resetOnDoubleClick: true
+        } : undefined,
         axes: isTopology ? [] : createAxes(kind),
         series: createSeries(kind)
     });

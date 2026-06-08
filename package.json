@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -69,20 +69,21 @@
         "@babel/plugin-transform-private-property-in-object": "^7.29.7",
         "@babel/plugin-transform-runtime": "^7.29.7",
         "@babel/preset-env": "^7.29.7",
+        "@babel/runtime-corejs3": "^7.29.7",
         "@types/d3": "^7.4.3",
         "@types/d3-array": "^3.2.2",
         "@types/d3-selection": "^3.0.11",
         "@types/d3-transition": "^3.0.9",
+        "@types/d3-zoom": "^3.0.8",
         "@types/highlight.js": "^9.12.4",
         "@types/object-hash": "^1.3.3",
-        "@babel/runtime-corejs3": "^7.29.7",
         "babel-loader": "^10.1.1",
         "browser-sync-client": "^2.26.13",
         "clean-webpack-plugin": "^4.0.0",
-        "core-js": "^3.49.0",
         "copy-webpack-plugin": "^14.0.0",
-        "crossfilter2": "^1.4.8",
+        "core-js": "^3.49.0",
         "cross-env": "^10.1.0",
+        "crossfilter2": "^1.4.8",
         "css-loader": "^7.1.4",
         "css-minimizer-webpack-plugin": "^8.0.0",
         "d3": "^7.9.0",
@@ -110,6 +111,7 @@
         "d3-scale": "^4.0.2",
         "d3-scale-chromatic": "^3.1.0",
         "d3-selection": "^3.0.0",
-        "d3-shape": "^3.2.0"
+        "d3-shape": "^3.2.0",
+        "d3-zoom": "^3.0.0"
     }
 }

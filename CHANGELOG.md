@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+
+- Added chart-level `zoom` configuration for number and time axes.
+- Added `zoom.mode` support for `wheel`, `select`, and `both`.
+- Added wheel/trackpad zoom, drag pan, double-click reset, and drag-selection zoom interactions.
+- Added zoom callback context with visible x/y domains and active transform state.
+- Enabled zoom examples for Canvas BigData and WebGL BigData demos.
+- Added `d3-zoom` as a runtime dependency and direct `@types/d3-zoom` typing support.
+
+### Changed
+
+- Updated the functional API guide and README with zoom usage examples.
+- Preserved initial axes separately from active zoom axes so reset returns to the original domain.
+
 ## 1.2.0
 
 ### Added

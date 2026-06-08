@@ -4,11 +4,14 @@ import { scaleBand, scaleLinear, scalePoint, scaleTime } from 'd3-scale';
 import { schemeCategory10 } from 'd3-scale-chromatic';
 import { BaseType, pointer, select, Selection } from 'd3-selection';
 import { curveMonotoneX, line as d3Line } from 'd3-shape';
+import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
 
 export type KChartScaleType = 'number' | 'time' | 'string' | 'point';
 export type KChartPlacement = 'top' | 'right' | 'bottom' | 'left';
 export type KChartTextAlign = 'left' | 'center' | 'right';
 export type KChartLegendPlacement = 'top' | 'right' | 'bottom';
+export type KChartZoomDirection = 'x' | 'y' | 'xy';
+export type KChartZoomMode = 'wheel' | 'select' | 'both';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
@@ -214,6 +217,22 @@ export interface KChartTooltipConfiguration<T = any> {
     }) => string;
 }
 
+export interface KChartZoomContext<T = any> {
+    axes: KChartAxis<T>[];
+    xDomain?: Array<number | Date>;
+    yDomain?: Array<number | Date>;
+    transform: ZoomTransform;
+}
+
+export interface KChartZoomConfiguration<T = any> {
+    enabled?: boolean;
+    mode?: KChartZoomMode;
+    direction?: KChartZoomDirection;
+    scaleExtent?: [number, number];
+    resetOnDoubleClick?: boolean;
+    onZoom?: (context: KChartZoomContext<T>) => void;
+}
+
 export interface KChartSpecAreaConfiguration {
     visible?: boolean;
     start: number | Date | string;
@@ -283,6 +302,7 @@ export interface KChartConfiguration<T = any> {
     grid?: KChartGridConfiguration;
     legend?: KChartLegendConfiguration;
     tooltip?: KChartTooltipConfiguration<T>;
+    zoom?: KChartZoomConfiguration<T>;
     specAreas?: KChartSpecAreaConfiguration[];
     cursorGuide?: KChartCursorGuideConfiguration;
     guideLine?: KChartCursorGuideConfiguration;
@@ -295,6 +315,8 @@ export interface KChartState<T = any> {
     container: Selection<HTMLElement, unknown, any, any>;
     data: T[];
     axes: KChartAxis<T>[];
+    initialAxes: KChartAxis<T>[];
+    baseAxes: KChartAxis<T>[];
     series: KChartSeries<T>[];
     size: KChartSize;
     plotSize: KChartSize;
@@ -303,6 +325,14 @@ export interface KChartState<T = any> {
     scales: KChartResolvedScale<T>[];
     layers: KChartLayerContext;
     hiddenSeries: Set<string>;
+    zoomTransform: ZoomTransform;
+    zoomSelection?: {
+        active: boolean;
+        startX: number;
+        startY: number;
+        currentX: number;
+        currentY: number;
+    };
 }
 
 export interface KChartController<T = any> {
@@ -345,6 +375,24 @@ interface KChartLineRenderPayload {
 const transferredCanvases = new WeakSet<HTMLCanvasElement>();
 const asyncCanvasEntries = new WeakMap<HTMLCanvasElement, KChartAsyncCanvasEntry>();
 let asyncCanvasId = 0;
+
+const cloneAxisDomain = (domain?: Array<string | number | Date>): Array<string | number | Date> | undefined => domain
+    ? domain.map((value) => value instanceof Date ? new Date(value) : value)
+    : undefined;
+
+const cloneAxes = <T = any>(axes: KChartAxis<T>[]): KChartAxis<T>[] => axes.map((axis) => ({
+    ...axis,
+    min: axis.min instanceof Date ? new Date(axis.min) : axis.min,
+    max: axis.max instanceof Date ? new Date(axis.max) : axis.max,
+    domain: cloneAxisDomain(axis.domain)
+}));
+
+const isZoomScaleSupported = <T = any>(axis: KChartAxis<T>): boolean => axis.type === 'number' || axis.type === 'time';
+
+const isHorizontalAxis = <T = any>(axis: KChartAxis<T>): boolean => axis.placement === 'bottom' || axis.placement === 'top';
+
+const isZoomEnabled = <T = any>(state: KChartState<T>): boolean => state.config.zoom?.enabled === true
+    && state.axes.some((axis) => isZoomScaleSupported(axis));
 
 const hasTitleText = <T = any>(config: KChartConfiguration<T>): boolean => Boolean(config.title?.text?.trim());
 
@@ -1652,11 +1700,302 @@ const getCursorGuide = <T = any>(state: KChartState<T>): KChartCursorGuideConfig
     return state.config.cursorGuide ?? state.config.guideLine;
 };
 
+const resolveZoomedAxes = <T = any>(
+    state: KChartState<T>,
+    transform: ZoomTransform
+): KChartZoomContext<T> => {
+    const direction = state.config.zoom?.direction ?? 'x';
+    const baseScales = resolveScales(state.data, state.baseAxes, state.plotSize);
+    let xDomain: Array<number | Date> | undefined;
+    let yDomain: Array<number | Date> | undefined;
+
+    const axes = state.baseAxes.map((axis): KChartAxis<T> => {
+        const horizontal = isHorizontalAxis(axis);
+        const shouldZoom = isZoomScaleSupported(axis)
+            && ((horizontal && (direction === 'x' || direction === 'xy'))
+                || (!horizontal && (direction === 'y' || direction === 'xy')));
+
+        if (!shouldZoom) {
+            return {
+                ...axis,
+                domain: cloneAxisDomain(axis.domain)
+            };
+        }
+
+        const scale = baseScales.find((item) => item.field === axis.field && item.placement === axis.placement);
+        if (!scale) {
+            return {
+                ...axis,
+                domain: cloneAxisDomain(axis.domain)
+            };
+        }
+
+        const zoomedScale = horizontal
+            ? transform.rescaleX(scale.scale)
+            : transform.rescaleY(scale.scale);
+        const domain = zoomedScale.domain().map((value: any) => axis.type === 'time'
+            ? value instanceof Date ? value : new Date(value)
+            : Number(value)) as Array<number | Date>;
+
+        if (horizontal) {
+            xDomain = domain;
+        } else {
+            yDomain = domain;
+        }
+
+        return {
+            ...axis,
+            domain
+        };
+    });
+
+    return {
+        axes,
+        xDomain,
+        yDomain,
+        transform
+    };
+};
+
+const resetZoom = <T = any>(state: KChartState<T>): void => {
+    state.zoomTransform = zoomIdentity;
+    state.axes = cloneAxes(state.initialAxes);
+    state.baseAxes = cloneAxes(state.initialAxes);
+    state.config = {
+        ...state.config,
+        axes: state.axes
+    };
+    state.config.zoom?.onZoom?.({
+        axes: state.axes,
+        transform: state.zoomTransform
+    });
+    render(state);
+};
+
+const drawZoomSelection = <T = any>(state: KChartState<T>): void => {
+    const selection = state.zoomSelection;
+    const rect = state.layers.overlayGroup.selectAll<SVGRectElement, unknown>('rect.kchart-zoom-selection')
+        .data(selection?.active ? [undefined] : [])
+        .join('rect')
+        .attr('class', 'kchart-zoom-selection')
+        .style('fill', 'rgba(93, 184, 255, 0.16)')
+        .style('stroke', 'rgba(148, 214, 255, 0.9)')
+        .style('stroke-width', 1)
+        .style('stroke-dasharray', '4 4')
+        .style('pointer-events', 'none');
+
+    if (!selection?.active) {
+        return;
+    }
+
+    rect
+        .attr('x', Math.min(selection.startX, selection.currentX))
+        .attr('y', Math.min(selection.startY, selection.currentY))
+        .attr('width', Math.abs(selection.currentX - selection.startX))
+        .attr('height', Math.abs(selection.currentY - selection.startY));
+};
+
+const resolveSelectionZoomAxes = <T = any>(
+    state: KChartState<T>,
+    selection: NonNullable<KChartState<T>['zoomSelection']>
+): KChartZoomContext<T> | null => {
+    const direction = state.config.zoom?.direction ?? 'x';
+    const minX = Math.max(0, Math.min(selection.startX, selection.currentX));
+    const maxX = Math.min(state.plotSize.width, Math.max(selection.startX, selection.currentX));
+    const minY = Math.max(0, Math.min(selection.startY, selection.currentY));
+    const maxY = Math.min(state.plotSize.height, Math.max(selection.startY, selection.currentY));
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const shouldZoomX = direction === 'x' || direction === 'xy';
+    const shouldZoomY = direction === 'y' || direction === 'xy';
+
+    if ((shouldZoomX && width < 8) || (shouldZoomY && height < 8)) {
+        return null;
+    }
+
+    let xDomain: Array<number | Date> | undefined;
+    let yDomain: Array<number | Date> | undefined;
+
+    const axes = state.axes.map((axis): KChartAxis<T> => {
+        const horizontal = isHorizontalAxis(axis);
+        const shouldZoom = isZoomScaleSupported(axis)
+            && ((horizontal && shouldZoomX) || (!horizontal && shouldZoomY));
+        if (!shouldZoom) {
+            return {
+                ...axis,
+                domain: cloneAxisDomain(axis.domain)
+            };
+        }
+
+        const scale = state.scales.find((item) => item.field === axis.field && item.placement === axis.placement);
+        if (!scale || typeof scale.scale.invert !== 'function') {
+            return {
+                ...axis,
+                domain: cloneAxisDomain(axis.domain)
+            };
+        }
+
+        const rawDomain = horizontal
+            ? [scale.scale.invert(minX), scale.scale.invert(maxX)]
+            : [scale.scale.invert(maxY), scale.scale.invert(minY)];
+        const domain = rawDomain.map((value: any) => axis.type === 'time'
+            ? value instanceof Date ? value : new Date(value)
+            : Number(value)) as Array<number | Date>;
+
+        if (horizontal) {
+            xDomain = domain;
+        } else {
+            yDomain = domain;
+        }
+
+        return {
+            ...axis,
+            domain
+        };
+    });
+
+    return {
+        axes,
+        xDomain,
+        yDomain,
+        transform: zoomIdentity
+    };
+};
+
+const applySelectionZoom = <T = any>(state: KChartState<T>): void => {
+    const selection = state.zoomSelection;
+    if (!selection?.active) {
+        return;
+    }
+
+    const nextZoom = resolveSelectionZoomAxes(state, selection);
+    state.zoomSelection = undefined;
+    drawZoomSelection(state);
+
+    if (!nextZoom) {
+        return;
+    }
+
+    state.zoomTransform = zoomIdentity;
+    state.axes = nextZoom.axes;
+    state.baseAxes = cloneAxes(nextZoom.axes);
+    state.config = {
+        ...state.config,
+        axes: state.axes
+    };
+    state.config.zoom?.onZoom?.(nextZoom);
+    render(state);
+};
+
+const renderZoom = <T = any>(state: KChartState<T>): void => {
+    const overlay = state.layers.overlayGroup.select<SVGRectElement>('rect.kchart-tooltip-overlay');
+    const overlayNode = overlay.node();
+    if (!overlayNode) {
+        return;
+    }
+
+    const mode = state.config.zoom?.mode ?? 'wheel';
+    const selectionEnabled = isZoomEnabled(state) && (mode === 'select' || mode === 'both');
+    const wheelEnabled = isZoomEnabled(state) && (mode === 'wheel' || mode === 'both');
+    const panEnabled = isZoomEnabled(state) && mode === 'wheel';
+
+    overlay
+        .style('cursor', selectionEnabled ? 'crosshair' : isZoomEnabled(state) ? 'grab' : null)
+        .on('dblclick.kchart-zoom-reset', null)
+        .on('mousedown.kchart-select-zoom', null)
+        .on('mousemove.kchart-select-zoom', null)
+        .on('mouseup.kchart-select-zoom', null)
+        .on('mouseleave.kchart-select-zoom', null);
+
+    if (!isZoomEnabled(state)) {
+        overlay.on('.zoom', null);
+        state.layers.overlayGroup.selectAll('rect.kchart-zoom-selection').remove();
+        return;
+    }
+
+    const zoomConfig = state.config.zoom;
+    if (wheelEnabled || panEnabled) {
+        const zoomBehavior = zoom<SVGRectElement, unknown>()
+            .scaleExtent(zoomConfig?.scaleExtent ?? [1, 40])
+            .extent([[0, 0], [state.plotSize.width, state.plotSize.height]])
+            .translateExtent([[0, 0], [state.plotSize.width, state.plotSize.height]])
+            .filter((event: any) => event.type === 'wheel'
+                || (panEnabled && (event.type === 'mousedown'
+                    || event.type === 'touchstart'
+                    || event.type === 'touchmove')))
+            .on('zoom', (event: D3ZoomEvent<SVGRectElement, unknown>) => {
+                state.zoomTransform = event.transform;
+                const nextZoom = resolveZoomedAxes(state, event.transform);
+                state.axes = nextZoom.axes;
+                state.config = {
+                    ...state.config,
+                    axes: state.axes
+                };
+                zoomConfig?.onZoom?.(nextZoom);
+                render(state);
+            });
+
+        overlay.call(zoomBehavior as any);
+        (overlayNode as any).__zoom = state.zoomTransform;
+    } else {
+        overlay.on('.zoom', null);
+    }
+
+    if (selectionEnabled) {
+        overlay
+            .on('mousedown.kchart-select-zoom', (event: MouseEvent) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                const [mouseX, mouseY] = pointer(event, overlayNode);
+                state.zoomSelection = {
+                    active: true,
+                    startX: mouseX,
+                    startY: mouseY,
+                    currentX: mouseX,
+                    currentY: mouseY
+                };
+                drawZoomSelection(state);
+            })
+            .on('mousemove.kchart-select-zoom', (event: MouseEvent) => {
+                if (!state.zoomSelection?.active) {
+                    return;
+                }
+                const [mouseX, mouseY] = pointer(event, overlayNode);
+                state.zoomSelection.currentX = mouseX;
+                state.zoomSelection.currentY = mouseY;
+                drawZoomSelection(state);
+            })
+            .on('mouseup.kchart-select-zoom', (event: MouseEvent) => {
+                if (!state.zoomSelection?.active) {
+                    return;
+                }
+                const [mouseX, mouseY] = pointer(event, overlayNode);
+                state.zoomSelection.currentX = mouseX;
+                state.zoomSelection.currentY = mouseY;
+                applySelectionZoom(state);
+            })
+            .on('mouseleave.kchart-select-zoom', () => {
+                if (!state.zoomSelection?.active) {
+                    return;
+                }
+                state.zoomSelection = undefined;
+                drawZoomSelection(state);
+            });
+    }
+
+    if (zoomConfig?.resetOnDoubleClick !== false) {
+        overlay.on('dblclick.kchart-zoom-reset', () => resetZoom(state));
+    }
+};
+
 const renderTooltip = <T = any>(state: KChartState<T>): void => {
     const tooltipEnabled = state.config.tooltip?.visible === true;
     const cursorGuide = getCursorGuide(state);
     const guideEnabled = cursorGuide?.visible === true;
-    const enabled = tooltipEnabled || guideEnabled;
+    const enabled = tooltipEnabled || guideEnabled || isZoomEnabled(state);
     const overlay = state.layers.overlayGroup.selectAll<SVGRectElement, unknown>('rect.kchart-tooltip-overlay')
         .data(enabled ? [undefined] : [])
         .join('rect')
@@ -2003,6 +2342,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderSeries(state);
     renderLegend(state);
     renderTooltip(state);
+    renderZoom(state);
 };
 
 export const createCustomSeries = <T = any>(
@@ -2379,7 +2719,9 @@ export const createKChart = <T = any>(
         config,
         container,
         data: config.data,
-        axes: config.axes,
+        axes: cloneAxes(config.axes),
+        initialAxes: cloneAxes(config.axes),
+        baseAxes: cloneAxes(config.axes),
         series: config.series,
         size: sizes.size,
         plotSize: sizes.plotSize,
@@ -2387,7 +2729,8 @@ export const createKChart = <T = any>(
         colors: config.colors ?? schemeCategory10.slice(),
         scales: [],
         layers: undefined as any,
-        hiddenSeries: new Set<string>()
+        hiddenSeries: new Set<string>(),
+        zoomTransform: zoomIdentity
     };
     state.layers = createLayers(container, config, () => state.size, () => state.margin);
 
@@ -2398,10 +2741,21 @@ export const createKChart = <T = any>(
         },
         updateData(data: T[]) {
             state.data = data;
+            state.config = {
+                ...state.config,
+                data
+            };
             return controller.render();
         },
         updateAxes(axes: KChartAxis<T>[]) {
-            state.axes = axes;
+            state.axes = cloneAxes(axes);
+            state.initialAxes = cloneAxes(axes);
+            state.baseAxes = cloneAxes(axes);
+            state.zoomTransform = zoomIdentity;
+            state.config = {
+                ...state.config,
+                axes: state.axes
+            };
             return controller.render();
         },
         updateSeries(series: KChartSeries<T>[]) {
