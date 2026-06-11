@@ -36,7 +36,6 @@ npm install @keneth80/k-chart
 
 ## Playground
 
-- Playground repository: [keneth80/k-chart-playground](https://github.com/keneth80/k-chart-playground)
 - Local playground URL: `http://127.0.0.1:9011`
 
 The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.
