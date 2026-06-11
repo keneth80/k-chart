@@ -1,0 +1,239 @@
+# KChart Code Graph Handoff
+
+이 문서는 다음 작업 세션에서 KChart의 현재 구조와 진행 상태를 빠르게 복원하기 위한 handoff 문서입니다.
+
+## Current Snapshot
+
+- Package: `@keneth80/k-chart`
+- Current public API style: class-free functional runtime
+- Current release baseline: `1.3.0`
+- Main source entry: `src/index.ts` -> `src/kchart.ts`
+- Worker entry: `src/kchart-render.worker.ts`
+- Public playground source link: intentionally removed because the playground repository may become private.
+- Local playground target: `http://127.0.0.1:9011`
+- Library demo target: `http://127.0.0.1:9003`
+
+## High-Level Code Graph
+
+```mermaid
+flowchart TD
+    App["Consumer App / React Wrapper / Playground"]
+    API["src/index.ts"]
+    Core["src/kchart.ts"]
+    Config["KChartConfiguration<T>"]
+    Controller["KChartController<T>"]
+    State["KChartState<T>"]
+    Layout["Layout / Margin / Size"]
+    Scales["Axes / Domain / D3 Scales"]
+    Layers["SVG / Canvas / WebGL Layers"]
+    Options["SpecArea / GuideLine / CursorLine"]
+    Legend["Legend Selection"]
+    Tooltip["Tooltip / Cursor Guide"]
+    Zoom["Wheel / Drag Pan / Selection Zoom"]
+    Downsample["LTTB Downsample"]
+    Series["KChartSeries<T>[]"]
+    SvgSeries["SVG Series"]
+    CanvasSeries["Canvas Series"]
+    WebglSeries["WebGL Series"]
+    Worker["OffscreenCanvas Worker"]
+
+    App --> API
+    API --> Core
+    Core --> Config
+    Config --> Controller
+    Controller --> State
+    State --> Layout
+    State --> Scales
+    State --> Layers
+    State --> Series
+    State --> Options
+    State --> Legend
+    State --> Tooltip
+    State --> Zoom
+    Series --> Downsample
+    Series --> SvgSeries
+    Series --> CanvasSeries
+    Series --> WebglSeries
+    CanvasSeries --> Worker
+    WebglSeries --> Worker
+```
+
+## Runtime Render Pipeline
+
+```mermaid
+sequenceDiagram
+    participant UI as UI / Consumer
+    participant Chart as createKChart
+    participant State as KChartState
+    participant Render as render(state)
+    participant Series as series.render(context)
+    participant Worker as OffscreenCanvas Worker
+
+    UI->>Chart: createKChart(config)
+    Chart->>State: resolve container, size, margin, layers
+    UI->>Chart: controller.render()
+    Chart->>Render: render(state)
+    Render->>State: resolve size, scales, plotSize
+    Render->>Render: title, grid, spec areas, guide lines, axes, legend
+    Render->>Series: render visible series with shared scales
+    alt asyncRender enabled and supported
+        Series->>Worker: post line render payload
+        Worker-->>Series: draw on OffscreenCanvas
+    else main thread render
+        Series-->>Series: draw SVG / Canvas / WebGL
+    end
+    Render->>Render: tooltip, cursor guide, zoom overlay
+```
+
+## Public API Surface
+
+Primary exports come from `src/kchart.ts` through `src/index.ts`.
+
+### Chart Runtime
+
+- `createKChart<T>(config)`
+- `KChartConfiguration<T>`
+- `KChartController<T>`
+- `KChartState<T>`
+- `KChartAxis<T>`
+- `KChartSeries<T>`
+
+### Series Factories
+
+- `createLineSeries<T>(...)`: SVG line and optional dots.
+- `createCanvasLineSeries<T>(...)`: Canvas 2D line renderer.
+- `createCanvasPointSeries<T>(...)`: Canvas 2D point renderer.
+- `createWebglLineSeries<T>(...)`: WebGL line renderer for large data.
+- `createWebglPointSeries<T>(...)`: WebGL point renderer using interleaved point buffer.
+- `createCustomSeries<T>(...)`: user-defined renderer with access to chart layers and scales.
+
+### Option Factories
+
+- `createSpecAreaOption(...)`
+- `createGuideLineOption(...)`
+- `createCursorLineOption(...)`
+
+Options can be passed through the unified `config.options` array. Legacy direct fields such as `specAreas`, `guideLines`, and `cursorGuide` are still read by the renderer.
+
+### Performance APIs
+
+- `downsampleLTTB<T>(data, threshold, xAccessor, yAccessor)`
+- `startKChartRenderWorker(scope?)`
+- Series-level `downsample`
+- Series-level `asyncRender`
+
+## Responsibility Map
+
+| Area | Main Location | Responsibility |
+| --- | --- | --- |
+| Public exports | `src/index.ts` | Re-export public KChart API. |
+| Types and config contracts | `src/kchart.ts` top section | Define axes, series, tooltip, zoom, option, and controller contracts. |
+| Container and layers | `createLayers`, `ensureCanvas` | Create/reuse SVG root, plot groups, overlay, Canvas, and WebGL canvas layers. |
+| Layout | `resolveSize`, `resolveEffectiveMargin` | Calculate size and dynamic top margin for title, legend, and option labels. |
+| Scales and axes | `resolveAxisDomain`, `resolveScales`, `renderAxes` | Build D3 scales and render axes/titles. |
+| Options | `renderSpecAreas`, `renderGuideLines`, `getCursorGuide` | Render fixed background regions, fixed guide lines, and cursor line config. |
+| Legend | `renderLegend` | Render selectable series legend and update visibility. |
+| Tooltip and cursor guide | `renderTooltip` | Hit-test series, show tooltip, draw cursor line and value labels. |
+| Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, drag pan, selection zoom, double-click reset. |
+| Downsampling | `downsampleLTTB`, `resolveSeriesRenderData` | Reduce line data before rendering while preserving shape. |
+| SVG series | `createLineSeries` | Render SVG line/dot visuals. |
+| Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
+| WebGL series | `createWebglLineSeries`, `createWebglPointSeries` | Render WebGL line/point visuals. |
+| Worker rendering | `startKChartRenderWorker`, `src/kchart-render.worker.ts` | OffscreenCanvas worker bootstrap and async line drawing. |
+
+## Data And Interaction Flow
+
+```txt
+KChartConfiguration<T>
+  -> createKChart()
+  -> KChartState<T>
+  -> render()
+     -> resolve scales from data + active axes
+     -> render chart chrome
+     -> filter visible series by legend state
+     -> apply downsample when configured
+     -> pass KChartRenderContext<T> to each series
+     -> attach tooltip, cursor guide, and zoom overlay
+```
+
+Important state fields:
+
+- `data`: current chart data.
+- `axes`: active axes. Zoom updates this.
+- `baseAxes`: original axes. Zoom reset returns to this.
+- `series`: current series list.
+- `visibleSeries`: legend-controlled visibility map.
+- `zoomTransform`: current D3 zoom transform.
+- `zoomSelection`: drag-selection state.
+
+## Current Feature Status
+
+### Done
+
+- Class-free functional chart runtime.
+- SVG, Canvas, WebGL series factories.
+- Custom renderer API.
+- Dark/light styling support through config and CSS.
+- Legend selection and multi-series visibility.
+- Tooltip support, including custom series tooltip hooks.
+- Unified option array for spec areas, fixed guide lines, and cursor line.
+- Dynamic title/legend/option-label top margin handling.
+- LTTB downsampling for line series.
+- OffscreenCanvas worker support for Canvas/WebGL line series.
+- WebGL point interleaved buffer optimization.
+- Wheel zoom, drag pan, drag-selection zoom, and double-click reset.
+
+### External Packages Around This Library
+
+- `@keneth80/k-chart-react`: separate React wrapper package.
+- KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
+
+## Known Design Decisions
+
+- Axis, scale, layout, and interaction state belong to the core runtime.
+- Visual drawing belongs to series renderers.
+- Series receive already resolved scale information and can draw using SVG, Canvas, or WebGL.
+- Custom visualizations should use `createCustomSeries` instead of class inheritance.
+- The library does not execute user-edited JavaScript. Playground-generated configs should be validated before applying.
+- Web Worker rendering is opt-in with `asyncRender` because bundler worker setup differs by application.
+
+## Verification Commands
+
+Use these before release or handoff:
+
+```bash
+npm run typecheck
+npm run build:lib
+npm pack --dry-run
+```
+
+For local demo verification:
+
+```bash
+npm run dev
+```
+
+Then open `http://127.0.0.1:9003/`.
+
+## Next Good Work Items
+
+- Split `src/kchart.ts` into smaller modules once API behavior is stable:
+  - `core/types.ts`
+  - `core/layout.ts`
+  - `core/scales.ts`
+  - `core/interactions.ts`
+  - `series/svg.ts`
+  - `series/canvas.ts`
+  - `series/webgl.ts`
+  - `options/*.ts`
+- Add unit tests for:
+  - `downsampleLTTB`
+  - `resolveEffectiveMargin`
+  - zoom domain calculation
+  - option array normalization
+- Add browser-level regression checks for:
+  - legend hit visibility
+  - stacked/column tooltip behavior
+  - topology hover behavior in the playground/wrapper layer
+- Keep release notes in `CHANGELOG.md` aligned with npm versions.
+
