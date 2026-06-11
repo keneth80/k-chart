@@ -1,6 +1,7 @@
 import './style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
 import {
+    createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
     createCursorLineOption,
@@ -31,6 +32,7 @@ interface DemoPoint {
 type DemoKind =
     | 'line'
     | 'canvas-line'
+    | 'canvas-candlestick'
     | 'webgl-line'
     | 'canvas-bigdata-line'
     | 'webgl-large-line'
@@ -66,6 +68,17 @@ const baseData: DemoPoint[] = [
     { label: 'Apr', x: 4, value: 56, volume: 34, extra: 26, radius: 12, category: 'D' },
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
+];
+
+const stockData: DemoPoint[] = [
+    { label: '2026-06-01', x: 1, value: 106, volume: 3200, extra: 101, radius: 6, category: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
+    { label: '2026-06-02', x: 2, value: 103, volume: 4100, extra: 106, radius: 6, category: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
+    { label: '2026-06-03', x: 3, value: 111, volume: 3600, extra: 103, radius: 6, category: '2026-06-03', open: 103, high: 112, low: 101, close: 111 },
+    { label: '2026-06-04', x: 4, value: 114, volume: 3900, extra: 111, radius: 6, category: '2026-06-04', open: 111, high: 116, low: 107, close: 114 },
+    { label: '2026-06-05', x: 5, value: 107, volume: 4400, extra: 114, radius: 6, category: '2026-06-05', open: 114, high: 115, low: 105, close: 107 },
+    { label: '2026-06-08', x: 6, value: 118, volume: 5200, extra: 107, radius: 6, category: '2026-06-08', open: 107, high: 120, low: 106, close: 118 },
+    { label: '2026-06-09', x: 7, value: 116, volume: 4700, extra: 118, radius: 6, category: '2026-06-09', open: 118, high: 122, low: 114, close: 116 },
+    { label: '2026-06-10', x: 8, value: 124, volume: 6100, extra: 116, radius: 6, category: '2026-06-10', open: 116, high: 126, low: 115, close: 124 }
 ];
 
 const createLargeData = (length: number): DemoPoint[] => Array.from({ length }, (_: unknown, index: number) => {
@@ -129,6 +142,7 @@ let realtimeTimer: number | undefined;
 const examples: ExampleMeta[] = [
     { kind: 'line', title: 'SVG line renderer' },
     { kind: 'canvas-line', title: 'Canvas line renderer' },
+    { kind: 'canvas-candlestick', title: 'Canvas candlestick renderer', dataLabel: 'OHLC' },
     { kind: 'webgl-line', title: 'WebGL line renderer' },
     { kind: 'canvas-bigdata-line', title: 'Canvas BigData line renderer', dataLabel: '50k points' },
     { kind: 'webgl-large-line', title: 'WebGL BigData line renderer', dataLabel: '120k points' },
@@ -732,6 +746,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-bigdata-line') {
         return largeCanvasData;
     }
+    if (kind === 'canvas-candlestick') {
+        return stockData;
+    }
     return baseData;
 };
 
@@ -746,6 +763,12 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
             { field: 'value', type: 'number' as const, placement: 'left' as const, min: 0, max: 120, title: 'Stacked Value' }
+        ];
+    }
+    if (kind === 'canvas-candlestick') {
+        return [
+            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 5 },
+            { field: 'close', type: 'number' as const, placement: 'left' as const, title: 'Price', domainFields: ['low', 'high'] }
         ];
     }
     if (kind === 'webgl-large-line' || kind === 'canvas-bigdata-line') {
@@ -804,6 +827,24 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'stacked-column') {
         return [stackedColumnSeries];
+    }
+    if (kind === 'canvas-candlestick') {
+        return [
+            createCanvasCandlestickSeries({
+                selector: 'demo-candlestick',
+                displayName: 'OHLC',
+                xField: 'label',
+                openField: 'open',
+                highField: 'high',
+                lowField: 'low',
+                closeField: 'close',
+                upColor: '#56d08f',
+                downColor: '#ff6b8a',
+                neutralColor: '#f3b45b',
+                wickColor: 'rgba(237, 243, 248, 0.78)',
+                candleWidth: 18
+            })
+        ];
     }
     if (kind === 'plot') {
         return [createLineSeries({ selector: 'demo-plot-anchor', displayName: 'Plot Points', xField: 'x', yField: 'value', color: '#5db8ff', strokeWidth: 0, dot: { radius: 6, stroke: '#f8fbff' } })];
@@ -971,6 +1012,20 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     }
 })`;
     }
+    if (kind === 'canvas-candlestick') {
+        return `createCanvasCandlestickSeries({
+    selector: 'demo-candlestick',
+    displayName: 'OHLC',
+    xField: 'label',
+    openField: 'open',
+    highField: 'high',
+    lowField: 'low',
+    closeField: 'close',
+    upColor: '#56d08f',
+    downColor: '#ff6b8a',
+    wickColor: 'rgba(237, 243, 248, 0.78)'
+})`;
+    }
     if (kind === 'area') {
         return `createCustomSeries({
     selector: 'demo-area',
@@ -1108,8 +1163,26 @@ const createUsageSnippet = (kind: DemoKind): string => {
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
             ? 'createLargeData(50000)'
+            : kind === 'canvas-candlestick'
+                ? 'stockData'
             : 'baseData';
-    const dataSnippet = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
+    const dataSnippet = kind === 'canvas-candlestick'
+        ? `
+type StockPoint = {
+    label: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+};
+
+const stockData: StockPoint[] = [
+    { label: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
+    { label: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
+    { label: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+];
+`
+        : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
         ? `
 type DemoPoint = {
     label: string;
@@ -1156,6 +1229,7 @@ const baseData = [
 
     return `import {
     createCanvasLineSeries,
+    createCanvasCandlestickSeries,
     createCanvasPointSeries,
     createCursorLineOption,
     createCustomSeries,
@@ -1169,7 +1243,7 @@ const baseData = [
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<DemoPoint>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
@@ -1204,7 +1278,10 @@ const chart = createKChart<DemoPoint>({
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },
-    axes: ${kind === 'topology' ? '[]' : 'createAxesForExample()'},
+    axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
+        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 5 },
+        { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
+    ]` : 'createAxesForExample()'},
     series: [
         ${createSeriesSnippet(kind)}
     ]

@@ -421,6 +421,20 @@ svg {
         linear-gradient(180deg, var(--accent-green), rgba(86, 208, 143, 0.12)) 78% 100% / 9% 62% no-repeat;
 }
 
+.candles-a:before {
+    background:
+        linear-gradient(180deg, rgba(237, 243, 248, 0.75), rgba(237, 243, 248, 0.75)) 10% 34% / 1px 56% no-repeat,
+        linear-gradient(180deg, var(--accent-green), rgba(86, 208, 143, 0.16)) 7% 58% / 7% 30% no-repeat,
+        linear-gradient(180deg, rgba(237, 243, 248, 0.75), rgba(237, 243, 248, 0.75)) 30% 22% / 1px 68% no-repeat,
+        linear-gradient(180deg, var(--danger), rgba(255, 107, 138, 0.16)) 27% 44% / 7% 36% no-repeat,
+        linear-gradient(180deg, rgba(237, 243, 248, 0.75), rgba(237, 243, 248, 0.75)) 50% 28% / 1px 62% no-repeat,
+        linear-gradient(180deg, var(--accent-green), rgba(86, 208, 143, 0.16)) 47% 38% / 7% 44% no-repeat,
+        linear-gradient(180deg, rgba(237, 243, 248, 0.75), rgba(237, 243, 248, 0.75)) 70% 18% / 1px 70% no-repeat,
+        linear-gradient(180deg, var(--accent-green), rgba(86, 208, 143, 0.16)) 67% 30% / 7% 48% no-repeat,
+        linear-gradient(180deg, rgba(237, 243, 248, 0.75), rgba(237, 243, 248, 0.75)) 90% 30% / 1px 60% no-repeat,
+        linear-gradient(180deg, var(--danger), rgba(255, 107, 138, 0.16)) 87% 52% / 7% 32% no-repeat;
+}
+
 .dots-a:before,
 .tooltip-a:before,
 .tooltip-b:before,
