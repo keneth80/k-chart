@@ -70,16 +70,67 @@ const baseData: DemoPoint[] = [
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
 
-const stockData: DemoPoint[] = [
-    { label: '2026-06-01', x: 1, value: 106, volume: 3200, extra: 101, radius: 6, category: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
-    { label: '2026-06-02', x: 2, value: 103, volume: 4100, extra: 106, radius: 6, category: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
-    { label: '2026-06-03', x: 3, value: 111, volume: 3600, extra: 103, radius: 6, category: '2026-06-03', open: 103, high: 112, low: 101, close: 111 },
-    { label: '2026-06-04', x: 4, value: 114, volume: 3900, extra: 111, radius: 6, category: '2026-06-04', open: 111, high: 116, low: 107, close: 114 },
-    { label: '2026-06-05', x: 5, value: 107, volume: 4400, extra: 114, radius: 6, category: '2026-06-05', open: 114, high: 115, low: 105, close: 107 },
-    { label: '2026-06-08', x: 6, value: 118, volume: 5200, extra: 107, radius: 6, category: '2026-06-08', open: 107, high: 120, low: 106, close: 118 },
-    { label: '2026-06-09', x: 7, value: 116, volume: 4700, extra: 118, radius: 6, category: '2026-06-09', open: 118, high: 122, low: 114, close: 116 },
-    { label: '2026-06-10', x: 8, value: 124, volume: 6100, extra: 116, radius: 6, category: '2026-06-10', open: 116, high: 126, low: 115, close: 124 }
-];
+const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
+
+const addDays = (date: Date, days: number): Date => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const createStockData = (length: number): DemoPoint[] => {
+    const data: DemoPoint[] = [];
+    let currentDate = new Date('2026-01-02T00:00:00');
+    let previousClose = 104;
+
+    while (data.length < length) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) {
+            const index = data.length;
+            const trend = Math.sin(index / 12) * 5 + index * 0.12;
+            const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
+            const open = previousClose + Math.sin(index / 4.8) * 1.4;
+            const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
+            const high = Math.max(open, close) + 1.6 + Math.abs(Math.sin(index / 2.8)) * 2.4;
+            const low = Math.min(open, close) - 1.5 - Math.abs(Math.cos(index / 3.1)) * 2.1;
+            const adjustedOpen = open + trend;
+            const adjustedClose = close + trend;
+            const adjustedHigh = high + trend;
+            const adjustedLow = low + trend;
+            const label = formatDate(currentDate);
+
+            data.push({
+                label,
+                x: index + 1,
+                value: Number(adjustedClose.toFixed(2)),
+                volume: Math.round(3200 + Math.abs(Math.sin(index / 4)) * 2800 + index * 12),
+                extra: Number(adjustedOpen.toFixed(2)),
+                radius: 3,
+                category: label,
+                open: Number(adjustedOpen.toFixed(2)),
+                high: Number(adjustedHigh.toFixed(2)),
+                low: Number(adjustedLow.toFixed(2)),
+                close: Number(adjustedClose.toFixed(2))
+            });
+            previousClose = close;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return data;
+};
+
+const stockData = createStockData(80);
+
+const stockDomain = (): [string, string] => {
+    const first = new Date(String(stockData[0].label));
+    const last = new Date(String(stockData[stockData.length - 1].label));
+
+    return [
+        formatDate(addDays(first, -4)),
+        formatDate(addDays(last, 4))
+    ];
+};
 
 const createLargeData = (length: number): DemoPoint[] => Array.from({ length }, (_: unknown, index: number) => {
     const wave = Math.sin(index / 120) * 22 + Math.cos(index / 43) * 8;
@@ -767,7 +818,7 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
     }
     if (kind === 'canvas-candlestick') {
         return [
-            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 5, domain: ['2026-05-31', '2026-06-11'] },
+            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 8, domain: stockDomain() },
             { field: 'close', type: 'number' as const, placement: 'left' as const, title: 'Price', domainFields: ['low', 'high'] }
         ];
     }
@@ -842,7 +893,8 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 downColor: '#ff6b8a',
                 neutralColor: '#f3b45b',
                 wickColor: 'rgba(237, 243, 248, 0.78)',
-                candleWidth: 18
+                minCandleWidth: 2,
+                maxCandleWidth: 10
             })
         ];
     }
@@ -1170,16 +1222,56 @@ const createUsageSnippet = (kind: DemoKind): string => {
         ? `
 type StockPoint = {
     label: string;
+    x: number;
     open: number;
     high: number;
     low: number;
     close: number;
 };
 
-const stockData: StockPoint[] = [
-    { label: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
-    { label: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
-    { label: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
+const addDays = (date: Date, days: number): Date => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const createStockData = (length: number): StockPoint[] => {
+    const data: StockPoint[] = [];
+    let currentDate = new Date('2026-01-02T00:00:00');
+    let previousClose = 104;
+
+    while (data.length < length) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) {
+            const index = data.length;
+            const trend = Math.sin(index / 12) * 5 + index * 0.12;
+            const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
+            const open = previousClose + Math.sin(index / 4.8) * 1.4;
+            const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
+            const high = Math.max(open, close) + 1.6 + Math.abs(Math.sin(index / 2.8)) * 2.4;
+            const low = Math.min(open, close) - 1.5 - Math.abs(Math.cos(index / 3.1)) * 2.1;
+
+            data.push({
+                label: formatDate(currentDate),
+                x: index + 1,
+                open: Number((open + trend).toFixed(2)),
+                high: Number((high + trend).toFixed(2)),
+                low: Number((low + trend).toFixed(2)),
+                close: Number((close + trend).toFixed(2))
+            });
+            previousClose = close;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return data;
+};
+
+const stockData = createStockData(80);
+const stockDomain = [
+    formatDate(addDays(new Date(stockData[0].label), -4)),
+    formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
 ];
 `
         : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
@@ -1279,7 +1371,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },
     axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
-        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 5, domain: ['2026-05-31', '2026-06-11'] },
+        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},
     series: [
