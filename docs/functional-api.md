@@ -138,7 +138,7 @@ const chart = createKChart<StockPoint>({
         { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
     ],
     axes: [
-        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5 },
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, padding: 0.08 },
         {
             field: 'close',
             type: 'number',

@@ -767,7 +767,7 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
     }
     if (kind === 'canvas-candlestick') {
         return [
-            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 5 },
+            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 5, padding: 0.08 },
             { field: 'close', type: 'number' as const, placement: 'left' as const, title: 'Price', domainFields: ['low', 'high'] }
         ];
     }
@@ -1279,7 +1279,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },
     axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
-        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 5 },
+        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 5, padding: 0.08 },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},
     series: [

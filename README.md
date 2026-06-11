@@ -243,7 +243,7 @@ createKChart<StockPoint>({
     selector: '#chart',
     data,
     axes: [
-        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5 },
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, padding: 0.08 },
         {
             field: 'close',
             type: 'number',

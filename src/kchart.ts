@@ -618,10 +618,37 @@ const resolveAxisDomain = <T = any>(
         ? value instanceof Date && Number.isFinite(value.getTime())
         : Number.isFinite(value));
     const [minValue, maxValue] = extent(values as any[]);
+    const resolvedMin = axis.min ?? minValue ?? 0;
+    const resolvedMax = axis.max ?? maxValue ?? 1;
+    const canApplyPadding = axis.padding !== undefined && axis.min === undefined && axis.max === undefined;
+
+    if (canApplyPadding && axis.type === 'time') {
+        const minTime = resolvedMin instanceof Date ? resolvedMin.getTime() : new Date(resolvedMin as any).getTime();
+        const maxTime = resolvedMax instanceof Date ? resolvedMax.getTime() : new Date(resolvedMax as any).getTime();
+        const span = Math.max(maxTime - minTime, 24 * 60 * 60 * 1000);
+        const padding = span * Math.max(axis.padding ?? 0, 0);
+
+        return [
+            new Date(minTime - padding),
+            new Date(maxTime + padding)
+        ];
+    }
+
+    if (canApplyPadding && axis.type === 'number') {
+        const minNumber = Number(resolvedMin);
+        const maxNumber = Number(resolvedMax);
+        const span = Math.max(maxNumber - minNumber, 1);
+        const padding = span * Math.max(axis.padding ?? 0, 0);
+
+        return [
+            minNumber - padding,
+            maxNumber + padding
+        ];
+    }
 
     return [
-        axis.min ?? minValue ?? 0,
-        axis.max ?? maxValue ?? 1
+        resolvedMin,
+        resolvedMax
     ];
 };
 
