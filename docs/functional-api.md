@@ -14,6 +14,7 @@ import {
     createCursorLineOption,
     createGuideLineOption,
     createLineSeries,
+    createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
     createSpecAreaOption,
@@ -111,6 +112,53 @@ const chart = createKChart<Point>({
             yField: 'y',
             radius: 4,
             color: '#5db8ff'
+        })
+    ]
+});
+```
+
+## Built-In Canvas Candlestick Series
+
+OHLC 주식 데이터는 `createCanvasCandlestickSeries`로 렌더링합니다. Y축은 보통 `close`를 기본 field로 두고, `domainFields`에 `low`와 `high`를 넣어 전체 캔들 범위가 축 domain에 포함되게 합니다.
+
+```ts
+interface StockPoint {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+}
+
+const chart = createKChart<StockPoint>({
+    selector: '#chart',
+    data: [
+        { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
+        { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
+        { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+    ],
+    axes: [
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5 },
+        {
+            field: 'close',
+            type: 'number',
+            placement: 'left',
+            domainFields: ['low', 'high'],
+            title: 'Price'
+        }
+    ],
+    tooltip: { visible: true },
+    series: [
+        createCanvasCandlestickSeries({
+            selector: 'price',
+            displayName: 'Price',
+            xField: 'date',
+            openField: 'open',
+            highField: 'high',
+            lowField: 'low',
+            closeField: 'close',
+            upColor: '#22c55e',
+            downColor: '#ef4444'
         })
     ]
 });

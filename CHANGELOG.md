@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added `createCanvasCandlestickSeries` for Canvas OHLC candlestick charts.
+- Added axis `domainFields` support so one axis can derive its domain from multiple fields such as `low` and `high`.
+
 ## 1.3.0
 
 ### Added

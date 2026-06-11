@@ -103,6 +103,7 @@ Primary exports come from `src/kchart.ts` through `src/index.ts`.
 - `createLineSeries<T>(...)`: SVG line and optional dots.
 - `createCanvasLineSeries<T>(...)`: Canvas 2D line renderer.
 - `createCanvasPointSeries<T>(...)`: Canvas 2D point renderer.
+- `createCanvasCandlestickSeries<T>(...)`: Canvas 2D OHLC candlestick renderer.
 - `createWebglLineSeries<T>(...)`: WebGL line renderer for large data.
 - `createWebglPointSeries<T>(...)`: WebGL point renderer using interleaved point buffer.
 - `createCustomSeries<T>(...)`: user-defined renderer with access to chart layers and scales.
@@ -194,6 +195,7 @@ Important state fields:
 - Visual drawing belongs to series renderers.
 - Series receive already resolved scale information and can draw using SVG, Canvas, or WebGL.
 - Custom visualizations should use `createCustomSeries` instead of class inheritance.
+- OHLC-style charts should use axis `domainFields` so a single y-axis can derive its domain from multiple value fields such as `low` and `high`.
 - The library does not execute user-edited JavaScript. Playground-generated configs should be validated before applying.
 - Web Worker rendering is opt-in with `asyncRender` because bundler worker setup differs by application.
 
@@ -236,4 +238,3 @@ Then open `http://127.0.0.1:9003/`.
   - stacked/column tooltip behavior
   - topology hover behavior in the playground/wrapper layer
 - Keep release notes in `CHANGELOG.md` aligned with npm versions.
-

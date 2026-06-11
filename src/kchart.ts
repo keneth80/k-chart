@@ -17,6 +17,7 @@ export interface KChartAxis<T = any> {
     field: keyof T & string;
     type: KChartScaleType;
     placement: KChartPlacement;
+    domainFields?: Array<keyof T & string>;
     min?: number | Date;
     max?: number | Date;
     domain?: Array<string | number | Date>;
@@ -157,6 +158,30 @@ export interface KChartCanvasPointSeriesConfiguration<T = any> {
     radius?: number | ((point: T) => number);
     fill?: string;
     stroke?: string;
+    strokeWidth?: number;
+    canvasName?: string;
+}
+
+export interface KChartCanvasCandlestickSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    openField: keyof T & string;
+    highField: keyof T & string;
+    lowField: keyof T & string;
+    closeField: keyof T & string;
+    upColor?: string;
+    downColor?: string;
+    neutralColor?: string;
+    wickColor?: string;
+    borderColor?: string;
+    candleWidth?: number | ((context: {
+        data: T[];
+        xScale: KChartResolvedScale<T>;
+        plotSize: KChartSize;
+    }) => number);
+    minCandleWidth?: number;
+    maxCandleWidth?: number;
     strokeWidth?: number;
     canvasName?: string;
 }
@@ -583,12 +608,15 @@ const resolveAxisDomain = <T = any>(
         return data.map((item: T) => item[axis.field]);
     }
 
-    const values = data.map((item: T) => {
-        const value = item[axis.field];
+    const domainFields = axis.domainFields?.length ? axis.domainFields : [axis.field];
+    const values = data.flatMap((item: T) => domainFields.map((field) => {
+        const value = item[field];
         return axis.type === 'time'
             ? new Date(value as any)
             : Number(value);
-    });
+    })).filter((value) => axis.type === 'time'
+        ? value instanceof Date && Number.isFinite(value.getTime())
+        : Number.isFinite(value));
     const [minValue, maxValue] = extent(values as any[]);
 
     return [
@@ -715,11 +743,82 @@ const resolveScalePosition = <T = any>(
     scale: KChartResolvedScale<T>,
     value: any
 ): number => {
-    const position = scale.scale(value);
+    const scaleValue = scale.type === 'time' && !(value instanceof Date)
+        ? new Date(value as any)
+        : value;
+    const position = scale.scale(scaleValue);
 
     return typeof scale.scale.bandwidth === 'function'
         ? position + scale.scale.bandwidth() / 2
         : position;
+};
+
+const clampNumber = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+const resolveCanvasCandlestickWidth = <T = any>(
+    data: T[],
+    xScale: KChartResolvedScale<T>,
+    xField: keyof T & string,
+    plotSize: KChartSize,
+    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'candleWidth' | 'minCandleWidth' | 'maxCandleWidth'>
+): number => {
+    if (typeof configuration.candleWidth === 'number') {
+        return configuration.candleWidth;
+    }
+
+    if (typeof configuration.candleWidth === 'function') {
+        return configuration.candleWidth({ data, xScale, plotSize });
+    }
+
+    const minWidth = configuration.minCandleWidth ?? 3;
+    const maxWidth = configuration.maxCandleWidth ?? 18;
+
+    if (typeof xScale.scale.bandwidth === 'function') {
+        return clampNumber(xScale.scale.bandwidth() * 0.72, minWidth, maxWidth);
+    }
+
+    const positions = data
+        .map((point) => resolveScalePosition(xScale, point[xField]))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+    let minDistance = Number.POSITIVE_INFINITY;
+
+    for (let index = 1; index < positions.length; index += 1) {
+        const distance = positions[index] - positions[index - 1];
+        if (distance > 0 && distance < minDistance) {
+            minDistance = distance;
+        }
+    }
+
+    if (!Number.isFinite(minDistance)) {
+        return clampNumber(plotSize.width / Math.max(data.length, 1) * 0.72, minWidth, maxWidth);
+    }
+
+    return clampNumber(minDistance * 0.72, minWidth, maxWidth);
+};
+
+const resolveCandlestickColor = <T = any>(
+    point: T,
+    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'openField' | 'closeField' | 'upColor' | 'downColor' | 'neutralColor'>,
+    fallbackColor: string
+): string => {
+    const open = Number(point[configuration.openField]);
+    const close = Number(point[configuration.closeField]);
+
+    if (close > open) {
+        return configuration.upColor ?? '#22c55e';
+    }
+
+    if (close < open) {
+        return configuration.downColor ?? '#ef4444';
+    }
+
+    return configuration.neutralColor ?? fallbackColor;
+};
+
+const formatCandlestickTooltipValue = (value: any): string => {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(value);
 };
 
 export const downsampleLTTB = <T = any>(
@@ -2536,6 +2635,144 @@ export const createCanvasPointSeries = <T = any>(
             context.fill();
             context.stroke();
         });
+    },
+    destroy({ svg }) {
+        destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
+    }
+});
+
+export const createCanvasCandlestickSeries = <T = any>(
+    configuration: KChartCanvasCandlestickSeriesConfiguration<T>
+): KChartSeries<T> => createCustomSeries<T>({
+    selector: configuration.selector,
+    displayName: configuration.displayName,
+    xField: configuration.xField,
+    yField: configuration.closeField,
+    color: configuration.neutralColor,
+    render({ getCanvas, data, xScale, yScale, color, plotSize }) {
+        if (!xScale || !yScale) {
+            return;
+        }
+
+        const canvas = getCanvas(configuration.canvasName ?? configuration.selector);
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return;
+        }
+
+        const candleWidth = resolveCanvasCandlestickWidth(data, xScale, configuration.xField, plotSize, configuration);
+        const halfWidth = candleWidth / 2;
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.lineWidth = configuration.strokeWidth ?? 1.4;
+
+        data.forEach((point: T) => {
+            const open = Number(point[configuration.openField]);
+            const high = Number(point[configuration.highField]);
+            const low = Number(point[configuration.lowField]);
+            const close = Number(point[configuration.closeField]);
+
+            if (![open, high, low, close].every(Number.isFinite) || point[configuration.xField] === undefined) {
+                return;
+            }
+
+            const x = resolveScalePosition(xScale, point[configuration.xField]);
+            const openY = resolveScalePosition(yScale, open);
+            const highY = resolveScalePosition(yScale, high);
+            const lowY = resolveScalePosition(yScale, low);
+            const closeY = resolveScalePosition(yScale, close);
+
+            if (![x, openY, highY, lowY, closeY].every(Number.isFinite)) {
+                return;
+            }
+
+            const candleColor = resolveCandlestickColor(point, configuration, color);
+            const bodyTop = Math.min(openY, closeY);
+            const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
+
+            context.strokeStyle = configuration.wickColor ?? candleColor;
+            context.beginPath();
+            context.moveTo(x, highY);
+            context.lineTo(x, lowY);
+            context.stroke();
+
+            context.fillStyle = candleColor;
+            context.strokeStyle = configuration.borderColor ?? candleColor;
+            context.beginPath();
+            context.rect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+            context.fill();
+            context.stroke();
+        });
+    },
+    tooltip({ data, scales, mouseX, mouseY, color, plotSize }) {
+        const xScale = scales.find((scale: KChartResolvedScale<T>) => scale.field === configuration.xField);
+        const yScale = scales.find((scale: KChartResolvedScale<T>) => scale.field === configuration.closeField)
+            ?? scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'left' || scale.placement === 'right');
+        if (!xScale || !yScale) {
+            return null;
+        }
+
+        const candleWidth = resolveCanvasCandlestickWidth(data, xScale, configuration.xField, plotSize, configuration);
+        const hitRadius = Math.max(candleWidth * 0.7, 14);
+        let nearest: {
+            data: T;
+            x: number;
+            y: number;
+            distance: number;
+        } | null = null;
+
+        data.forEach((point: T) => {
+            if (point[configuration.xField] === undefined || point[configuration.closeField] === undefined) {
+                return;
+            }
+
+            const x = resolveScalePosition(xScale, point[configuration.xField]);
+            const y = resolveScalePosition(yScale, point[configuration.closeField]);
+            const distance = Math.abs(mouseX - x);
+
+            if (!Number.isFinite(x) || !Number.isFinite(y) || distance > hitRadius) {
+                return;
+            }
+
+            const verticalDistance = Math.abs(mouseY - y);
+            const totalDistance = distance + verticalDistance * 0.08;
+
+            if (!nearest || totalDistance < nearest.distance) {
+                nearest = {
+                    data: point,
+                    x,
+                    y,
+                    distance: totalDistance
+                };
+            }
+        });
+
+        if (!nearest) {
+            return null;
+        }
+
+        const point = nearest.data;
+        const candleColor = resolveCandlestickColor(point, configuration, color);
+        const label = configuration.displayName ?? configuration.selector;
+        const xValue = String(point[configuration.xField]);
+
+        return {
+            data: point,
+            x: nearest.x,
+            y: nearest.y,
+            color: candleColor,
+            distance: nearest.distance,
+            html: [
+                `<strong style="color:${candleColor}">${label}</strong>`,
+                `x: ${xValue}`,
+                `open: ${formatCandlestickTooltipValue(point[configuration.openField])}`,
+                `high: ${formatCandlestickTooltipValue(point[configuration.highField])}`,
+                `low: ${formatCandlestickTooltipValue(point[configuration.lowField])}`,
+                `close: ${formatCandlestickTooltipValue(point[configuration.closeField])}`
+            ].join('<br/>')
+        };
     },
     destroy({ svg }) {
         destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);

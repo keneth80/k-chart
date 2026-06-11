@@ -14,6 +14,7 @@ createKChart(config)
       ├─ createLineSeries(...)
       ├─ createCanvasLineSeries(...)
       ├─ createCanvasPointSeries(...)
+      ├─ createCanvasCandlestickSeries(...)
       ├─ createWebglLineSeries(...)
       ├─ createWebglPointSeries(...)
       └─ createCustomSeries({ render(context) })
@@ -22,6 +23,7 @@ createKChart(config)
 - `createKChart(...)`는 class 없이 plain runtime state와 controller를 만듭니다.
 - `createLineSeries(...)`는 SVG line renderer를 함수형 series로 생성합니다.
 - `createCanvasLineSeries(...)`, `createCanvasPointSeries(...)`는 Canvas 2D renderer를 함수형 series로 생성합니다.
+- `createCanvasCandlestickSeries(...)`는 OHLC 데이터를 Canvas 2D 캔들차트로 렌더링합니다.
 - `createWebglLineSeries(...)`는 대용량 line renderer를 WebGL `LINE_STRIP` 기반 함수형 series로 생성합니다.
 - `createWebglPointSeries(...)`는 WebGL point renderer를 함수형 series로 생성합니다.
 - `createCustomSeries(...)`는 renderer 함수를 그대로 series로 사용합니다.
@@ -62,6 +64,7 @@ Then open `http://127.0.0.1:9003/`.
 - [React And Next.js Guide](docs/react-nextjs.md)
 - [Release Guide](docs/release.md)
 - [React Wrapper Example](examples/react-wrapper.tsx)
+- [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
 
 ## Quick Start
 
@@ -210,6 +213,60 @@ const webglLine = createWebglLineSeries<Point>({
         threshold: ({ plotSize }) => Math.floor(plotSize.width)
     }
 });
+```
+
+## Candlestick Chart
+
+Canvas candlestick series renders OHLC stock data. Set the y-axis `field` to the value you want tooltips and cursor guides to use, usually `close`, and set `domainFields` to `['low', 'high']` so the axis covers the full candle range.
+
+```ts
+import {
+    createCanvasCandlestickSeries,
+    createKChart
+} from '@keneth80/k-chart';
+
+interface StockPoint {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+}
+
+const data: StockPoint[] = [
+    { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
+    { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
+    { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+];
+
+createKChart<StockPoint>({
+    selector: '#chart',
+    data,
+    axes: [
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5 },
+        {
+            field: 'close',
+            type: 'number',
+            placement: 'left',
+            title: 'Price',
+            domainFields: ['low', 'high']
+        }
+    ],
+    tooltip: { visible: true },
+    series: [
+        createCanvasCandlestickSeries({
+            selector: 'price',
+            displayName: 'Price',
+            xField: 'date',
+            openField: 'open',
+            highField: 'high',
+            lowField: 'low',
+            closeField: 'close',
+            upColor: '#22c55e',
+            downColor: '#ef4444'
+        })
+    ]
+}).render();
 ```
 
 대용량 line 예제에서는 축 tick 수를 줄여 라벨 겹침을 피할 수 있습니다.
