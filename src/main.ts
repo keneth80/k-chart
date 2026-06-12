@@ -27,6 +27,7 @@ interface DemoPoint {
     extra: number;
     radius: number;
     category: string;
+    previousClose?: number;
 }
 
 type DemoKind =
@@ -82,6 +83,7 @@ const createStockData = (length: number): DemoPoint[] => {
     const data: DemoPoint[] = [];
     let currentDate = new Date('2024-01-02T00:00:00');
     let previousClose = 104;
+    let previousAdjustedClose = 104;
 
     while (data.length < length) {
         const day = currentDate.getDay();
@@ -110,9 +112,11 @@ const createStockData = (length: number): DemoPoint[] => {
                 open: Number(adjustedOpen.toFixed(2)),
                 high: Number(adjustedHigh.toFixed(2)),
                 low: Number(adjustedLow.toFixed(2)),
-                close: Number(adjustedClose.toFixed(2))
+                close: Number(adjustedClose.toFixed(2)),
+                previousClose: Number(previousAdjustedClose.toFixed(2))
             });
             previousClose = close;
+            previousAdjustedClose = adjustedClose;
         }
         currentDate = addDays(currentDate, 1);
     }
@@ -889,6 +893,8 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 highField: 'high',
                 lowField: 'low',
                 closeField: 'close',
+                colorMode: 'previous-close',
+                previousCloseField: 'previousClose',
                 upColor: '#56d08f',
                 downColor: '#ff6b8a',
                 neutralColor: '#f3b45b',
@@ -1076,6 +1082,8 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     highField: 'high',
     lowField: 'low',
     closeField: 'close',
+    colorMode: 'previous-close',
+    previousCloseField: 'previousClose',
     upColor: '#56d08f',
     downColor: '#ff6b8a',
     wickColor: 'rgba(237, 243, 248, 0.78)'
@@ -1230,6 +1238,7 @@ type StockPoint = {
     high: number;
     low: number;
     close: number;
+    previousClose: number;
 };
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -1243,6 +1252,7 @@ const createStockData = (length: number): StockPoint[] => {
     const data: StockPoint[] = [];
     let currentDate = new Date('2024-01-02T00:00:00');
     let previousClose = 104;
+    let previousAdjustedClose = 104;
 
     while (data.length < length) {
         const day = currentDate.getDay();
@@ -1261,9 +1271,11 @@ const createStockData = (length: number): StockPoint[] => {
                 open: Number((open + trend).toFixed(2)),
                 high: Number((high + trend).toFixed(2)),
                 low: Number((low + trend).toFixed(2)),
-                close: Number((close + trend).toFixed(2))
+                close: Number((close + trend).toFixed(2)),
+                previousClose: Number(previousAdjustedClose.toFixed(2))
             });
             previousClose = close;
+            previousAdjustedClose = close + trend;
         }
         currentDate = addDays(currentDate, 1);
     }

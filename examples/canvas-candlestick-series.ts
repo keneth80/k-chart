@@ -9,6 +9,7 @@ interface StockPoint {
     high: number;
     low: number;
     close: number;
+    previousClose: number;
 }
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -23,6 +24,7 @@ const createStockData = (length: number): StockPoint[] => {
     const data: StockPoint[] = [];
     let currentDate = new Date('2024-01-02T00:00:00');
     let previousClose = 104;
+    let previousAdjustedClose = 104;
 
     while (data.length < length) {
         const day = currentDate.getDay();
@@ -40,9 +42,11 @@ const createStockData = (length: number): StockPoint[] => {
                 open: Number((open + trend).toFixed(2)),
                 high: Number((high + trend).toFixed(2)),
                 low: Number((low + trend).toFixed(2)),
-                close: Number((close + trend).toFixed(2))
+                close: Number((close + trend).toFixed(2)),
+                previousClose: Number(previousAdjustedClose.toFixed(2))
             });
             previousClose = close;
+            previousAdjustedClose = close + trend;
         }
         currentDate = addDays(currentDate, 1);
     }
@@ -93,6 +97,8 @@ createKChart<StockPoint>({
             highField: 'high',
             lowField: 'low',
             closeField: 'close',
+            colorMode: 'previous-close',
+            previousCloseField: 'previousClose',
             upColor: '#22c55e',
             downColor: '#ef4444'
         })

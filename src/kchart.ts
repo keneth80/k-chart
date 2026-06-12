@@ -13,6 +13,7 @@ export type KChartLegendPlacement = 'top' | 'right' | 'bottom';
 export type KChartZoomDirection = 'x' | 'y' | 'xy';
 export type KChartZoomMode = 'wheel' | 'select' | 'both';
 export type KChartZoomInputDevice = 'pc' | 'mobile' | 'all';
+export type KChartCandlestickColorMode = 'open-close' | 'previous-close';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
@@ -171,6 +172,8 @@ export interface KChartCanvasCandlestickSeriesConfiguration<T = any> {
     highField: keyof T & string;
     lowField: keyof T & string;
     closeField: keyof T & string;
+    colorMode?: KChartCandlestickColorMode;
+    previousCloseField?: keyof T & string;
     upColor?: string;
     downColor?: string;
     neutralColor?: string;
@@ -911,11 +914,24 @@ const resolveCanvasCandlestickWidth = <T = any>(
 
 const resolveCandlestickColor = <T = any>(
     point: T,
-    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'openField' | 'closeField' | 'upColor' | 'downColor' | 'neutralColor'>,
+    previousPoint: T | undefined,
+    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'openField' | 'closeField' | 'colorMode' | 'previousCloseField' | 'upColor' | 'downColor' | 'neutralColor'>,
     fallbackColor: string
 ): string => {
-    const open = Number(point[configuration.openField]);
+    const previousCloseFromField = configuration.previousCloseField
+        ? Number(point[configuration.previousCloseField])
+        : undefined;
+    const previousCloseFromPoint = previousPoint
+        ? Number(previousPoint[configuration.closeField])
+        : undefined;
+    const open = configuration.colorMode === 'previous-close'
+        ? (Number.isFinite(previousCloseFromField) ? previousCloseFromField : previousCloseFromPoint)
+        : Number(point[configuration.openField]);
     const close = Number(point[configuration.closeField]);
+
+    if (!Number.isFinite(open) || !Number.isFinite(close)) {
+        return configuration.neutralColor ?? fallbackColor;
+    }
 
     if (close > open) {
         return configuration.upColor ?? '#22c55e';
@@ -2806,7 +2822,7 @@ export const createCanvasCandlestickSeries = <T = any>(
         context.lineJoin = 'round';
         context.lineWidth = configuration.strokeWidth ?? 1.4;
 
-        data.forEach((point: T) => {
+        data.forEach((point: T, index: number) => {
             const open = Number(point[configuration.openField]);
             const high = Number(point[configuration.highField]);
             const low = Number(point[configuration.lowField]);
@@ -2826,7 +2842,7 @@ export const createCanvasCandlestickSeries = <T = any>(
                 return;
             }
 
-            const candleColor = resolveCandlestickColor(point, configuration, color);
+            const candleColor = resolveCandlestickColor(point, data[index - 1], configuration, color);
             const bodyTop = Math.min(openY, closeY);
             const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
 
@@ -2856,12 +2872,13 @@ export const createCanvasCandlestickSeries = <T = any>(
         const hitRadius = Math.max(candleWidth * 0.7, 14);
         let nearest: {
             data: T;
+            previousData?: T;
             x: number;
             y: number;
             distance: number;
         } | null = null;
 
-        data.forEach((point: T) => {
+        data.forEach((point: T, index: number) => {
             if (point[configuration.xField] === undefined || point[configuration.closeField] === undefined) {
                 return;
             }
@@ -2880,6 +2897,7 @@ export const createCanvasCandlestickSeries = <T = any>(
             if (!nearest || totalDistance < nearest.distance) {
                 nearest = {
                     data: point,
+                    previousData: data[index - 1],
                     x,
                     y,
                     distance: totalDistance
@@ -2892,9 +2910,12 @@ export const createCanvasCandlestickSeries = <T = any>(
         }
 
         const point = nearest.data;
-        const candleColor = resolveCandlestickColor(point, configuration, color);
+        const candleColor = resolveCandlestickColor(point, nearest.previousData, configuration, color);
         const label = configuration.displayName ?? configuration.selector;
         const xValue = String(point[configuration.xField]);
+        const previousClose = configuration.previousCloseField
+            ? point[configuration.previousCloseField]
+            : nearest.previousData?.[configuration.closeField];
 
         return {
             data: point,
@@ -2905,11 +2926,14 @@ export const createCanvasCandlestickSeries = <T = any>(
             html: [
                 `<strong style="color:${candleColor}">${label}</strong>`,
                 `x: ${xValue}`,
+                configuration.colorMode === 'previous-close'
+                    ? `previous close: ${formatCandlestickTooltipValue(previousClose)}`
+                    : '',
                 `open: ${formatCandlestickTooltipValue(point[configuration.openField])}`,
                 `high: ${formatCandlestickTooltipValue(point[configuration.highField])}`,
                 `low: ${formatCandlestickTooltipValue(point[configuration.lowField])}`,
                 `close: ${formatCandlestickTooltipValue(point[configuration.closeField])}`
-            ].join('<br/>')
+            ].filter(Boolean).join('<br/>')
         };
     },
     destroy({ svg }) {

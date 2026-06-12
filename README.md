@@ -231,12 +231,13 @@ interface StockPoint {
     high: number;
     low: number;
     close: number;
+    previousClose: number;
 }
 
 const data: StockPoint[] = [
-    { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
-    { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
-    { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+    { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106, previousClose: 100 },
+    { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103, previousClose: 106 },
+    { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111, previousClose: 103 }
 ];
 
 createKChart<StockPoint>({
@@ -262,12 +263,16 @@ createKChart<StockPoint>({
             highField: 'high',
             lowField: 'low',
             closeField: 'close',
+            colorMode: 'previous-close',
+            previousCloseField: 'previousClose',
             upColor: '#22c55e',
             downColor: '#ef4444'
         })
     ]
 }).render();
 ```
+
+`colorMode` 기본값은 `'open-close'`이며 `close`와 `open`을 비교합니다. 한국 주식 화면처럼 전일 종가 대비 상승/하락 색상을 쓰려면 `colorMode: 'previous-close'`를 지정합니다. `previousCloseField`를 넘기면 해당 필드를 기준으로 비교하고, 생략하면 현재 데이터 배열에서 바로 앞 캔들의 `closeField` 값을 사용합니다.
 
 대용량 line 예제에서는 축 tick 수를 줄여 라벨 겹침을 피할 수 있습니다.
 

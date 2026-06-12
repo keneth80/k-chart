@@ -128,14 +128,15 @@ interface StockPoint {
     high: number;
     low: number;
     close: number;
+    previousClose: number;
 }
 
 const chart = createKChart<StockPoint>({
     selector: '#chart',
     data: [
-        { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
-        { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
-        { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 }
+        { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106, previousClose: 100 },
+        { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103, previousClose: 106 },
+        { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111, previousClose: 103 }
     ],
     axes: [
         { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, domain: ['2026-05-31', '2026-06-04'] },
@@ -157,12 +158,16 @@ const chart = createKChart<StockPoint>({
             highField: 'high',
             lowField: 'low',
             closeField: 'close',
+            colorMode: 'previous-close',
+            previousCloseField: 'previousClose',
             upColor: '#22c55e',
             downColor: '#ef4444'
         })
     ]
 });
 ```
+
+캔들 색상은 기본적으로 `colorMode: 'open-close'`로 동작하며 `close`와 `open`을 비교합니다. `colorMode: 'previous-close'`를 사용하면 현재 `close`와 전일 종가를 비교합니다. `previousCloseField`가 있으면 그 필드를 우선 사용하고, 없으면 렌더링 데이터에서 바로 앞 항목의 `closeField` 값을 전일 종가로 사용합니다.
 
 ## Built-In WebGL Series
 
