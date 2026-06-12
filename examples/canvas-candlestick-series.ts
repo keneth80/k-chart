@@ -11,19 +11,56 @@ interface StockPoint {
     close: number;
 }
 
-const data: StockPoint[] = [
-    { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106 },
-    { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103 },
-    { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111 },
-    { date: '2026-06-04', open: 111, high: 116, low: 107, close: 114 },
-    { date: '2026-06-05', open: 114, high: 115, low: 105, close: 107 }
+const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
+
+const addDays = (date: Date, days: number): Date => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const createStockData = (length: number): StockPoint[] => {
+    const data: StockPoint[] = [];
+    let currentDate = new Date('2024-01-02T00:00:00');
+    let previousClose = 104;
+
+    while (data.length < length) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) {
+            const index = data.length;
+            const trend = Math.sin(index / 24) * 8 + index * 0.045;
+            const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
+            const open = previousClose + Math.sin(index / 4.8) * 1.4;
+            const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
+            const high = Math.max(open, close) + 1.6 + Math.abs(Math.sin(index / 2.8)) * 2.4;
+            const low = Math.min(open, close) - 1.5 - Math.abs(Math.cos(index / 3.1)) * 2.1;
+
+            data.push({
+                date: formatDate(currentDate),
+                open: Number((open + trend).toFixed(2)),
+                high: Number((high + trend).toFixed(2)),
+                low: Number((low + trend).toFixed(2)),
+                close: Number((close + trend).toFixed(2))
+            });
+            previousClose = close;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return data;
+};
+
+const data = createStockData(520);
+const domain = [
+    formatDate(addDays(new Date(data[0].date), -8)),
+    formatDate(addDays(new Date(data[data.length - 1].date), 8))
 ];
 
 createKChart<StockPoint>({
     selector: '#chart',
     data,
     axes: [
-        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, domain: ['2026-05-31', '2026-06-06'] },
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 8, domain },
         {
             field: 'close',
             type: 'number',
@@ -37,6 +74,15 @@ createKChart<StockPoint>({
     },
     tooltip: {
         visible: true
+    },
+    zoom: {
+        enabled: true,
+        mode: 'wheel',
+        direction: 'x',
+        scaleExtent: [1, 120],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
+        resetOnDoubleClick: true
     },
     series: [
         createCanvasCandlestickSeries({

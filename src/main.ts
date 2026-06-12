@@ -80,14 +80,14 @@ const addDays = (date: Date, days: number): Date => {
 
 const createStockData = (length: number): DemoPoint[] => {
     const data: DemoPoint[] = [];
-    let currentDate = new Date('2026-01-02T00:00:00');
+    let currentDate = new Date('2024-01-02T00:00:00');
     let previousClose = 104;
 
     while (data.length < length) {
         const day = currentDate.getDay();
         if (day !== 0 && day !== 6) {
             const index = data.length;
-            const trend = Math.sin(index / 12) * 5 + index * 0.12;
+            const trend = Math.sin(index / 24) * 8 + index * 0.045;
             const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
             const open = previousClose + Math.sin(index / 4.8) * 1.4;
             const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
@@ -120,7 +120,7 @@ const createStockData = (length: number): DemoPoint[] => {
     return data;
 };
 
-const stockData = createStockData(80);
+const stockData = createStockData(520);
 
 const stockDomain = (): [string, string] => {
     const first = new Date(String(stockData[0].label));
@@ -1038,7 +1038,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             enabled: true,
             mode: kind === 'canvas-candlestick' ? 'wheel' : 'both',
             direction: 'x',
-            scaleExtent: [1, 80],
+            scaleExtent: kind === 'canvas-candlestick' ? [1, 120] : [1, 80],
             wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
@@ -1241,14 +1241,14 @@ const addDays = (date: Date, days: number): Date => {
 
 const createStockData = (length: number): StockPoint[] => {
     const data: StockPoint[] = [];
-    let currentDate = new Date('2026-01-02T00:00:00');
+    let currentDate = new Date('2024-01-02T00:00:00');
     let previousClose = 104;
 
     while (data.length < length) {
         const day = currentDate.getDay();
         if (day !== 0 && day !== 6) {
             const index = data.length;
-            const trend = Math.sin(index / 12) * 5 + index * 0.12;
+            const trend = Math.sin(index / 24) * 8 + index * 0.045;
             const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
             const open = previousClose + Math.sin(index / 4.8) * 1.4;
             const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
@@ -1271,7 +1271,7 @@ const createStockData = (length: number): StockPoint[] => {
     return data;
 };
 
-const stockData = createStockData(80);
+const stockData = createStockData(520);
 const stockDomain = [
     formatDate(addDays(new Date(stockData[0].label), -4)),
     formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
@@ -1377,7 +1377,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         enabled: true,
         mode: '${kind === 'canvas-candlestick' ? 'wheel' : 'both'}',
         direction: 'x',
-        scaleExtent: [1, 80],
+        scaleExtent: [1, ${kind === 'canvas-candlestick' ? '120' : '80'}],
         wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
