@@ -990,6 +990,7 @@ const createOptions = (kind: DemoKind): KChartOption[] => {
 const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartController<DemoPoint> => {
     const data = overrideData ?? resolveDemoData(kind);
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
+    const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
 
     return createKChart<DemoPoint>({
@@ -1033,11 +1034,13 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? ({ data: item, color }) => `<div style="color:${color};font-weight:700">Custom Tooltip</div><div>${item.label}: ${item.value} / ${item.volume}</div>`
                     : undefined
         },
-        zoom: isBigData ? {
+        zoom: hasInteractiveZoom ? {
             enabled: true,
-            mode: 'both',
+            mode: kind === 'canvas-candlestick' ? 'wheel' : 'both',
             direction: 'x',
             scaleExtent: [1, 80],
+            wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+            gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
         axes: isTopology ? [] : createAxes(kind),
@@ -1369,7 +1372,16 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
-    },
+    },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
+    zoom: {
+        enabled: true,
+        mode: '${kind === 'canvas-candlestick' ? 'wheel' : 'both'}',
+        direction: 'x',
+        scaleExtent: [1, 80],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
+        resetOnDoubleClick: true
+    },` : ''}
     axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }

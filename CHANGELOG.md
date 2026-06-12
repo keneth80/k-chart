@@ -6,6 +6,7 @@
 
 - Added `createCanvasCandlestickSeries` for Canvas OHLC candlestick charts.
 - Added axis `domainFields` support so one axis can derive its domain from multiple fields such as `low` and `high`.
+- Added `zoom.wheelZoom` and `zoom.gestureZoom` options to separate PC wheel/trackpad zoom from mobile touch gesture zoom.
 
 ## 1.3.0
 

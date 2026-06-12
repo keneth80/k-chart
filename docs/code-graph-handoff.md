@@ -135,7 +135,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Options | `renderSpecAreas`, `renderGuideLines`, `getCursorGuide` | Render fixed background regions, fixed guide lines, and cursor line config. |
 | Legend | `renderLegend` | Render selectable series legend and update visibility. |
 | Tooltip and cursor guide | `renderTooltip` | Hit-test series, show tooltip, draw cursor line and value labels. |
-| Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, drag pan, selection zoom, double-click reset. |
+| Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, mobile gesture zoom, drag pan, selection zoom, double-click reset. |
 | Downsampling | `downsampleLTTB`, `resolveSeriesRenderData` | Reduce line data before rendering while preserving shape. |
 | SVG series | `createLineSeries` | Render SVG line/dot visuals. |
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
@@ -182,7 +182,8 @@ Important state fields:
 - LTTB downsampling for line series.
 - OffscreenCanvas worker support for Canvas/WebGL line series.
 - WebGL point interleaved buffer optimization.
-- Wheel zoom, drag pan, drag-selection zoom, and double-click reset.
+- Wheel zoom, mobile gesture zoom, drag pan, drag-selection zoom, and double-click reset.
+- `zoom.wheelZoom` and `zoom.gestureZoom` split desktop wheel/trackpad input from mobile touch gesture input without removing the older `mode` contract.
 
 ### External Packages Around This Library
 

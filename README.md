@@ -314,6 +314,8 @@ createKChart({
         mode: 'both',
         direction: 'x',
         scaleExtent: [1, 80],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true,
         onZoom: ({ xDomain }) => {
             console.log('visible x domain', xDomain);
@@ -325,6 +327,8 @@ createKChart({
 - `direction`: `'x'`, `'y'`, `'xy'` 중 하나입니다. 대용량 line 차트는 보통 `'x'`가 가장 자연스럽습니다.
 - `mode`: `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다.
 - `scaleExtent`: 최소/최대 확대 배율입니다.
+- `wheelZoom`: PC wheel/trackpad 입력을 제어합니다. `devices`는 기본값이 `'pc'`이며, 필요하면 `'all'`로 바꿀 수 있습니다. `sensitivity`로 확대 민감도를 조절합니다.
+- `gestureZoom`: 모바일 touch gesture 입력을 제어합니다. `devices`는 기본값이 `'mobile'`이며, `minTouches: 1`이면 한 손가락 pan과 두 손가락 pinch를 함께 허용합니다.
 - `resetOnDoubleClick`: `false`로 지정하면 더블클릭 reset을 끌 수 있습니다.
 
 ## LTTB Downsampling

@@ -246,12 +246,14 @@ createKChart<Point>({
         mode: 'both',
         direction: 'x',
         scaleExtent: [1, 80],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     }
 });
 ```
 
-`mode`는 `'wheel'`, `'select'`, `'both'`를 지원합니다. `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다. `direction`은 `'x'`, `'y'`, `'xy'`를 지원합니다. string/point 축은 순서형 축이라 현재 zoom 대상에서 제외됩니다.
+`mode`는 `'wheel'`, `'select'`, `'both'`를 지원합니다. `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다. `wheelZoom`은 PC wheel/trackpad 입력을, `gestureZoom`은 모바일 touch gesture 입력을 분리해서 제어합니다. `direction`은 `'x'`, `'y'`, `'xy'`를 지원합니다. string/point 축은 순서형 축이라 현재 zoom 대상에서 제외됩니다.
 
 ### OffscreenCanvas Worker Rendering
 

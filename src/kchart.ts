@@ -12,6 +12,7 @@ export type KChartTextAlign = 'left' | 'center' | 'right';
 export type KChartLegendPlacement = 'top' | 'right' | 'bottom';
 export type KChartZoomDirection = 'x' | 'y' | 'xy';
 export type KChartZoomMode = 'wheel' | 'select' | 'both';
+export type KChartZoomInputDevice = 'pc' | 'mobile' | 'all';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
@@ -249,11 +250,25 @@ export interface KChartZoomContext<T = any> {
     transform: ZoomTransform;
 }
 
+export interface KChartWheelZoomConfiguration {
+    enabled?: boolean;
+    devices?: KChartZoomInputDevice;
+    sensitivity?: number;
+}
+
+export interface KChartGestureZoomConfiguration {
+    enabled?: boolean;
+    devices?: KChartZoomInputDevice;
+    minTouches?: number;
+}
+
 export interface KChartZoomConfiguration<T = any> {
     enabled?: boolean;
     mode?: KChartZoomMode;
     direction?: KChartZoomDirection;
     scaleExtent?: [number, number];
+    wheelZoom?: boolean | KChartWheelZoomConfiguration;
+    gestureZoom?: boolean | KChartGestureZoomConfiguration;
     resetOnDoubleClick?: boolean;
     onZoom?: (context: KChartZoomContext<T>) => void;
 }
@@ -418,6 +433,76 @@ const isHorizontalAxis = <T = any>(axis: KChartAxis<T>): boolean => axis.placeme
 
 const isZoomEnabled = <T = any>(state: KChartState<T>): boolean => state.config.zoom?.enabled === true
     && state.axes.some((axis) => isZoomScaleSupported(axis));
+
+const isTouchLikeZoomEvent = (event: any): boolean => event?.type?.startsWith?.('touch') === true
+    || event?.pointerType === 'touch'
+    || typeof event?.touches?.length === 'number';
+
+const isMobileLikeInput = (): boolean => typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches);
+
+const matchesZoomInputDevice = (devices: KChartZoomInputDevice, event: any): boolean => {
+    if (devices === 'all') {
+        return true;
+    }
+
+    const touchLikeEvent = isTouchLikeZoomEvent(event);
+    const mobileLikeInput = isMobileLikeInput();
+    return devices === 'mobile'
+        ? touchLikeEvent && mobileLikeInput
+        : !touchLikeEvent && !mobileLikeInput;
+};
+
+const isZoomOptionEnabled = <TOption extends { enabled?: boolean }>(
+    option: boolean | TOption | undefined,
+    fallback: boolean
+): boolean => {
+    if (typeof option === 'boolean') {
+        return option;
+    }
+    if (option?.enabled !== undefined) {
+        return option.enabled;
+    }
+    return fallback;
+};
+
+const getZoomWheelSensitivity = <T = any>(config?: KChartZoomConfiguration<T>): number => {
+    const option = config?.wheelZoom;
+    return typeof option === 'object' && typeof option.sensitivity === 'number' && option.sensitivity > 0
+        ? option.sensitivity
+        : 1;
+};
+
+const getZoomWheelDevice = <T = any>(config?: KChartZoomConfiguration<T>): KChartZoomInputDevice => {
+    const option = config?.wheelZoom;
+    return typeof option === 'object' && option.devices ? option.devices : 'pc';
+};
+
+const getZoomGestureDevice = <T = any>(config?: KChartZoomConfiguration<T>): KChartZoomInputDevice => {
+    const option = config?.gestureZoom;
+    return typeof option === 'object' && option.devices ? option.devices : 'mobile';
+};
+
+const getZoomGestureMinTouches = <T = any>(config?: KChartZoomConfiguration<T>): number => {
+    const option = config?.gestureZoom;
+    return typeof option === 'object' && typeof option.minTouches === 'number'
+        ? Math.max(1, option.minTouches)
+        : 1;
+};
+
+const hasZoomInputOptions = <T = any>(config?: KChartZoomConfiguration<T>): boolean => config?.wheelZoom !== undefined
+    || config?.gestureZoom !== undefined;
+
+const getEventTouchCount = (event: any): number => {
+    if (typeof event?.touches?.length === 'number') {
+        return event.touches.length;
+    }
+    if (typeof event?.sourceEvent?.touches?.length === 'number') {
+        return event.sourceEvent.touches.length;
+    }
+    return 0;
+};
 
 const hasTitleText = <T = any>(config: KChartConfiguration<T>): boolean => Boolean(config.title?.text?.trim());
 
@@ -2021,9 +2106,16 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
     }
 
     const mode = state.config.zoom?.mode ?? 'wheel';
+    const zoomConfig = state.config.zoom;
+    const inputOptionsConfigured = hasZoomInputOptions(zoomConfig);
     const selectionEnabled = isZoomEnabled(state) && (mode === 'select' || mode === 'both');
-    const wheelEnabled = isZoomEnabled(state) && (mode === 'wheel' || mode === 'both');
+    const wheelEnabled = isZoomEnabled(state)
+        && (mode === 'wheel' || mode === 'both')
+        && isZoomOptionEnabled(zoomConfig?.wheelZoom, true);
     const panEnabled = isZoomEnabled(state) && mode === 'wheel';
+    const desktopPanEnabled = panEnabled && isZoomOptionEnabled(zoomConfig?.wheelZoom, true);
+    const gestureEnabled = isZoomEnabled(state)
+        && isZoomOptionEnabled(zoomConfig?.gestureZoom, !inputOptionsConfigured && panEnabled);
 
     overlay
         .style('cursor', selectionEnabled ? 'crosshair' : isZoomEnabled(state) ? 'grab' : null)
@@ -2039,16 +2131,35 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
         return;
     }
 
-    const zoomConfig = state.config.zoom;
-    if (wheelEnabled || panEnabled) {
+    if (wheelEnabled || desktopPanEnabled || gestureEnabled) {
+        const wheelSensitivity = getZoomWheelSensitivity(zoomConfig);
         const zoomBehavior = zoom<SVGRectElement, unknown>()
             .scaleExtent(zoomConfig?.scaleExtent ?? [1, 40])
             .extent([[0, 0], [state.plotSize.width, state.plotSize.height]])
             .translateExtent([[0, 0], [state.plotSize.width, state.plotSize.height]])
-            .filter((event: any) => event.type === 'wheel'
-                || (panEnabled && (event.type === 'mousedown'
-                    || event.type === 'touchstart'
-                    || event.type === 'touchmove')))
+            .touchable(() => gestureEnabled)
+            .wheelDelta((event: WheelEvent) => -event.deltaY
+                * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002)
+                * (event.ctrlKey ? 10 : 1)
+                * wheelSensitivity)
+            .filter((event: any) => {
+                if (event.type === 'wheel') {
+                    return wheelEnabled && (!inputOptionsConfigured
+                        || matchesZoomInputDevice(getZoomWheelDevice(zoomConfig), event));
+                }
+                if (event.type === 'mousedown') {
+                    return desktopPanEnabled && (!inputOptionsConfigured
+                        || matchesZoomInputDevice(getZoomWheelDevice(zoomConfig), event));
+                }
+                if (event.type === 'touchstart' || event.type === 'touchmove') {
+                    const touchCount = getEventTouchCount(event);
+                    return gestureEnabled
+                        && touchCount >= getZoomGestureMinTouches(zoomConfig)
+                        && (!inputOptionsConfigured
+                            || matchesZoomInputDevice(getZoomGestureDevice(zoomConfig), event));
+                }
+                return false;
+            })
             .on('zoom', (event: D3ZoomEvent<SVGRectElement, unknown>) => {
                 state.zoomTransform = event.transform;
                 const nextZoom = resolveZoomedAxes(state, event.transform);
