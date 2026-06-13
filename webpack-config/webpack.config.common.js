@@ -10,7 +10,7 @@ const helpers = require('./helpers');
 module.exports = {
     entry: './src/main.ts',
     resolve: {
-        extensions: ['.js', '.ts']
+        extensions: ['.js', '.ts', '.json']
     },
     devtool: 'inline-source-map',
     devServer: {

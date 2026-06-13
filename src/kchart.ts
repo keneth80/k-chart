@@ -6,6 +6,8 @@ import { schemeCategory10 } from 'd3-scale-chromatic';
 import { BaseType, pointer, select, Selection } from 'd3-selection';
 import { curveMonotoneX, line as d3Line } from 'd3-shape';
 import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
+import { feature as topojsonFeature } from 'topojson-client';
+import worldCountries110m from 'world-atlas/countries-110m.json';
 
 export type KChartScaleType = 'number' | 'time' | 'string' | 'point';
 export type KChartPlacement = 'top' | 'right' | 'bottom' | 'left';
@@ -1047,97 +1049,10 @@ const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, 
     rotation?.[2] ?? 0
 ];
 
-const SIMPLE_GLOBE_LAND_GEOJSON = {
-    type: 'FeatureCollection',
-    features: [
-        {
-            type: 'Feature',
-            properties: { name: 'North America' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-168, 72], [-92, 74], [-52, 62], [-58, 44], [-82, 25], [-96, 15],
-                    [-116, 20], [-130, 32], [-150, 50], [-168, 72]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'South America' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-82, 12], [-48, 6], [-35, -12], [-48, -36], [-66, -56],
-                    [-78, -38], [-74, -12], [-82, 12]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Europe' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-11, 36], [8, 58], [32, 70], [58, 56], [42, 38],
-                    [18, 34], [-11, 36]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Africa' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-18, 34], [31, 36], [51, 10], [35, -35], [18, -35],
-                    [-8, -20], [-18, 8], [-18, 34]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Asia' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [31, 70], [112, 72], [170, 58], [146, 20], [104, 6],
-                    [70, 18], [48, 32], [31, 70]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Australia' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [112, -12], [154, -14], [154, -38], [132, -45], [112, -32], [112, -12]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Greenland' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-73, 60], [-22, 62], [-18, 78], [-48, 84], [-73, 72], [-73, 60]
-                ]]
-            }
-        },
-        {
-            type: 'Feature',
-            properties: { name: 'Antarctica' },
-            geometry: {
-                type: 'Polygon',
-                coordinates: [[
-                    [-180, -64], [-90, -72], [0, -68], [90, -72], [180, -64],
-                    [180, -84], [-180, -84], [-180, -64]
-                ]]
-            }
-        }
-    ]
-};
+const WORLD_COUNTRY_GEOJSON = topojsonFeature(
+    worldCountries110m as any,
+    (worldCountries110m as any).objects.countries
+);
 
 const isGlobePointVisible = (lon: number, lat: number, rotation: [number, number, number]): boolean => {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
@@ -3188,7 +3103,7 @@ export const createSvgGlobeSeries = <T = any>(
 
                 const landData = configuration.landVisible === false
                     ? []
-                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? SIMPLE_GLOBE_LAND_GEOJSON);
+                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? WORLD_COUNTRY_GEOJSON);
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
                     .data(landData)

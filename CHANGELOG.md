@@ -5,7 +5,7 @@
 ### Added
 
 - Added `createSvgGlobeSeries` for draggable SVG orthographic globe maps with latitude/longitude markers and marker click callbacks.
-- Added a default simplified land layer for globe maps, with `landVisible` and `landGeoJson` controls.
+- Added a default World Atlas 110m country layer for globe maps, with `landVisible` and `landGeoJson` controls.
 - Added feature-level `landFill`, `landStroke`, and `landOpacity` styling callbacks for globe map land/country layers.
 
 ## 1.4.0 - 2026-06-13
