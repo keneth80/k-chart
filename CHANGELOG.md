@@ -5,6 +5,7 @@
 ### Added
 
 - Added `createSvgGlobeSeries` for draggable SVG orthographic globe maps with latitude/longitude markers and marker click callbacks.
+- Added a default simplified land layer for globe maps, with `landVisible` and `landGeoJson` controls.
 
 ## 1.4.0 - 2026-06-13
 

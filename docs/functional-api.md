@@ -172,7 +172,7 @@ const chart = createKChart<StockPoint>({
 
 ## Built-In SVG Globe Series
 
-지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다.
+지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다. 기본값으로 가벼운 simplified land layer가 표시되며, `landVisible: false`로 끄거나 `landGeoJson`으로 더 정교한 GeoJSON을 교체할 수 있습니다.
 
 ```ts
 interface CityPoint {
@@ -201,6 +201,8 @@ const chart = createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
+            landFill: 'rgba(72, 187, 120, 0.28)',
+            landStroke: 'rgba(209, 250, 229, 0.58)',
             markerColor: '#5db8ff',
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
@@ -210,7 +212,7 @@ const chart = createKChart<CityPoint>({
 });
 ```
 
-`draggable` 기본값은 `true`입니다. `landGeoJson`에 GeoJSON feature 또는 feature 배열을 넘기면 구면 위에 land path도 함께 그릴 수 있습니다.
+`draggable` 기본값은 `true`입니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다.
 
 ## Built-In WebGL Series
 

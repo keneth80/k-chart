@@ -213,6 +213,7 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     sphereStroke?: string;
     graticuleVisible?: boolean;
     graticuleStroke?: string;
+    landVisible?: boolean;
     landGeoJson?: any | any[];
     landFill?: string;
     landStroke?: string;
@@ -1011,6 +1012,98 @@ const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, 
     rotation?.[1] ?? -12,
     rotation?.[2] ?? 0
 ];
+
+const SIMPLE_GLOBE_LAND_GEOJSON = {
+    type: 'FeatureCollection',
+    features: [
+        {
+            type: 'Feature',
+            properties: { name: 'North America' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-168, 72], [-92, 74], [-52, 62], [-58, 44], [-82, 25], [-96, 15],
+                    [-116, 20], [-130, 32], [-150, 50], [-168, 72]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'South America' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-82, 12], [-48, 6], [-35, -12], [-48, -36], [-66, -56],
+                    [-78, -38], [-74, -12], [-82, 12]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Europe' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-11, 36], [8, 58], [32, 70], [58, 56], [42, 38],
+                    [18, 34], [-11, 36]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Africa' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-18, 34], [31, 36], [51, 10], [35, -35], [18, -35],
+                    [-8, -20], [-18, 8], [-18, 34]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Asia' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [31, 70], [112, 72], [170, 58], [146, 20], [104, 6],
+                    [70, 18], [48, 32], [31, 70]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Australia' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [112, -12], [154, -14], [154, -38], [132, -45], [112, -32], [112, -12]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Greenland' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-73, 60], [-22, 62], [-18, 78], [-48, 84], [-73, 72], [-73, 60]
+                ]]
+            }
+        },
+        {
+            type: 'Feature',
+            properties: { name: 'Antarctica' },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [[
+                    [-180, -64], [-90, -72], [0, -68], [90, -72], [180, -64],
+                    [180, -84], [-180, -84], [-180, -64]
+                ]]
+            }
+        }
+    ]
+};
 
 const isGlobePointVisible = (lon: number, lat: number, rotation: [number, number, number]): boolean => {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
@@ -3059,6 +3152,24 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke-width', 1.2)
                     .style('pointer-events', 'all');
 
+                const landData = configuration.landVisible === false
+                    ? []
+                    : (
+                        configuration.landGeoJson
+                            ? Array.isArray(configuration.landGeoJson) ? configuration.landGeoJson : [configuration.landGeoJson]
+                            : [SIMPLE_GLOBE_LAND_GEOJSON]
+                    );
+
+                globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
+                    .data(landData)
+                    .join('path')
+                    .attr('class', 'kchart-globe-land')
+                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .style('fill', configuration.landFill ?? 'rgba(86, 208, 143, 0.26)')
+                    .style('stroke', configuration.landStroke ?? 'rgba(209, 250, 229, 0.5)')
+                    .style('stroke-width', 0.8)
+                    .style('pointer-events', 'none');
+
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-graticule')
                     .data(configuration.graticuleVisible === false ? [] : [geoGraticule10()])
                     .join('path')
@@ -3066,20 +3177,6 @@ export const createSvgGlobeSeries = <T = any>(
                     .attr('d', (datum: any) => path(datum) ?? '')
                     .style('fill', 'none')
                     .style('stroke', configuration.graticuleStroke ?? 'rgba(148, 163, 184, 0.22)')
-                    .style('stroke-width', 0.8)
-                    .style('pointer-events', 'none');
-
-                const landData = configuration.landGeoJson
-                    ? Array.isArray(configuration.landGeoJson) ? configuration.landGeoJson : [configuration.landGeoJson]
-                    : [];
-
-                globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
-                    .data(landData)
-                    .join('path')
-                    .attr('class', 'kchart-globe-land')
-                    .attr('d', (datum: any) => path(datum) ?? '')
-                    .style('fill', configuration.landFill ?? 'rgba(86, 208, 143, 0.2)')
-                    .style('stroke', configuration.landStroke ?? 'rgba(209, 250, 229, 0.45)')
                     .style('stroke-width', 0.8)
                     .style('pointer-events', 'none');
 

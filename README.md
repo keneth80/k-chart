@@ -277,7 +277,7 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A lightweight simplified land layer is rendered by default; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data.
 
 ```ts
 import {
@@ -311,6 +311,8 @@ createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
+            landFill: 'rgba(72, 187, 120, 0.28)',
+            landStroke: 'rgba(209, 250, 229, 0.58)',
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
             }
