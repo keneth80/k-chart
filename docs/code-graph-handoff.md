@@ -103,6 +103,7 @@ Primary exports come from `src/kchart.ts` through `src/index.ts`.
 - `createLineSeries<T>(...)`: SVG line and optional dots.
 - `createCanvasLineSeries<T>(...)`: Canvas 2D line renderer.
 - `createCanvasPointSeries<T>(...)`: Canvas 2D point renderer.
+- `createCanvasCandlestickSeries<T>(...)`: Canvas 2D OHLC candlestick renderer with open/close or previous-close color modes.
 - `createWebglLineSeries<T>(...)`: WebGL line renderer for large data.
 - `createWebglPointSeries<T>(...)`: WebGL point renderer using interleaved point buffer.
 - `createCustomSeries<T>(...)`: user-defined renderer with access to chart layers and scales.
@@ -134,7 +135,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Options | `renderSpecAreas`, `renderGuideLines`, `getCursorGuide` | Render fixed background regions, fixed guide lines, and cursor line config. |
 | Legend | `renderLegend` | Render selectable series legend and update visibility. |
 | Tooltip and cursor guide | `renderTooltip` | Hit-test series, show tooltip, draw cursor line and value labels. |
-| Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, drag pan, selection zoom, double-click reset. |
+| Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, mobile gesture zoom, drag pan, selection zoom, double-click reset. |
 | Downsampling | `downsampleLTTB`, `resolveSeriesRenderData` | Reduce line data before rendering while preserving shape. |
 | SVG series | `createLineSeries` | Render SVG line/dot visuals. |
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
@@ -181,7 +182,9 @@ Important state fields:
 - LTTB downsampling for line series.
 - OffscreenCanvas worker support for Canvas/WebGL line series.
 - WebGL point interleaved buffer optimization.
-- Wheel zoom, drag pan, drag-selection zoom, and double-click reset.
+- Wheel zoom, mobile gesture zoom, drag pan, drag-selection zoom, and double-click reset.
+- `zoom.wheelZoom` and `zoom.gestureZoom` split desktop wheel/trackpad input from mobile touch gesture input without removing the older `mode` contract.
+- Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
 
 ### External Packages Around This Library
 
@@ -194,6 +197,7 @@ Important state fields:
 - Visual drawing belongs to series renderers.
 - Series receive already resolved scale information and can draw using SVG, Canvas, or WebGL.
 - Custom visualizations should use `createCustomSeries` instead of class inheritance.
+- OHLC-style charts should use axis `domainFields` so a single y-axis can derive its domain from multiple value fields such as `low` and `high`.
 - The library does not execute user-edited JavaScript. Playground-generated configs should be validated before applying.
 - Web Worker rendering is opt-in with `asyncRender` because bundler worker setup differs by application.
 
@@ -236,4 +240,3 @@ Then open `http://127.0.0.1:9003/`.
   - stacked/column tooltip behavior
   - topology hover behavior in the playground/wrapper layer
 - Keep release notes in `CHANGELOG.md` aligned with npm versions.
-

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 - 2026-06-13
+
+### Added
+
+- Added `createCanvasCandlestickSeries` for Canvas OHLC candlestick charts.
+- Added axis `domainFields` support so one axis can derive its domain from multiple fields such as `low` and `high`.
+- Added `zoom.wheelZoom` and `zoom.gestureZoom` options to separate PC wheel/trackpad zoom from mobile touch gesture zoom.
+- Added candlestick `colorMode: 'previous-close'` and `previousCloseField` support for previous-close based stock coloring.
+
 ## 1.3.0
 
 ### Added

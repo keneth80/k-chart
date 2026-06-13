@@ -1,6 +1,7 @@
 import './style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
 import {
+    createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
     createCursorLineOption,
@@ -26,11 +27,13 @@ interface DemoPoint {
     extra: number;
     radius: number;
     category: string;
+    previousClose?: number;
 }
 
 type DemoKind =
     | 'line'
     | 'canvas-line'
+    | 'canvas-candlestick'
     | 'webgl-line'
     | 'canvas-bigdata-line'
     | 'webgl-large-line'
@@ -67,6 +70,71 @@ const baseData: DemoPoint[] = [
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
+
+const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
+
+const addDays = (date: Date, days: number): Date => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const createStockData = (length: number): DemoPoint[] => {
+    const data: DemoPoint[] = [];
+    let currentDate = new Date('2024-01-02T00:00:00');
+    let previousClose = 104;
+    let previousAdjustedClose = 104;
+
+    while (data.length < length) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) {
+            const index = data.length;
+            const trend = Math.sin(index / 24) * 8 + index * 0.045;
+            const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
+            const open = previousClose + Math.sin(index / 4.8) * 1.4;
+            const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
+            const high = Math.max(open, close) + 1.6 + Math.abs(Math.sin(index / 2.8)) * 2.4;
+            const low = Math.min(open, close) - 1.5 - Math.abs(Math.cos(index / 3.1)) * 2.1;
+            const adjustedOpen = open + trend;
+            const adjustedClose = close + trend;
+            const adjustedHigh = high + trend;
+            const adjustedLow = low + trend;
+            const label = formatDate(currentDate);
+
+            data.push({
+                label,
+                x: index + 1,
+                value: Number(adjustedClose.toFixed(2)),
+                volume: Math.round(3200 + Math.abs(Math.sin(index / 4)) * 2800 + index * 12),
+                extra: Number(adjustedOpen.toFixed(2)),
+                radius: 3,
+                category: label,
+                open: Number(adjustedOpen.toFixed(2)),
+                high: Number(adjustedHigh.toFixed(2)),
+                low: Number(adjustedLow.toFixed(2)),
+                close: Number(adjustedClose.toFixed(2)),
+                previousClose: Number(previousAdjustedClose.toFixed(2))
+            });
+            previousClose = close;
+            previousAdjustedClose = adjustedClose;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return data;
+};
+
+const stockData = createStockData(520);
+
+const stockDomain = (): [string, string] => {
+    const first = new Date(String(stockData[0].label));
+    const last = new Date(String(stockData[stockData.length - 1].label));
+
+    return [
+        formatDate(addDays(first, -4)),
+        formatDate(addDays(last, 4))
+    ];
+};
 
 const createLargeData = (length: number): DemoPoint[] => Array.from({ length }, (_: unknown, index: number) => {
     const wave = Math.sin(index / 120) * 22 + Math.cos(index / 43) * 8;
@@ -129,6 +197,7 @@ let realtimeTimer: number | undefined;
 const examples: ExampleMeta[] = [
     { kind: 'line', title: 'SVG line renderer' },
     { kind: 'canvas-line', title: 'Canvas line renderer' },
+    { kind: 'canvas-candlestick', title: 'Canvas candlestick renderer', dataLabel: 'OHLC' },
     { kind: 'webgl-line', title: 'WebGL line renderer' },
     { kind: 'canvas-bigdata-line', title: 'Canvas BigData line renderer', dataLabel: '50k points' },
     { kind: 'webgl-large-line', title: 'WebGL BigData line renderer', dataLabel: '120k points' },
@@ -732,6 +801,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-bigdata-line') {
         return largeCanvasData;
     }
+    if (kind === 'canvas-candlestick') {
+        return stockData;
+    }
     return baseData;
 };
 
@@ -746,6 +818,12 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
             { field: 'value', type: 'number' as const, placement: 'left' as const, min: 0, max: 120, title: 'Stacked Value' }
+        ];
+    }
+    if (kind === 'canvas-candlestick') {
+        return [
+            { field: 'label', type: 'time' as const, placement: 'bottom' as const, title: 'Trading Day', tickCount: 8, domain: stockDomain() },
+            { field: 'close', type: 'number' as const, placement: 'left' as const, title: 'Price', domainFields: ['low', 'high'] }
         ];
     }
     if (kind === 'webgl-large-line' || kind === 'canvas-bigdata-line') {
@@ -804,6 +882,27 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'stacked-column') {
         return [stackedColumnSeries];
+    }
+    if (kind === 'canvas-candlestick') {
+        return [
+            createCanvasCandlestickSeries({
+                selector: 'demo-candlestick',
+                displayName: 'OHLC',
+                xField: 'label',
+                openField: 'open',
+                highField: 'high',
+                lowField: 'low',
+                closeField: 'close',
+                colorMode: 'previous-close',
+                previousCloseField: 'previousClose',
+                upColor: '#56d08f',
+                downColor: '#ff6b8a',
+                neutralColor: '#f3b45b',
+                wickColor: 'rgba(237, 243, 248, 0.78)',
+                minCandleWidth: 2,
+                maxCandleWidth: 10
+            })
+        ];
     }
     if (kind === 'plot') {
         return [createLineSeries({ selector: 'demo-plot-anchor', displayName: 'Plot Points', xField: 'x', yField: 'value', color: '#5db8ff', strokeWidth: 0, dot: { radius: 6, stroke: '#f8fbff' } })];
@@ -897,6 +996,7 @@ const createOptions = (kind: DemoKind): KChartOption[] => {
 const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartController<DemoPoint> => {
     const data = overrideData ?? resolveDemoData(kind);
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
+    const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
 
     return createKChart<DemoPoint>({
@@ -940,11 +1040,13 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? ({ data: item, color }) => `<div style="color:${color};font-weight:700">Custom Tooltip</div><div>${item.label}: ${item.value} / ${item.volume}</div>`
                     : undefined
         },
-        zoom: isBigData ? {
+        zoom: hasInteractiveZoom ? {
             enabled: true,
-            mode: 'both',
+            mode: kind === 'canvas-candlestick' ? 'wheel' : 'both',
             direction: 'x',
-            scaleExtent: [1, 80],
+            scaleExtent: kind === 'canvas-candlestick' ? [1, 120] : [1, 80],
+            wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+            gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
         axes: isTopology ? [] : createAxes(kind),
@@ -969,6 +1071,22 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     render({ group, data, xScale, yScale }) {
         // draw stacked SVG rect segments
     }
+})`;
+    }
+    if (kind === 'canvas-candlestick') {
+        return `createCanvasCandlestickSeries({
+    selector: 'demo-candlestick',
+    displayName: 'OHLC',
+    xField: 'label',
+    openField: 'open',
+    highField: 'high',
+    lowField: 'low',
+    closeField: 'close',
+    colorMode: 'previous-close',
+    previousCloseField: 'previousClose',
+    upColor: '#56d08f',
+    downColor: '#ff6b8a',
+    wickColor: 'rgba(237, 243, 248, 0.78)'
 })`;
     }
     if (kind === 'area') {
@@ -1108,8 +1226,70 @@ const createUsageSnippet = (kind: DemoKind): string => {
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
             ? 'createLargeData(50000)'
+            : kind === 'canvas-candlestick'
+                ? 'stockData'
             : 'baseData';
-    const dataSnippet = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
+    const dataSnippet = kind === 'canvas-candlestick'
+        ? `
+type StockPoint = {
+    label: string;
+    x: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    previousClose: number;
+};
+
+const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
+const addDays = (date: Date, days: number): Date => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const createStockData = (length: number): StockPoint[] => {
+    const data: StockPoint[] = [];
+    let currentDate = new Date('2024-01-02T00:00:00');
+    let previousClose = 104;
+    let previousAdjustedClose = 104;
+
+    while (data.length < length) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) {
+            const index = data.length;
+            const trend = Math.sin(index / 24) * 8 + index * 0.045;
+            const swing = Math.sin(index / 3.4) * 2.8 + Math.cos(index / 5.7) * 1.7;
+            const open = previousClose + Math.sin(index / 4.8) * 1.4;
+            const close = open + swing * 0.72 + Math.sin(index / 2.3) * 0.9;
+            const high = Math.max(open, close) + 1.6 + Math.abs(Math.sin(index / 2.8)) * 2.4;
+            const low = Math.min(open, close) - 1.5 - Math.abs(Math.cos(index / 3.1)) * 2.1;
+
+            data.push({
+                label: formatDate(currentDate),
+                x: index + 1,
+                open: Number((open + trend).toFixed(2)),
+                high: Number((high + trend).toFixed(2)),
+                low: Number((low + trend).toFixed(2)),
+                close: Number((close + trend).toFixed(2)),
+                previousClose: Number(previousAdjustedClose.toFixed(2))
+            });
+            previousClose = close;
+            previousAdjustedClose = close + trend;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return data;
+};
+
+const stockData = createStockData(520);
+const stockDomain = [
+    formatDate(addDays(new Date(stockData[0].label), -4)),
+    formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
+];
+`
+        : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
         ? `
 type DemoPoint = {
     label: string;
@@ -1156,6 +1336,7 @@ const baseData = [
 
     return `import {
     createCanvasLineSeries,
+    createCanvasCandlestickSeries,
     createCanvasPointSeries,
     createCursorLineOption,
     createCustomSeries,
@@ -1169,7 +1350,7 @@ const baseData = [
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<DemoPoint>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
@@ -1203,8 +1384,20 @@ const chart = createKChart<DemoPoint>({
         visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
-    },
-    axes: ${kind === 'topology' ? '[]' : 'createAxesForExample()'},
+    },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
+    zoom: {
+        enabled: true,
+        mode: '${kind === 'canvas-candlestick' ? 'wheel' : 'both'}',
+        direction: 'x',
+        scaleExtent: [1, ${kind === 'canvas-candlestick' ? '120' : '80'}],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
+        resetOnDoubleClick: true
+    },` : ''}
+    axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
+        { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
+        { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
+    ]` : 'createAxesForExample()'},
     series: [
         ${createSeriesSnippet(kind)}
     ]
