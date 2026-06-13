@@ -12,11 +12,14 @@ export type KChartTextAlign = 'left' | 'center' | 'right';
 export type KChartLegendPlacement = 'top' | 'right' | 'bottom';
 export type KChartZoomDirection = 'x' | 'y' | 'xy';
 export type KChartZoomMode = 'wheel' | 'select' | 'both';
+export type KChartZoomInputDevice = 'pc' | 'mobile' | 'all';
+export type KChartCandlestickColorMode = 'open-close' | 'previous-close';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
     type: KChartScaleType;
     placement: KChartPlacement;
+    domainFields?: Array<keyof T & string>;
     min?: number | Date;
     max?: number | Date;
     domain?: Array<string | number | Date>;
@@ -161,6 +164,32 @@ export interface KChartCanvasPointSeriesConfiguration<T = any> {
     canvasName?: string;
 }
 
+export interface KChartCanvasCandlestickSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    openField: keyof T & string;
+    highField: keyof T & string;
+    lowField: keyof T & string;
+    closeField: keyof T & string;
+    colorMode?: KChartCandlestickColorMode;
+    previousCloseField?: keyof T & string;
+    upColor?: string;
+    downColor?: string;
+    neutralColor?: string;
+    wickColor?: string;
+    borderColor?: string;
+    candleWidth?: number | ((context: {
+        data: T[];
+        xScale: KChartResolvedScale<T>;
+        plotSize: KChartSize;
+    }) => number);
+    minCandleWidth?: number;
+    maxCandleWidth?: number;
+    strokeWidth?: number;
+    canvasName?: string;
+}
+
 export interface KChartWebglPointSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
@@ -224,11 +253,25 @@ export interface KChartZoomContext<T = any> {
     transform: ZoomTransform;
 }
 
+export interface KChartWheelZoomConfiguration {
+    enabled?: boolean;
+    devices?: KChartZoomInputDevice;
+    sensitivity?: number;
+}
+
+export interface KChartGestureZoomConfiguration {
+    enabled?: boolean;
+    devices?: KChartZoomInputDevice;
+    minTouches?: number;
+}
+
 export interface KChartZoomConfiguration<T = any> {
     enabled?: boolean;
     mode?: KChartZoomMode;
     direction?: KChartZoomDirection;
     scaleExtent?: [number, number];
+    wheelZoom?: boolean | KChartWheelZoomConfiguration;
+    gestureZoom?: boolean | KChartGestureZoomConfiguration;
     resetOnDoubleClick?: boolean;
     onZoom?: (context: KChartZoomContext<T>) => void;
 }
@@ -393,6 +436,76 @@ const isHorizontalAxis = <T = any>(axis: KChartAxis<T>): boolean => axis.placeme
 
 const isZoomEnabled = <T = any>(state: KChartState<T>): boolean => state.config.zoom?.enabled === true
     && state.axes.some((axis) => isZoomScaleSupported(axis));
+
+const isTouchLikeZoomEvent = (event: any): boolean => event?.type?.startsWith?.('touch') === true
+    || event?.pointerType === 'touch'
+    || typeof event?.touches?.length === 'number';
+
+const isMobileLikeInput = (): boolean => typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches);
+
+const matchesZoomInputDevice = (devices: KChartZoomInputDevice, event: any): boolean => {
+    if (devices === 'all') {
+        return true;
+    }
+
+    const touchLikeEvent = isTouchLikeZoomEvent(event);
+    const mobileLikeInput = isMobileLikeInput();
+    return devices === 'mobile'
+        ? touchLikeEvent && mobileLikeInput
+        : !touchLikeEvent && !mobileLikeInput;
+};
+
+const isZoomOptionEnabled = <TOption extends { enabled?: boolean }>(
+    option: boolean | TOption | undefined,
+    fallback: boolean
+): boolean => {
+    if (typeof option === 'boolean') {
+        return option;
+    }
+    if (option?.enabled !== undefined) {
+        return option.enabled;
+    }
+    return fallback;
+};
+
+const getZoomWheelSensitivity = <T = any>(config?: KChartZoomConfiguration<T>): number => {
+    const option = config?.wheelZoom;
+    return typeof option === 'object' && typeof option.sensitivity === 'number' && option.sensitivity > 0
+        ? option.sensitivity
+        : 1;
+};
+
+const getZoomWheelDevice = <T = any>(config?: KChartZoomConfiguration<T>): KChartZoomInputDevice => {
+    const option = config?.wheelZoom;
+    return typeof option === 'object' && option.devices ? option.devices : 'pc';
+};
+
+const getZoomGestureDevice = <T = any>(config?: KChartZoomConfiguration<T>): KChartZoomInputDevice => {
+    const option = config?.gestureZoom;
+    return typeof option === 'object' && option.devices ? option.devices : 'mobile';
+};
+
+const getZoomGestureMinTouches = <T = any>(config?: KChartZoomConfiguration<T>): number => {
+    const option = config?.gestureZoom;
+    return typeof option === 'object' && typeof option.minTouches === 'number'
+        ? Math.max(1, option.minTouches)
+        : 1;
+};
+
+const hasZoomInputOptions = <T = any>(config?: KChartZoomConfiguration<T>): boolean => config?.wheelZoom !== undefined
+    || config?.gestureZoom !== undefined;
+
+const getEventTouchCount = (event: any): number => {
+    if (typeof event?.touches?.length === 'number') {
+        return event.touches.length;
+    }
+    if (typeof event?.sourceEvent?.touches?.length === 'number') {
+        return event.sourceEvent.touches.length;
+    }
+    return 0;
+};
 
 const hasTitleText = <T = any>(config: KChartConfiguration<T>): boolean => Boolean(config.title?.text?.trim());
 
@@ -583,17 +696,47 @@ const resolveAxisDomain = <T = any>(
         return data.map((item: T) => item[axis.field]);
     }
 
-    const values = data.map((item: T) => {
-        const value = item[axis.field];
+    const domainFields = axis.domainFields?.length ? axis.domainFields : [axis.field];
+    const values = data.flatMap((item: T) => domainFields.map((field) => {
+        const value = item[field];
         return axis.type === 'time'
             ? new Date(value as any)
             : Number(value);
-    });
+    })).filter((value) => axis.type === 'time'
+        ? value instanceof Date && Number.isFinite(value.getTime())
+        : Number.isFinite(value));
     const [minValue, maxValue] = extent(values as any[]);
+    const resolvedMin = axis.min ?? minValue ?? 0;
+    const resolvedMax = axis.max ?? maxValue ?? 1;
+    const canApplyPadding = axis.padding !== undefined && axis.min === undefined && axis.max === undefined;
+
+    if (canApplyPadding && axis.type === 'time') {
+        const minTime = resolvedMin instanceof Date ? resolvedMin.getTime() : new Date(resolvedMin as any).getTime();
+        const maxTime = resolvedMax instanceof Date ? resolvedMax.getTime() : new Date(resolvedMax as any).getTime();
+        const span = Math.max(maxTime - minTime, 24 * 60 * 60 * 1000);
+        const padding = span * Math.max(axis.padding ?? 0, 0);
+
+        return [
+            new Date(minTime - padding),
+            new Date(maxTime + padding)
+        ];
+    }
+
+    if (canApplyPadding && axis.type === 'number') {
+        const minNumber = Number(resolvedMin);
+        const maxNumber = Number(resolvedMax);
+        const span = Math.max(maxNumber - minNumber, 1);
+        const padding = span * Math.max(axis.padding ?? 0, 0);
+
+        return [
+            minNumber - padding,
+            maxNumber + padding
+        ];
+    }
 
     return [
-        axis.min ?? minValue ?? 0,
-        axis.max ?? maxValue ?? 1
+        resolvedMin,
+        resolvedMax
     ];
 };
 
@@ -715,11 +858,95 @@ const resolveScalePosition = <T = any>(
     scale: KChartResolvedScale<T>,
     value: any
 ): number => {
-    const position = scale.scale(value);
+    const scaleValue = scale.type === 'time' && !(value instanceof Date)
+        ? new Date(value as any)
+        : value;
+    const position = scale.scale(scaleValue);
 
     return typeof scale.scale.bandwidth === 'function'
         ? position + scale.scale.bandwidth() / 2
         : position;
+};
+
+const clampNumber = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+const resolveCanvasCandlestickWidth = <T = any>(
+    data: T[],
+    xScale: KChartResolvedScale<T>,
+    xField: keyof T & string,
+    plotSize: KChartSize,
+    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'candleWidth' | 'minCandleWidth' | 'maxCandleWidth'>
+): number => {
+    if (typeof configuration.candleWidth === 'number') {
+        return configuration.candleWidth;
+    }
+
+    if (typeof configuration.candleWidth === 'function') {
+        return configuration.candleWidth({ data, xScale, plotSize });
+    }
+
+    const minWidth = configuration.minCandleWidth ?? 3;
+    const maxWidth = configuration.maxCandleWidth ?? 18;
+
+    if (typeof xScale.scale.bandwidth === 'function') {
+        return clampNumber(xScale.scale.bandwidth() * 0.72, minWidth, maxWidth);
+    }
+
+    const positions = data
+        .map((point) => resolveScalePosition(xScale, point[xField]))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+    let minDistance = Number.POSITIVE_INFINITY;
+
+    for (let index = 1; index < positions.length; index += 1) {
+        const distance = positions[index] - positions[index - 1];
+        if (distance > 0 && distance < minDistance) {
+            minDistance = distance;
+        }
+    }
+
+    if (!Number.isFinite(minDistance)) {
+        return clampNumber(plotSize.width / Math.max(data.length, 1) * 0.72, minWidth, maxWidth);
+    }
+
+    return clampNumber(minDistance * 0.72, minWidth, maxWidth);
+};
+
+const resolveCandlestickColor = <T = any>(
+    point: T,
+    previousPoint: T | undefined,
+    configuration: Pick<KChartCanvasCandlestickSeriesConfiguration<T>, 'openField' | 'closeField' | 'colorMode' | 'previousCloseField' | 'upColor' | 'downColor' | 'neutralColor'>,
+    fallbackColor: string
+): string => {
+    const previousCloseFromField = configuration.previousCloseField
+        ? Number(point[configuration.previousCloseField])
+        : undefined;
+    const previousCloseFromPoint = previousPoint
+        ? Number(previousPoint[configuration.closeField])
+        : undefined;
+    const open = configuration.colorMode === 'previous-close'
+        ? (Number.isFinite(previousCloseFromField) ? previousCloseFromField : previousCloseFromPoint)
+        : Number(point[configuration.openField]);
+    const close = Number(point[configuration.closeField]);
+
+    if (!Number.isFinite(open) || !Number.isFinite(close)) {
+        return configuration.neutralColor ?? fallbackColor;
+    }
+
+    if (close > open) {
+        return configuration.upColor ?? '#22c55e';
+    }
+
+    if (close < open) {
+        return configuration.downColor ?? '#ef4444';
+    }
+
+    return configuration.neutralColor ?? fallbackColor;
+};
+
+const formatCandlestickTooltipValue = (value: any): string => {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(value);
 };
 
 export const downsampleLTTB = <T = any>(
@@ -1895,9 +2122,16 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
     }
 
     const mode = state.config.zoom?.mode ?? 'wheel';
+    const zoomConfig = state.config.zoom;
+    const inputOptionsConfigured = hasZoomInputOptions(zoomConfig);
     const selectionEnabled = isZoomEnabled(state) && (mode === 'select' || mode === 'both');
-    const wheelEnabled = isZoomEnabled(state) && (mode === 'wheel' || mode === 'both');
+    const wheelEnabled = isZoomEnabled(state)
+        && (mode === 'wheel' || mode === 'both')
+        && isZoomOptionEnabled(zoomConfig?.wheelZoom, true);
     const panEnabled = isZoomEnabled(state) && mode === 'wheel';
+    const desktopPanEnabled = panEnabled && isZoomOptionEnabled(zoomConfig?.wheelZoom, true);
+    const gestureEnabled = isZoomEnabled(state)
+        && isZoomOptionEnabled(zoomConfig?.gestureZoom, !inputOptionsConfigured && panEnabled);
 
     overlay
         .style('cursor', selectionEnabled ? 'crosshair' : isZoomEnabled(state) ? 'grab' : null)
@@ -1913,16 +2147,35 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
         return;
     }
 
-    const zoomConfig = state.config.zoom;
-    if (wheelEnabled || panEnabled) {
+    if (wheelEnabled || desktopPanEnabled || gestureEnabled) {
+        const wheelSensitivity = getZoomWheelSensitivity(zoomConfig);
         const zoomBehavior = zoom<SVGRectElement, unknown>()
             .scaleExtent(zoomConfig?.scaleExtent ?? [1, 40])
             .extent([[0, 0], [state.plotSize.width, state.plotSize.height]])
             .translateExtent([[0, 0], [state.plotSize.width, state.plotSize.height]])
-            .filter((event: any) => event.type === 'wheel'
-                || (panEnabled && (event.type === 'mousedown'
-                    || event.type === 'touchstart'
-                    || event.type === 'touchmove')))
+            .touchable(() => gestureEnabled)
+            .wheelDelta((event: WheelEvent) => -event.deltaY
+                * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002)
+                * (event.ctrlKey ? 10 : 1)
+                * wheelSensitivity)
+            .filter((event: any) => {
+                if (event.type === 'wheel') {
+                    return wheelEnabled && (!inputOptionsConfigured
+                        || matchesZoomInputDevice(getZoomWheelDevice(zoomConfig), event));
+                }
+                if (event.type === 'mousedown') {
+                    return desktopPanEnabled && (!inputOptionsConfigured
+                        || matchesZoomInputDevice(getZoomWheelDevice(zoomConfig), event));
+                }
+                if (event.type === 'touchstart' || event.type === 'touchmove') {
+                    const touchCount = getEventTouchCount(event);
+                    return gestureEnabled
+                        && touchCount >= getZoomGestureMinTouches(zoomConfig)
+                        && (!inputOptionsConfigured
+                            || matchesZoomInputDevice(getZoomGestureDevice(zoomConfig), event));
+                }
+                return false;
+            })
             .on('zoom', (event: D3ZoomEvent<SVGRectElement, unknown>) => {
                 state.zoomTransform = event.transform;
                 const nextZoom = resolveZoomedAxes(state, event.transform);
@@ -2536,6 +2789,152 @@ export const createCanvasPointSeries = <T = any>(
             context.fill();
             context.stroke();
         });
+    },
+    destroy({ svg }) {
+        destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
+    }
+});
+
+export const createCanvasCandlestickSeries = <T = any>(
+    configuration: KChartCanvasCandlestickSeriesConfiguration<T>
+): KChartSeries<T> => createCustomSeries<T>({
+    selector: configuration.selector,
+    displayName: configuration.displayName,
+    xField: configuration.xField,
+    yField: configuration.closeField,
+    color: configuration.neutralColor,
+    render({ getCanvas, data, xScale, yScale, color, plotSize }) {
+        if (!xScale || !yScale) {
+            return;
+        }
+
+        const canvas = getCanvas(configuration.canvasName ?? configuration.selector);
+        const context = canvas.getContext('2d');
+        if (!context) {
+            return;
+        }
+
+        const candleWidth = resolveCanvasCandlestickWidth(data, xScale, configuration.xField, plotSize, configuration);
+        const halfWidth = candleWidth / 2;
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.lineWidth = configuration.strokeWidth ?? 1.4;
+
+        data.forEach((point: T, index: number) => {
+            const open = Number(point[configuration.openField]);
+            const high = Number(point[configuration.highField]);
+            const low = Number(point[configuration.lowField]);
+            const close = Number(point[configuration.closeField]);
+
+            if (![open, high, low, close].every(Number.isFinite) || point[configuration.xField] === undefined) {
+                return;
+            }
+
+            const x = resolveScalePosition(xScale, point[configuration.xField]);
+            const openY = resolveScalePosition(yScale, open);
+            const highY = resolveScalePosition(yScale, high);
+            const lowY = resolveScalePosition(yScale, low);
+            const closeY = resolveScalePosition(yScale, close);
+
+            if (![x, openY, highY, lowY, closeY].every(Number.isFinite)) {
+                return;
+            }
+
+            const candleColor = resolveCandlestickColor(point, data[index - 1], configuration, color);
+            const bodyTop = Math.min(openY, closeY);
+            const bodyHeight = Math.max(Math.abs(closeY - openY), 1);
+
+            context.strokeStyle = configuration.wickColor ?? candleColor;
+            context.beginPath();
+            context.moveTo(x, highY);
+            context.lineTo(x, lowY);
+            context.stroke();
+
+            context.fillStyle = candleColor;
+            context.strokeStyle = configuration.borderColor ?? candleColor;
+            context.beginPath();
+            context.rect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+            context.fill();
+            context.stroke();
+        });
+    },
+    tooltip({ data, scales, mouseX, mouseY, color, plotSize }) {
+        const xScale = scales.find((scale: KChartResolvedScale<T>) => scale.field === configuration.xField);
+        const yScale = scales.find((scale: KChartResolvedScale<T>) => scale.field === configuration.closeField)
+            ?? scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'left' || scale.placement === 'right');
+        if (!xScale || !yScale) {
+            return null;
+        }
+
+        const candleWidth = resolveCanvasCandlestickWidth(data, xScale, configuration.xField, plotSize, configuration);
+        const hitRadius = Math.max(candleWidth * 0.7, 14);
+        let nearest: {
+            data: T;
+            previousData?: T;
+            x: number;
+            y: number;
+            distance: number;
+        } | null = null;
+
+        data.forEach((point: T, index: number) => {
+            if (point[configuration.xField] === undefined || point[configuration.closeField] === undefined) {
+                return;
+            }
+
+            const x = resolveScalePosition(xScale, point[configuration.xField]);
+            const y = resolveScalePosition(yScale, point[configuration.closeField]);
+            const distance = Math.abs(mouseX - x);
+
+            if (!Number.isFinite(x) || !Number.isFinite(y) || distance > hitRadius) {
+                return;
+            }
+
+            const verticalDistance = Math.abs(mouseY - y);
+            const totalDistance = distance + verticalDistance * 0.08;
+
+            if (!nearest || totalDistance < nearest.distance) {
+                nearest = {
+                    data: point,
+                    previousData: data[index - 1],
+                    x,
+                    y,
+                    distance: totalDistance
+                };
+            }
+        });
+
+        if (!nearest) {
+            return null;
+        }
+
+        const point = nearest.data;
+        const candleColor = resolveCandlestickColor(point, nearest.previousData, configuration, color);
+        const label = configuration.displayName ?? configuration.selector;
+        const xValue = String(point[configuration.xField]);
+        const previousClose = configuration.previousCloseField
+            ? point[configuration.previousCloseField]
+            : nearest.previousData?.[configuration.closeField];
+
+        return {
+            data: point,
+            x: nearest.x,
+            y: nearest.y,
+            color: candleColor,
+            distance: nearest.distance,
+            html: [
+                `<strong style="color:${candleColor}">${label}</strong>`,
+                `x: ${xValue}`,
+                configuration.colorMode === 'previous-close'
+                    ? `previous close: ${formatCandlestickTooltipValue(previousClose)}`
+                    : '',
+                `open: ${formatCandlestickTooltipValue(point[configuration.openField])}`,
+                `high: ${formatCandlestickTooltipValue(point[configuration.highField])}`,
+                `low: ${formatCandlestickTooltipValue(point[configuration.lowField])}`,
+                `close: ${formatCandlestickTooltipValue(point[configuration.closeField])}`
+            ].filter(Boolean).join('<br/>')
+        };
     },
     destroy({ svg }) {
         destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);

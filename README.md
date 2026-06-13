@@ -14,6 +14,7 @@ createKChart(config)
       ├─ createLineSeries(...)
       ├─ createCanvasLineSeries(...)
       ├─ createCanvasPointSeries(...)
+      ├─ createCanvasCandlestickSeries(...)
       ├─ createWebglLineSeries(...)
       ├─ createWebglPointSeries(...)
       └─ createCustomSeries({ render(context) })
@@ -22,6 +23,7 @@ createKChart(config)
 - `createKChart(...)`는 class 없이 plain runtime state와 controller를 만듭니다.
 - `createLineSeries(...)`는 SVG line renderer를 함수형 series로 생성합니다.
 - `createCanvasLineSeries(...)`, `createCanvasPointSeries(...)`는 Canvas 2D renderer를 함수형 series로 생성합니다.
+- `createCanvasCandlestickSeries(...)`는 OHLC 데이터를 Canvas 2D 캔들차트로 렌더링합니다.
 - `createWebglLineSeries(...)`는 대용량 line renderer를 WebGL `LINE_STRIP` 기반 함수형 series로 생성합니다.
 - `createWebglPointSeries(...)`는 WebGL point renderer를 함수형 series로 생성합니다.
 - `createCustomSeries(...)`는 renderer 함수를 그대로 series로 사용합니다.
@@ -62,6 +64,7 @@ Then open `http://127.0.0.1:9003/`.
 - [React And Next.js Guide](docs/react-nextjs.md)
 - [Release Guide](docs/release.md)
 - [React Wrapper Example](examples/react-wrapper.tsx)
+- [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
 
 ## Quick Start
 
@@ -212,6 +215,65 @@ const webglLine = createWebglLineSeries<Point>({
 });
 ```
 
+## Candlestick Chart
+
+Canvas candlestick series renders OHLC stock data. Set the y-axis `field` to the value you want tooltips and cursor guides to use, usually `close`, and set `domainFields` to `['low', 'high']` so the axis covers the full candle range.
+
+```ts
+import {
+    createCanvasCandlestickSeries,
+    createKChart
+} from '@keneth80/k-chart';
+
+interface StockPoint {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    previousClose: number;
+}
+
+const data: StockPoint[] = [
+    { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106, previousClose: 100 },
+    { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103, previousClose: 106 },
+    { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111, previousClose: 103 }
+];
+
+createKChart<StockPoint>({
+    selector: '#chart',
+    data,
+    axes: [
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, domain: ['2026-05-31', '2026-06-04'] },
+        {
+            field: 'close',
+            type: 'number',
+            placement: 'left',
+            title: 'Price',
+            domainFields: ['low', 'high']
+        }
+    ],
+    tooltip: { visible: true },
+    series: [
+        createCanvasCandlestickSeries({
+            selector: 'price',
+            displayName: 'Price',
+            xField: 'date',
+            openField: 'open',
+            highField: 'high',
+            lowField: 'low',
+            closeField: 'close',
+            colorMode: 'previous-close',
+            previousCloseField: 'previousClose',
+            upColor: '#22c55e',
+            downColor: '#ef4444'
+        })
+    ]
+}).render();
+```
+
+`colorMode` 기본값은 `'open-close'`이며 `close`와 `open`을 비교합니다. 한국 주식 화면처럼 전일 종가 대비 상승/하락 색상을 쓰려면 `colorMode: 'previous-close'`를 지정합니다. `previousCloseField`를 넘기면 해당 필드를 기준으로 비교하고, 생략하면 현재 데이터 배열에서 바로 앞 캔들의 `closeField` 값을 사용합니다.
+
 대용량 line 예제에서는 축 tick 수를 줄여 라벨 겹침을 피할 수 있습니다.
 
 ```ts
@@ -257,6 +319,8 @@ createKChart({
         mode: 'both',
         direction: 'x',
         scaleExtent: [1, 80],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true,
         onZoom: ({ xDomain }) => {
             console.log('visible x domain', xDomain);
@@ -268,6 +332,8 @@ createKChart({
 - `direction`: `'x'`, `'y'`, `'xy'` 중 하나입니다. 대용량 line 차트는 보통 `'x'`가 가장 자연스럽습니다.
 - `mode`: `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다.
 - `scaleExtent`: 최소/최대 확대 배율입니다.
+- `wheelZoom`: PC wheel/trackpad 입력을 제어합니다. `devices`는 기본값이 `'pc'`이며, 필요하면 `'all'`로 바꿀 수 있습니다. `sensitivity`로 확대 민감도를 조절합니다.
+- `gestureZoom`: 모바일 touch gesture 입력을 제어합니다. `devices`는 기본값이 `'mobile'`이며, `minTouches: 1`이면 한 손가락 pan과 두 손가락 pinch를 함께 허용합니다.
 - `resetOnDoubleClick`: `false`로 지정하면 더블클릭 reset을 끌 수 있습니다.
 
 ## LTTB Downsampling

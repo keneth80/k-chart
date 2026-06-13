@@ -14,6 +14,7 @@ import {
     createCursorLineOption,
     createGuideLineOption,
     createLineSeries,
+    createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
     createSpecAreaOption,
@@ -116,6 +117,58 @@ const chart = createKChart<Point>({
 });
 ```
 
+## Built-In Canvas Candlestick Series
+
+OHLC 주식 데이터는 `createCanvasCandlestickSeries`로 렌더링합니다. Y축은 보통 `close`를 기본 field로 두고, `domainFields`에 `low`와 `high`를 넣어 전체 캔들 범위가 축 domain에 포함되게 합니다.
+
+```ts
+interface StockPoint {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    previousClose: number;
+}
+
+const chart = createKChart<StockPoint>({
+    selector: '#chart',
+    data: [
+        { date: '2026-06-01', open: 101, high: 108, low: 98, close: 106, previousClose: 100 },
+        { date: '2026-06-02', open: 106, high: 110, low: 102, close: 103, previousClose: 106 },
+        { date: '2026-06-03', open: 103, high: 112, low: 101, close: 111, previousClose: 103 }
+    ],
+    axes: [
+        { field: 'date', type: 'time', placement: 'bottom', tickCount: 5, domain: ['2026-05-31', '2026-06-04'] },
+        {
+            field: 'close',
+            type: 'number',
+            placement: 'left',
+            domainFields: ['low', 'high'],
+            title: 'Price'
+        }
+    ],
+    tooltip: { visible: true },
+    series: [
+        createCanvasCandlestickSeries({
+            selector: 'price',
+            displayName: 'Price',
+            xField: 'date',
+            openField: 'open',
+            highField: 'high',
+            lowField: 'low',
+            closeField: 'close',
+            colorMode: 'previous-close',
+            previousCloseField: 'previousClose',
+            upColor: '#22c55e',
+            downColor: '#ef4444'
+        })
+    ]
+});
+```
+
+캔들 색상은 기본적으로 `colorMode: 'open-close'`로 동작하며 `close`와 `open`을 비교합니다. `colorMode: 'previous-close'`를 사용하면 현재 `close`와 전일 종가를 비교합니다. `previousCloseField`가 있으면 그 필드를 우선 사용하고, 없으면 렌더링 데이터에서 바로 앞 항목의 `closeField` 값을 전일 종가로 사용합니다.
+
 ## Built-In WebGL Series
 
 ```ts
@@ -198,12 +251,14 @@ createKChart<Point>({
         mode: 'both',
         direction: 'x',
         scaleExtent: [1, 80],
+        wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     }
 });
 ```
 
-`mode`는 `'wheel'`, `'select'`, `'both'`를 지원합니다. `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다. `direction`은 `'x'`, `'y'`, `'xy'`를 지원합니다. string/point 축은 순서형 축이라 현재 zoom 대상에서 제외됩니다.
+`mode`는 `'wheel'`, `'select'`, `'both'`를 지원합니다. `'wheel'`은 wheel/trackpad zoom과 drag pan, `'select'`는 드래그 영역 선택 zoom, `'both'`는 wheel/trackpad zoom과 드래그 영역 선택 zoom을 함께 사용합니다. `wheelZoom`은 PC wheel/trackpad 입력을, `gestureZoom`은 모바일 touch gesture 입력을 분리해서 제어합니다. `direction`은 `'x'`, `'y'`, `'xy'`를 지원합니다. string/point 축은 순서형 축이라 현재 zoom 대상에서 제외됩니다.
 
 ### OffscreenCanvas Worker Rendering
 
