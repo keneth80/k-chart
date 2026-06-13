@@ -10,6 +10,7 @@ import {
     createKChart,
     createLineSeries,
     createSpecAreaOption,
+    createSvgGlobeSeries,
     createWebglLineSeries,
     createWebglPointSeries,
     KChartAxis,
@@ -49,6 +50,7 @@ type DemoKind =
     | 'tooltip-template'
     | 'tooltip-custom'
     | 'topology'
+    | 'globe-map'
     | 'update-series'
     | 'update-data'
     | 'real-time'
@@ -69,6 +71,14 @@ const baseData: DemoPoint[] = [
     { label: 'Apr', x: 4, value: 56, volume: 34, extra: 26, radius: 12, category: 'D' },
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
+];
+
+const globeData: DemoPoint[] = [
+    { label: 'Seoul', x: 126.9780, value: 37.5665, volume: 1, extra: 1, radius: 6, category: 'Asia', lat: 37.5665, lon: 126.9780, url: 'https://en.wikipedia.org/wiki/Seoul' },
+    { label: 'New York', x: -74.0060, value: 40.7128, volume: 1, extra: 1, radius: 5, category: 'North America', lat: 40.7128, lon: -74.0060, url: 'https://en.wikipedia.org/wiki/New_York_City' },
+    { label: 'London', x: -0.1276, value: 51.5072, volume: 1, extra: 1, radius: 5, category: 'Europe', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' },
+    { label: 'Sydney', x: 151.2093, value: -33.8688, volume: 1, extra: 1, radius: 5, category: 'Oceania', lat: -33.8688, lon: 151.2093, url: 'https://en.wikipedia.org/wiki/Sydney' },
+    { label: 'Sao Paulo', x: -46.6333, value: -23.5505, volume: 1, extra: 1, radius: 5, category: 'South America', lat: -23.5505, lon: -46.6333, url: 'https://en.wikipedia.org/wiki/S%C3%A3o_Paulo' }
 ];
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -206,6 +216,7 @@ const examples: ExampleMeta[] = [
     { kind: 'plot', title: 'SVG plot renderer' },
     { kind: 'area', title: 'SVG area renderer' },
     { kind: 'multi-options', title: 'SVG multi series renderer' },
+    { kind: 'globe-map', title: 'Draggable globe map renderer', dataLabel: 'lat/lon markers' },
     { kind: 'option-spec-area', title: 'Spec area option' },
     { kind: 'option-guide-line', title: 'Guide line option' },
     { kind: 'option-cursor-line', title: 'Cursor line option' },
@@ -804,10 +815,16 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-candlestick') {
         return stockData;
     }
+    if (kind === 'globe-map') {
+        return globeData;
+    }
     return baseData;
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
+    if (kind === 'globe-map') {
+        return [];
+    }
     if (kind === 'column') {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
@@ -901,6 +918,32 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 wickColor: 'rgba(237, 243, 248, 0.78)',
                 minCandleWidth: 2,
                 maxCandleWidth: 10
+            })
+        ];
+    }
+    if (kind === 'globe-map') {
+        return [
+            createSvgGlobeSeries({
+                selector: 'demo-globe',
+                displayName: 'Cities',
+                latField: 'lat',
+                lonField: 'lon',
+                labelField: 'label',
+                initialRotate: [-120, -18, 0],
+                sphereFill: 'rgba(12, 18, 29, 0.96)',
+                sphereStroke: 'rgba(148, 163, 184, 0.65)',
+                graticuleStroke: 'rgba(148, 163, 184, 0.24)',
+                markerRadius: (point) => Number(point.radius) || 5,
+                markerColor: '#5db8ff',
+                onMarkerClick: ({ data }) => {
+                    const label = String(data.label);
+                    const url = String(data.url ?? '');
+                    if (url) {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                    } else {
+                        window.alert(label);
+                    }
+                }
             })
         ];
     }
@@ -998,6 +1041,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
+    const isGlobeMap = kind === 'globe-map';
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1012,16 +1056,18 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
                 ? { top: 10, right: 10, bottom: 10, left: 10 }
-                : kind === 'webgl-large-line'
-                    ? { top: 170, right: 28, bottom: 44, left: 52 }
-            : { top: 104, right: 28, bottom: 44, left: 52 },
+                : isGlobeMap
+                    ? { top: 74, right: 20, bottom: 20, left: 20 }
+                    : kind === 'webgl-large-line'
+                        ? { top: 170, right: 28, bottom: 44, left: 52 }
+                        : { top: 104, right: 28, bottom: 44, left: 52 },
         title: kind === 'topology' ? undefined : {
             text: examples.find((example) => example.kind === kind)?.title ?? 'KChart Example',
             align: 'left',
             fontSize: 14
         },
         grid: {
-            visible: !isTopology,
+            visible: !isTopology && !isGlobeMap,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1029,11 +1075,11 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology',
+            visible: kind !== 'topology' && !isGlobeMap,
             placement: 'top'
         },
         tooltip: {
-            visible: !isBigData && !isTopology,
+            visible: !isBigData && !isTopology && !isGlobeMap,
             formatter: kind === 'tooltip-template'
                 ? ({ data: item }) => `<strong>${item.label}</strong><br/>Revenue ${item.value}<br/>Volume ${item.volume}`
                 : kind === 'tooltip-custom'
@@ -1104,6 +1150,21 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     selector: 'demo-topology',
     render({ group, plotSize }) {
         // draw nodes and links inside the plot area
+    }
+})`;
+    }
+    if (kind === 'globe-map') {
+        return `createSvgGlobeSeries({
+    selector: 'demo-globe',
+    displayName: 'Cities',
+    latField: 'lat',
+    lonField: 'lon',
+    labelField: 'label',
+    initialRotate: [-120, -18, 0],
+    markerColor: '#5db8ff',
+    markerRadius: (point) => Number(point.radius) || 5,
+    onMarkerClick: ({ data }) => {
+        window.open(String(data.url), '_blank', 'noopener,noreferrer');
     }
 })`;
     }
@@ -1228,7 +1289,9 @@ const createUsageSnippet = (kind: DemoKind): string => {
             ? 'createLargeData(50000)'
             : kind === 'canvas-candlestick'
                 ? 'stockData'
-            : 'baseData';
+                : kind === 'globe-map'
+                    ? 'globeData'
+                    : 'baseData';
     const dataSnippet = kind === 'canvas-candlestick'
         ? `
 type StockPoint = {
@@ -1289,6 +1352,22 @@ const stockDomain = [
     formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
 ];
 `
+        : kind === 'globe-map'
+        ? `
+type GlobePoint = {
+    label: string;
+    lat: number;
+    lon: number;
+    radius: number;
+    url: string;
+};
+
+const globeData: GlobePoint[] = [
+    { label: 'Seoul', lat: 37.5665, lon: 126.9780, radius: 6, url: 'https://en.wikipedia.org/wiki/Seoul' },
+    { label: 'New York', lat: 40.7128, lon: -74.0060, radius: 5, url: 'https://en.wikipedia.org/wiki/New_York_City' },
+    { label: 'London', lat: 51.5072, lon: -0.1276, radius: 5, url: 'https://en.wikipedia.org/wiki/London' }
+];
+`
         : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
         ? `
 type DemoPoint = {
@@ -1344,19 +1423,20 @@ const baseData = [
     createKChart,
     createLineSeries,
     createSpecAreaOption,
+    createSvgGlobeSeries,
     createWebglLineSeries,
     createWebglPointSeries
 } from 'kchart';
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : kind === 'globe-map' ? 'GlobePoint' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: true, y: true, x: false },
-    legend: { visible: true, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
+    grid: { visible: ${kind === 'globe-map' ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${kind === 'globe-map' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1381,7 +1461,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'globe-map' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
@@ -1394,7 +1474,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || kind === 'globe-map' ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

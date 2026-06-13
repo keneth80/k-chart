@@ -1,5 +1,6 @@
 import { extent } from 'd3-array';
 import { axisBottom, axisLeft, axisRight, axisTop } from 'd3-axis';
+import { geoDistance, geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
 import { scaleBand, scaleLinear, scalePoint, scaleTime } from 'd3-scale';
 import { schemeCategory10 } from 'd3-scale-chromatic';
 import { BaseType, pointer, select, Selection } from 'd3-selection';
@@ -188,6 +189,39 @@ export interface KChartCanvasCandlestickSeriesConfiguration<T = any> {
     maxCandleWidth?: number;
     strokeWidth?: number;
     canvasName?: string;
+}
+
+export interface KChartGlobeMarkerClickContext<T = any> {
+    data: T;
+    event: MouseEvent;
+    lat: number;
+    lon: number;
+    x: number;
+    y: number;
+}
+
+export interface KChartSvgGlobeSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    latField: keyof T & string;
+    lonField: keyof T & string;
+    labelField?: keyof T & string;
+    initialRotate?: [number, number, number?];
+    draggable?: boolean;
+    globeScale?: number;
+    sphereFill?: string;
+    sphereStroke?: string;
+    graticuleVisible?: boolean;
+    graticuleStroke?: string;
+    landGeoJson?: any | any[];
+    landFill?: string;
+    landStroke?: string;
+    markerRadius?: number | ((point: T) => number);
+    markerColor?: string | ((point: T) => string);
+    markerStroke?: string;
+    markerStrokeWidth?: number;
+    markerOpacity?: number;
+    onMarkerClick?: (context: KChartGlobeMarkerClickContext<T>) => void;
 }
 
 export interface KChartWebglPointSeriesConfiguration<T = any> {
@@ -947,6 +981,44 @@ const resolveCandlestickColor = <T = any>(
 const formatCandlestickTooltipValue = (value: any): string => {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(value);
+};
+
+const resolveGlobePointValue = <T = any>(point: T, field: keyof T & string): number => Number(point[field]);
+
+const resolveGlobeMarkerRadius = <T = any>(
+    point: T,
+    configuration: Pick<KChartSvgGlobeSeriesConfiguration<T>, 'markerRadius'>
+): number => {
+    if (typeof configuration.markerRadius === 'function') {
+        return configuration.markerRadius(point);
+    }
+    return configuration.markerRadius ?? 5;
+};
+
+const resolveGlobeMarkerColor = <T = any>(
+    point: T,
+    configuration: Pick<KChartSvgGlobeSeriesConfiguration<T>, 'markerColor'>,
+    fallbackColor: string
+): string => {
+    if (typeof configuration.markerColor === 'function') {
+        return configuration.markerColor(point);
+    }
+    return configuration.markerColor ?? fallbackColor;
+};
+
+const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, number, number] => [
+    rotation?.[0] ?? 0,
+    rotation?.[1] ?? -12,
+    rotation?.[2] ?? 0
+];
+
+const isGlobePointVisible = (lon: number, lat: number, rotation: [number, number, number]): boolean => {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+        return false;
+    }
+
+    const center: [number, number] = [-rotation[0], -rotation[1]];
+    return geoDistance([lon, lat], center) <= Math.PI / 2;
 };
 
 export const downsampleLTTB = <T = any>(
@@ -2940,6 +3012,190 @@ export const createCanvasCandlestickSeries = <T = any>(
         destroyCanvasByClass(svg, `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
+
+export const createSvgGlobeSeries = <T = any>(
+    configuration: KChartSvgGlobeSeriesConfiguration<T>
+): KChartSeries<T> => {
+    let rotation = normalizeGlobeRotation(configuration.initialRotate);
+    let dragging = false;
+    let dragStart: [number, number] = [0, 0];
+    let rotationStart: [number, number, number] = [...rotation];
+
+    return createCustomSeries<T>({
+        selector: configuration.selector,
+        displayName: configuration.displayName,
+        xField: configuration.lonField,
+        yField: configuration.latField,
+        color: typeof configuration.markerColor === 'string' ? configuration.markerColor : undefined,
+        render({ group, data, plotSize, color }) {
+            const width = plotSize.width;
+            const height = plotSize.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const scale = Math.max(1, Math.min(width, height) / 2 * (configuration.globeScale ?? 0.88));
+            const projection = geoOrthographic()
+                .translate([centerX, centerY])
+                .scale(scale)
+                .rotate(rotation)
+                .clipAngle(90);
+            const path = geoPath(projection);
+
+            const draw = (): void => {
+                projection.rotate(rotation);
+
+                const globeGroup = group.selectAll<SVGGElement, unknown>('g.kchart-globe-layer')
+                    .data([undefined])
+                    .join('g')
+                    .attr('class', 'kchart-globe-layer')
+                    .style('cursor', configuration.draggable === false ? 'default' : dragging ? 'grabbing' : 'grab');
+
+                globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-sphere')
+                    .data([{ type: 'Sphere' }])
+                    .join('path')
+                    .attr('class', 'kchart-globe-sphere')
+                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
+                    .style('stroke', configuration.sphereStroke ?? 'rgba(148, 163, 184, 0.62)')
+                    .style('stroke-width', 1.2)
+                    .style('pointer-events', 'all');
+
+                globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-graticule')
+                    .data(configuration.graticuleVisible === false ? [] : [geoGraticule10()])
+                    .join('path')
+                    .attr('class', 'kchart-globe-graticule')
+                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .style('fill', 'none')
+                    .style('stroke', configuration.graticuleStroke ?? 'rgba(148, 163, 184, 0.22)')
+                    .style('stroke-width', 0.8)
+                    .style('pointer-events', 'none');
+
+                const landData = configuration.landGeoJson
+                    ? Array.isArray(configuration.landGeoJson) ? configuration.landGeoJson : [configuration.landGeoJson]
+                    : [];
+
+                globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
+                    .data(landData)
+                    .join('path')
+                    .attr('class', 'kchart-globe-land')
+                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .style('fill', configuration.landFill ?? 'rgba(86, 208, 143, 0.2)')
+                    .style('stroke', configuration.landStroke ?? 'rgba(209, 250, 229, 0.45)')
+                    .style('stroke-width', 0.8)
+                    .style('pointer-events', 'none');
+
+                const markerData = data.map((point) => {
+                    const lat = resolveGlobePointValue(point, configuration.latField);
+                    const lon = resolveGlobePointValue(point, configuration.lonField);
+                    const projected = projection([lon, lat]);
+                    return {
+                        data: point,
+                        lat,
+                        lon,
+                        projected,
+                        visible: Boolean(projected) && isGlobePointVisible(lon, lat, rotation)
+                    };
+                }).filter((point) => point.visible && point.projected) as Array<{
+                    data: T;
+                    lat: number;
+                    lon: number;
+                    projected: [number, number];
+                    visible: boolean;
+                }>;
+
+                const markers = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker')
+                    .data(markerData, (datum: any) => String(configuration.labelField ? datum.data[configuration.labelField] : `${datum.lat},${datum.lon}`));
+
+                markers.exit().remove();
+
+                markers.enter()
+                    .append('circle')
+                    .attr('class', 'kchart-globe-marker')
+                    .style('cursor', configuration.onMarkerClick ? 'pointer' : 'default')
+                    .style('pointer-events', 'all')
+                    .merge(markers as any)
+                    .attr('cx', (datum) => datum.projected[0])
+                    .attr('cy', (datum) => datum.projected[1])
+                    .attr('r', (datum) => resolveGlobeMarkerRadius(datum.data, configuration))
+                    .style('fill', (datum) => resolveGlobeMarkerColor(datum.data, configuration, color))
+                    .style('stroke', configuration.markerStroke ?? 'rgba(248, 251, 255, 0.92)')
+                    .style('stroke-width', configuration.markerStrokeWidth ?? 1.4)
+                    .style('opacity', configuration.markerOpacity ?? 0.95)
+                    .on('click', (event: MouseEvent, datum) => {
+                        if (!configuration.onMarkerClick) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        configuration.onMarkerClick({
+                            data: datum.data,
+                            event,
+                            lat: datum.lat,
+                            lon: datum.lon,
+                            x: datum.projected[0],
+                            y: datum.projected[1]
+                        });
+                    });
+
+                const labels = globeGroup.selectAll<SVGTextElement, typeof markerData[number]>('text.kchart-globe-marker-label')
+                    .data(configuration.labelField ? markerData : [], (datum: any) => String(datum.data[configuration.labelField as keyof T & string]));
+
+                labels.exit().remove();
+
+                labels.enter()
+                    .append('text')
+                    .attr('class', 'kchart-globe-marker-label')
+                    .style('pointer-events', 'none')
+                    .merge(labels as any)
+                    .attr('x', (datum) => datum.projected[0] + resolveGlobeMarkerRadius(datum.data, configuration) + 5)
+                    .attr('y', (datum) => datum.projected[1] + 4)
+                    .style('fill', 'rgba(248, 251, 255, 0.82)')
+                    .style('font-size', '11px')
+                    .style('font-weight', 700)
+                    .text((datum) => String(datum.data[configuration.labelField as keyof T & string]));
+            };
+
+            draw();
+
+            const globeLayer = group.select<SVGGElement>('g.kchart-globe-layer');
+            globeLayer.on('.kchart-globe-drag', null);
+
+            if (configuration.draggable !== false) {
+                globeLayer
+                    .on('pointerdown.kchart-globe-drag', (event: PointerEvent) => {
+                        dragging = true;
+                        dragStart = pointer(event, group.node() as any) as [number, number];
+                        rotationStart = [...rotation];
+                        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+                        event.preventDefault();
+                        draw();
+                    })
+                    .on('pointermove.kchart-globe-drag', (event: PointerEvent) => {
+                        if (!dragging) {
+                            return;
+                        }
+                        const [mouseX, mouseY] = pointer(event, group.node() as any);
+                        const dx = mouseX - dragStart[0];
+                        const dy = mouseY - dragStart[1];
+                        rotation = [
+                            rotationStart[0] + dx / Math.max(width, 1) * 360,
+                            clampNumber(rotationStart[1] - dy / Math.max(height, 1) * 180, -89, 89),
+                            rotationStart[2]
+                        ];
+                        event.preventDefault();
+                        draw();
+                    })
+                    .on('pointerup.kchart-globe-drag pointercancel.kchart-globe-drag', (event: PointerEvent) => {
+                        dragging = false;
+                        (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+                        draw();
+                    });
+            }
+        },
+        destroy({ plotGroup }) {
+            plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-drag', null);
+        }
+    });
+};
 
 export const createWebglPointSeries = <T = any>(
     configuration: KChartWebglPointSeriesConfiguration<T>

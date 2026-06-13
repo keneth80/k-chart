@@ -104,6 +104,7 @@ Primary exports come from `src/kchart.ts` through `src/index.ts`.
 - `createCanvasLineSeries<T>(...)`: Canvas 2D line renderer.
 - `createCanvasPointSeries<T>(...)`: Canvas 2D point renderer.
 - `createCanvasCandlestickSeries<T>(...)`: Canvas 2D OHLC candlestick renderer with open/close or previous-close color modes.
+- `createSvgGlobeSeries<T>(...)`: SVG orthographic globe renderer with draggable rotation, latitude/longitude markers, and marker click callbacks.
 - `createWebglLineSeries<T>(...)`: WebGL line renderer for large data.
 - `createWebglPointSeries<T>(...)`: WebGL point renderer using interleaved point buffer.
 - `createCustomSeries<T>(...)`: user-defined renderer with access to chart layers and scales.
@@ -185,6 +186,7 @@ Important state fields:
 - Wheel zoom, mobile gesture zoom, drag pan, drag-selection zoom, and double-click reset.
 - `zoom.wheelZoom` and `zoom.gestureZoom` split desktop wheel/trackpad input from mobile touch gesture input without removing the older `mode` contract.
 - Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
+- Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields, with optional external GeoJSON through `landGeoJson`.
 
 ### External Packages Around This Library
 

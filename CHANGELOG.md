@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added `createSvgGlobeSeries` for draggable SVG orthographic globe maps with latitude/longitude markers and marker click callbacks.
+
 ## 1.4.0 - 2026-06-13
 
 ### Added

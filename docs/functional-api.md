@@ -17,6 +17,7 @@ import {
     createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
+    createSvgGlobeSeries,
     createSpecAreaOption,
     createWebglPointSeries,
     createCustomSeries,
@@ -168,6 +169,48 @@ const chart = createKChart<StockPoint>({
 ```
 
 캔들 색상은 기본적으로 `colorMode: 'open-close'`로 동작하며 `close`와 `open`을 비교합니다. `colorMode: 'previous-close'`를 사용하면 현재 `close`와 전일 종가를 비교합니다. `previousCloseField`가 있으면 그 필드를 우선 사용하고, 없으면 렌더링 데이터에서 바로 앞 항목의 `closeField` 값을 전일 종가로 사용합니다.
+
+## Built-In SVG Globe Series
+
+지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다.
+
+```ts
+interface CityPoint {
+    name: string;
+    lat: number;
+    lon: number;
+    url: string;
+}
+
+const chart = createKChart<CityPoint>({
+    selector: '#chart',
+    data: [
+        { name: 'Seoul', lat: 37.5665, lon: 126.9780, url: 'https://en.wikipedia.org/wiki/Seoul' },
+        { name: 'New York', lat: 40.7128, lon: -74.0060, url: 'https://en.wikipedia.org/wiki/New_York_City' },
+        { name: 'London', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' }
+    ],
+    grid: { visible: false },
+    legend: { visible: false },
+    tooltip: { visible: false },
+    axes: [],
+    series: [
+        createSvgGlobeSeries({
+            selector: 'cities',
+            displayName: 'Cities',
+            latField: 'lat',
+            lonField: 'lon',
+            labelField: 'name',
+            initialRotate: [-120, -18, 0],
+            markerColor: '#5db8ff',
+            onMarkerClick: ({ data }) => {
+                window.open(data.url, '_blank', 'noopener,noreferrer');
+            }
+        })
+    ]
+});
+```
+
+`draggable` 기본값은 `true`입니다. `landGeoJson`에 GeoJSON feature 또는 feature 배열을 넘기면 구면 위에 land path도 함께 그릴 수 있습니다.
 
 ## Built-In WebGL Series
 
