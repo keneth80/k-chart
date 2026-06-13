@@ -6,8 +6,9 @@ import { schemeCategory10 } from 'd3-scale-chromatic';
 import { BaseType, pointer, select, Selection } from 'd3-selection';
 import { curveMonotoneX, line as d3Line } from 'd3-shape';
 import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
-import { feature as topojsonFeature } from 'topojson-client';
+import { feature as topojsonFeature, mesh as topojsonMesh } from 'topojson-client';
 import worldCountries110m from 'world-atlas/countries-110m.json';
+import worldLand110m from 'world-atlas/land-110m.json';
 
 export type KChartScaleType = 'number' | 'time' | 'string' | 'point';
 export type KChartPlacement = 'top' | 'right' | 'bottom' | 'left';
@@ -17,6 +18,7 @@ export type KChartZoomDirection = 'x' | 'y' | 'xy';
 export type KChartZoomMode = 'wheel' | 'select' | 'both';
 export type KChartZoomInputDevice = 'pc' | 'mobile' | 'all';
 export type KChartCandlestickColorMode = 'open-close' | 'previous-close';
+export type KChartGlobeLandMode = 'land' | 'countries';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
@@ -216,10 +218,14 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     graticuleVisible?: boolean;
     graticuleStroke?: string;
     landVisible?: boolean;
+    landMode?: KChartGlobeLandMode;
     landGeoJson?: any | any[];
     landFill?: string | ((feature: any, index: number) => string);
     landStroke?: string | ((feature: any, index: number) => string);
     landOpacity?: number | ((feature: any, index: number) => number);
+    countryBordersVisible?: boolean;
+    countryBordersStroke?: string;
+    countryBordersStrokeWidth?: number;
     markerRadius?: number | ((point: T) => number);
     markerColor?: string | ((point: T) => string);
     markerStroke?: string;
@@ -1052,6 +1058,17 @@ const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, 
 const WORLD_COUNTRY_GEOJSON = topojsonFeature(
     worldCountries110m as any,
     (worldCountries110m as any).objects.countries
+);
+
+const WORLD_LAND_GEOJSON = topojsonFeature(
+    worldLand110m as any,
+    (worldLand110m as any).objects.land
+);
+
+const WORLD_COUNTRY_BORDERS_GEOJSON = topojsonMesh(
+    worldCountries110m as any,
+    (worldCountries110m as any).objects.countries,
+    (a: any, b: any) => a !== b
 );
 
 const isGlobePointVisible = (lon: number, lat: number, rotation: [number, number, number]): boolean => {
@@ -3101,9 +3118,12 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke-width', 1.2)
                     .style('pointer-events', 'all');
 
+                const defaultLandGeoJson = configuration.landMode === 'countries'
+                    ? WORLD_COUNTRY_GEOJSON
+                    : WORLD_LAND_GEOJSON;
                 const landData = configuration.landVisible === false
                     ? []
-                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? WORLD_COUNTRY_GEOJSON);
+                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? defaultLandGeoJson);
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
                     .data(landData)
@@ -3114,6 +3134,16 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(configuration.landOpacity, datum, index))
                     .style('stroke', (datum, index) => resolveGlobeLandStyle(configuration.landStroke, datum, index, 'rgba(236, 253, 245, 0.9)'))
                     .style('stroke-width', 1)
+                    .style('pointer-events', 'none');
+
+                globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-country-borders')
+                    .data(configuration.countryBordersVisible === false || configuration.landVisible === false ? [] : [WORLD_COUNTRY_BORDERS_GEOJSON])
+                    .join('path')
+                    .attr('class', 'kchart-globe-country-borders')
+                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .style('fill', 'none')
+                    .style('stroke', configuration.countryBordersStroke ?? 'rgba(236, 253, 245, 0.26)')
+                    .style('stroke-width', configuration.countryBordersStrokeWidth ?? 0.55)
                     .style('pointer-events', 'none');
 
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-graticule')

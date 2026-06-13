@@ -277,7 +277,7 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m country layer is rendered by default; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landFill`, `landStroke`, and `landOpacity` can be constants or callbacks, so country-level GeoJSON can be styled per feature.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature.
 
 ```ts
 import {
@@ -311,19 +311,32 @@ createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
-            landFill: (feature, index) => {
-                const iso = feature.properties?.iso_a2;
-                if (iso === 'KR') return '#60a5fa';
-                return ['#22c55e', '#14b8a6', '#f59e0b'][index % 3];
-            },
-            landStroke: 'rgba(236, 253, 245, 0.86)',
-            landOpacity: 0.72,
+            landFill: '#22c55e',
+            landStroke: 'rgba(236, 253, 245, 0.72)',
+            landOpacity: 0.58,
+            countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
             }
         })
     ]
 }).render();
+```
+
+Country-level styling is available when the land layer uses country features:
+
+```ts
+createSvgGlobeSeries({
+    selector: 'country-colors',
+    latField: 'lat',
+    lonField: 'lon',
+    landMode: 'countries',
+    landFill: (feature, index) => {
+        const name = feature.properties?.name;
+        if (name === 'South Korea') return '#60a5fa';
+        return ['#22c55e', '#14b8a6', '#f59e0b'][index % 3];
+    }
+});
 ```
 
 대용량 line 예제에서는 축 tick 수를 줄여 라벨 겹침을 피할 수 있습니다.
