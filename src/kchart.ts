@@ -204,6 +204,15 @@ export interface KChartGlobeMarkerClickContext<T = any> {
     y: number;
 }
 
+export interface KChartGlobeZoomConfiguration {
+    enabled?: boolean;
+    wheel?: boolean;
+    pinch?: boolean;
+    min?: number;
+    max?: number;
+    wheelSensitivity?: number;
+}
+
 export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
@@ -213,6 +222,7 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     initialRotate?: [number, number, number?];
     draggable?: boolean;
     globeScale?: number;
+    zoom?: boolean | KChartGlobeZoomConfiguration;
     sphereFill?: string;
     sphereStroke?: string;
     graticuleVisible?: boolean;
@@ -1054,6 +1064,27 @@ const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, 
     rotation?.[1] ?? -12,
     rotation?.[2] ?? 0
 ];
+
+const resolveGlobeZoomConfiguration = (zoom?: boolean | KChartGlobeZoomConfiguration): Required<KChartGlobeZoomConfiguration> => {
+    if (typeof zoom === 'boolean') {
+        return {
+            enabled: zoom,
+            wheel: true,
+            pinch: true,
+            min: 0.55,
+            max: 3,
+            wheelSensitivity: 0.0012
+        };
+    }
+    return {
+        enabled: zoom?.enabled ?? false,
+        wheel: zoom?.wheel ?? true,
+        pinch: zoom?.pinch ?? true,
+        min: zoom?.min ?? 0.55,
+        max: zoom?.max ?? 3,
+        wheelSensitivity: zoom?.wheelSensitivity ?? 0.0012
+    };
+};
 
 const WORLD_COUNTRY_GEOJSON = topojsonFeature(
     worldCountries110m as any,
@@ -3076,9 +3107,13 @@ export const createSvgGlobeSeries = <T = any>(
     configuration: KChartSvgGlobeSeriesConfiguration<T>
 ): KChartSeries<T> => {
     let rotation = normalizeGlobeRotation(configuration.initialRotate);
+    let zoomLevel = 1;
     let dragging = false;
     let dragStart: [number, number] = [0, 0];
     let rotationStart: [number, number, number] = [...rotation];
+    const activePointers = new Map<number, [number, number]>();
+    let pinchStartDistance = 0;
+    let pinchStartZoom = 1;
 
     return createCustomSeries<T>({
         selector: configuration.selector,
@@ -3091,22 +3126,37 @@ export const createSvgGlobeSeries = <T = any>(
             const height = plotSize.height;
             const centerX = width / 2;
             const centerY = height / 2;
-            const scale = Math.max(1, Math.min(width, height) / 2 * (configuration.globeScale ?? 0.88));
+            const zoomConfiguration = resolveGlobeZoomConfiguration(configuration.zoom);
+            const minZoom = Math.min(zoomConfiguration.min, zoomConfiguration.max);
+            const maxZoom = Math.max(zoomConfiguration.min, zoomConfiguration.max);
+            zoomLevel = clampNumber(zoomLevel, minZoom, maxZoom);
+            const baseScale = Math.max(1, Math.min(width, height) / 2 * (configuration.globeScale ?? 0.88));
             const projection = geoOrthographic()
                 .translate([centerX, centerY])
-                .scale(scale)
+                .scale(baseScale * zoomLevel)
                 .rotate(rotation)
                 .clipAngle(90);
             const path = geoPath(projection);
+            const getFirstTwoPointerDistance = (): number => {
+                const points = Array.from(activePointers.values());
+                if (points.length < 2) {
+                    return 0;
+                }
+                const dx = points[0][0] - points[1][0];
+                const dy = points[0][1] - points[1][1];
+                return Math.hypot(dx, dy);
+            };
 
             const draw = (): void => {
                 projection.rotate(rotation);
+                projection.scale(baseScale * zoomLevel);
 
                 const globeGroup = group.selectAll<SVGGElement, unknown>('g.kchart-globe-layer')
                     .data([undefined])
                     .join('g')
                     .attr('class', 'kchart-globe-layer')
-                    .style('cursor', configuration.draggable === false ? 'default' : dragging ? 'grabbing' : 'grab');
+                    .style('cursor', configuration.draggable === false ? 'default' : dragging ? 'grabbing' : 'grab')
+                    .style('touch-action', configuration.draggable === false && !zoomConfiguration.enabled ? null : 'none');
 
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-sphere')
                     .data([{ type: 'Sphere' }])
@@ -3231,18 +3281,50 @@ export const createSvgGlobeSeries = <T = any>(
 
             const globeLayer = group.select<SVGGElement>('g.kchart-globe-layer');
             globeLayer.on('.kchart-globe-drag', null);
+            globeLayer.on('.kchart-globe-zoom', null);
 
-            if (configuration.draggable !== false) {
+            if (zoomConfiguration.enabled && zoomConfiguration.wheel) {
+                globeLayer.on('wheel.kchart-globe-zoom', (event: WheelEvent) => {
+                    event.preventDefault();
+                    const zoomDelta = Math.exp(-event.deltaY * zoomConfiguration.wheelSensitivity);
+                    zoomLevel = clampNumber(zoomLevel * zoomDelta, minZoom, maxZoom);
+                    draw();
+                });
+            }
+
+            if (configuration.draggable !== false || (zoomConfiguration.enabled && zoomConfiguration.pinch)) {
                 globeLayer
                     .on('pointerdown.kchart-globe-drag', (event: PointerEvent) => {
-                        dragging = true;
-                        dragStart = pointer(event, group.node() as any) as [number, number];
-                        rotationStart = [...rotation];
+                        const currentPoint = pointer(event, group.node() as any) as [number, number];
+                        if (zoomConfiguration.enabled && zoomConfiguration.pinch) {
+                            activePointers.set(event.pointerId, currentPoint);
+                        }
+                        if (zoomConfiguration.enabled && zoomConfiguration.pinch && activePointers.size >= 2) {
+                            dragging = false;
+                            pinchStartDistance = getFirstTwoPointerDistance();
+                            pinchStartZoom = zoomLevel;
+                        } else if (configuration.draggable !== false) {
+                            dragging = true;
+                            dragStart = currentPoint;
+                            rotationStart = [...rotation];
+                        }
                         (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
                         event.preventDefault();
                         draw();
                     })
                     .on('pointermove.kchart-globe-drag', (event: PointerEvent) => {
+                        if (zoomConfiguration.enabled && zoomConfiguration.pinch && activePointers.has(event.pointerId)) {
+                            activePointers.set(event.pointerId, pointer(event, group.node() as any) as [number, number]);
+                        }
+                        if (zoomConfiguration.enabled && zoomConfiguration.pinch && activePointers.size >= 2) {
+                            const distance = getFirstTwoPointerDistance();
+                            if (pinchStartDistance > 0 && distance > 0) {
+                                zoomLevel = clampNumber(pinchStartZoom * distance / pinchStartDistance, minZoom, maxZoom);
+                                draw();
+                            }
+                            event.preventDefault();
+                            return;
+                        }
                         if (!dragging) {
                             return;
                         }
@@ -3258,6 +3340,11 @@ export const createSvgGlobeSeries = <T = any>(
                         draw();
                     })
                     .on('pointerup.kchart-globe-drag pointercancel.kchart-globe-drag', (event: PointerEvent) => {
+                        activePointers.delete(event.pointerId);
+                        if (activePointers.size < 2) {
+                            pinchStartDistance = 0;
+                            pinchStartZoom = zoomLevel;
+                        }
                         dragging = false;
                         (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
                         draw();
@@ -3266,6 +3353,7 @@ export const createSvgGlobeSeries = <T = any>(
         },
         destroy({ plotGroup }) {
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-drag', null);
+            plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-zoom', null);
         }
     });
 };

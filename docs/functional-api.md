@@ -172,7 +172,7 @@ const chart = createKChart<StockPoint>({
 
 ## Built-In SVG Globe Series
 
-지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다. 기본값으로 World Atlas 110m land layer와 국가 경계 mesh가 표시되며, `landVisible: false`로 끄거나 `landGeoJson`으로 더 정교한 GeoJSON을 교체할 수 있습니다. 나라별 색상 지정이 필요하면 `landMode: 'countries'`를 사용하고 `landFill`, `landStroke`, `landOpacity` callback을 feature 기준으로 지정합니다.
+지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다. 기본값으로 World Atlas 110m land layer와 국가 경계 mesh가 표시되며, `landVisible: false`로 끄거나 `landGeoJson`으로 더 정교한 GeoJSON을 교체할 수 있습니다. 나라별 색상 지정이 필요하면 `landMode: 'countries'`를 사용하고 `landFill`, `landStroke`, `landOpacity` callback을 feature 기준으로 지정합니다. `zoom: { enabled: true }`를 지정하면 데스크톱에서는 wheel zoom, 터치 장치에서는 pinch zoom을 사용할 수 있습니다.
 
 ```ts
 interface CityPoint {
@@ -201,6 +201,7 @@ const chart = createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
+            zoom: { enabled: true, min: 0.65, max: 2.6 },
             landFill: '#22c55e',
             landStroke: 'rgba(236, 253, 245, 0.72)',
             landOpacity: 0.58,
@@ -214,7 +215,7 @@ const chart = createKChart<CityPoint>({
 });
 ```
 
-`draggable` 기본값은 `true`입니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
+`draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
 
 ## Built-In WebGL Series
 

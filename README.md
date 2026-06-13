@@ -277,7 +277,7 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices.
 
 ```ts
 import {
@@ -311,6 +311,7 @@ createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
+            zoom: { enabled: true, min: 0.65, max: 2.6 },
             landFill: '#22c55e',
             landStroke: 'rgba(236, 253, 245, 0.72)',
             landOpacity: 0.58,

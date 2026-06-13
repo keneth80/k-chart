@@ -186,7 +186,7 @@ Important state fields:
 - Wheel zoom, mobile gesture zoom, drag pan, drag-selection zoom, and double-click reset.
 - `zoom.wheelZoom` and `zoom.gestureZoom` split desktop wheel/trackpad input from mobile touch gesture input without removing the older `mode` contract.
 - Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
-- Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields. It renders a built-in World Atlas 110m land layer plus country border mesh by default, accepts external GeoJSON through `landGeoJson`, and supports country feature styling through `landMode: 'countries'`, `landFill`, `landStroke`, and `landOpacity`.
+- Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields. It renders a built-in World Atlas 110m land layer plus country border mesh by default, accepts external GeoJSON through `landGeoJson`, supports country feature styling through `landMode: 'countries'`, `landFill`, `landStroke`, and `landOpacity`, and can enable wheel/pinch scaling through the `zoom` option.
 
 ### External Packages Around This Library
 
