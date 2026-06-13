@@ -215,8 +215,9 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     graticuleStroke?: string;
     landVisible?: boolean;
     landGeoJson?: any | any[];
-    landFill?: string;
-    landStroke?: string;
+    landFill?: string | ((feature: any, index: number) => string);
+    landStroke?: string | ((feature: any, index: number) => string);
+    landOpacity?: number | ((feature: any, index: number) => number);
     markerRadius?: number | ((point: T) => number);
     markerColor?: string | ((point: T) => string);
     markerStroke?: string;
@@ -1005,6 +1006,39 @@ const resolveGlobeMarkerColor = <T = any>(
         return configuration.markerColor(point);
     }
     return configuration.markerColor ?? fallbackColor;
+};
+
+const resolveGlobeLandStyle = (
+    value: string | ((feature: any, index: number) => string) | undefined,
+    feature: any,
+    index: number,
+    fallback: string
+): string => {
+    if (typeof value === 'function') {
+        return value(feature, index);
+    }
+    return value ?? fallback;
+};
+
+const resolveGlobeLandOpacity = (
+    value: number | ((feature: any, index: number) => number) | undefined,
+    feature: any,
+    index: number
+): number => {
+    if (typeof value === 'function') {
+        return value(feature, index);
+    }
+    return value ?? 0.88;
+};
+
+const normalizeGlobeLandFeatures = (geoJson: any | any[]): any[] => {
+    const values = Array.isArray(geoJson) ? geoJson : [geoJson];
+    return values.flatMap((value) => {
+        if (value?.type === 'FeatureCollection' && Array.isArray(value.features)) {
+            return value.features;
+        }
+        return value ? [value] : [];
+    });
 };
 
 const normalizeGlobeRotation = (rotation?: [number, number, number?]): [number, number, number] => [
@@ -3154,20 +3188,17 @@ export const createSvgGlobeSeries = <T = any>(
 
                 const landData = configuration.landVisible === false
                     ? []
-                    : (
-                        configuration.landGeoJson
-                            ? Array.isArray(configuration.landGeoJson) ? configuration.landGeoJson : [configuration.landGeoJson]
-                            : [SIMPLE_GLOBE_LAND_GEOJSON]
-                    );
+                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? SIMPLE_GLOBE_LAND_GEOJSON);
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
                     .data(landData)
                     .join('path')
                     .attr('class', 'kchart-globe-land')
                     .attr('d', (datum: any) => path(datum) ?? '')
-                    .style('fill', configuration.landFill ?? 'rgba(86, 208, 143, 0.26)')
-                    .style('stroke', configuration.landStroke ?? 'rgba(209, 250, 229, 0.5)')
-                    .style('stroke-width', 0.8)
+                    .style('fill', (datum, index) => resolveGlobeLandStyle(configuration.landFill, datum, index, '#2dd4bf'))
+                    .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(configuration.landOpacity, datum, index))
+                    .style('stroke', (datum, index) => resolveGlobeLandStyle(configuration.landStroke, datum, index, 'rgba(236, 253, 245, 0.9)'))
+                    .style('stroke-width', 1)
                     .style('pointer-events', 'none');
 
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-graticule')

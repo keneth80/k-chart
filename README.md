@@ -277,7 +277,7 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A lightweight simplified land layer is rendered by default; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A lightweight simplified land layer is rendered by default; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landFill`, `landStroke`, and `landOpacity` can be constants or callbacks, so country-level GeoJSON can be styled per feature.
 
 ```ts
 import {
@@ -311,8 +311,13 @@ createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
-            landFill: 'rgba(72, 187, 120, 0.28)',
-            landStroke: 'rgba(209, 250, 229, 0.58)',
+            landFill: (feature, index) => {
+                const iso = feature.properties?.iso_a2;
+                if (iso === 'KR') return '#60a5fa';
+                return ['#22c55e', '#14b8a6', '#f59e0b'][index % 3];
+            },
+            landStroke: 'rgba(236, 253, 245, 0.86)',
+            landOpacity: 0.72,
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
             }

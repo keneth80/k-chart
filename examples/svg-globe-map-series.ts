@@ -36,8 +36,12 @@ createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
-            landFill: 'rgba(72, 187, 120, 0.28)',
-            landStroke: 'rgba(209, 250, 229, 0.58)',
+            landFill: (feature, index) => {
+                const colors = ['#22c55e', '#14b8a6', '#60a5fa', '#f59e0b'];
+                return colors[index % colors.length];
+            },
+            landStroke: 'rgba(236, 253, 245, 0.86)',
+            landOpacity: 0.72,
             markerRadius: (point) => point.radius,
             markerColor: '#5db8ff',
             onMarkerClick: ({ data }) => {

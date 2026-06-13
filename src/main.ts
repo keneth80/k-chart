@@ -933,8 +933,9 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 sphereFill: 'rgba(12, 18, 29, 0.96)',
                 sphereStroke: 'rgba(148, 163, 184, 0.65)',
                 graticuleStroke: 'rgba(148, 163, 184, 0.24)',
-                landFill: 'rgba(72, 187, 120, 0.28)',
-                landStroke: 'rgba(209, 250, 229, 0.58)',
+                landFill: (_, index) => ['#22c55e', '#14b8a6', '#60a5fa', '#f59e0b', '#a78bfa', '#f97316', '#38bdf8', '#94a3b8'][index % 8],
+                landStroke: 'rgba(236, 253, 245, 0.86)',
+                landOpacity: 0.72,
                 markerRadius: (point) => Number(point.radius) || 5,
                 markerColor: '#5db8ff',
                 onMarkerClick: ({ data }) => {
@@ -1163,8 +1164,9 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     lonField: 'lon',
     labelField: 'label',
     initialRotate: [-120, -18, 0],
-    landFill: 'rgba(72, 187, 120, 0.28)',
-    landStroke: 'rgba(209, 250, 229, 0.58)',
+    landFill: (_, index) => ['#22c55e', '#14b8a6', '#60a5fa', '#f59e0b'][index % 4],
+    landStroke: 'rgba(236, 253, 245, 0.86)',
+    landOpacity: 0.72,
     markerColor: '#5db8ff',
     markerRadius: (point) => Number(point.radius) || 5,
     onMarkerClick: ({ data }) => {
