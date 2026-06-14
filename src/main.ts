@@ -941,14 +941,13 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 countryBordersStrokeWidth: 0.55,
                 markerRadius: (point) => Number(point.radius) || 5,
                 markerColor: '#5db8ff',
-                onMarkerClick: ({ data }) => {
-                    const label = String(data.label);
-                    const url = String(data.url ?? '');
-                    if (url) {
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                    } else {
-                        window.alert(label);
-                    }
+                drilldown: {
+                    enabled: true,
+                    zoomScale: 7,
+                    resetControl: true,
+                    landFill: '#38bdf8',
+                    landStroke: 'rgba(240, 249, 255, 0.78)',
+                    landOpacity: 0.5
                 }
             })
         ];
@@ -1174,8 +1173,13 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
     markerColor: '#5db8ff',
     markerRadius: (point) => Number(point.radius) || 5,
-    onMarkerClick: ({ data }) => {
-        window.open(String(data.url), '_blank', 'noopener,noreferrer');
+    drilldown: {
+        enabled: true,
+        zoomScale: 7,
+        resetControl: true,
+        landFill: '#38bdf8',
+        landStroke: 'rgba(240, 249, 255, 0.78)',
+        landOpacity: 0.5
     }
 })`;
     }

@@ -1,6 +1,6 @@
 import { extent } from 'd3-array';
 import { axisBottom, axisLeft, axisRight, axisTop } from 'd3-axis';
-import { geoDistance, geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
+import { geoDistance, geoGraticule10, geoMercator, geoOrthographic, geoPath } from 'd3-geo';
 import { scaleBand, scaleLinear, scalePoint, scaleTime } from 'd3-scale';
 import { schemeCategory10 } from 'd3-scale-chromatic';
 import { BaseType, pointer, select, Selection } from 'd3-selection';
@@ -221,6 +221,24 @@ export interface KChartGlobeZoomControlsConfiguration {
     y?: number;
 }
 
+export interface KChartGlobeDrilldownContext<T = any> {
+    data: T;
+    lat: number;
+    lon: number;
+}
+
+export interface KChartGlobeDrilldownConfiguration<T = any> {
+    enabled?: boolean;
+    zoomScale?: number;
+    duration?: number;
+    resetControl?: boolean;
+    landFill?: string | ((feature: any, index: number) => string);
+    landStroke?: string | ((feature: any, index: number) => string);
+    landOpacity?: number | ((feature: any, index: number) => number);
+    onEnter?: (context: KChartGlobeDrilldownContext<T>) => void;
+    onExit?: () => void;
+}
+
 export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
@@ -231,6 +249,7 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     draggable?: boolean;
     globeScale?: number;
     zoom?: boolean | KChartGlobeZoomConfiguration;
+    drilldown?: boolean | KChartGlobeDrilldownConfiguration<T>;
     sphereFill?: string;
     sphereStroke?: string;
     graticuleVisible?: boolean;
@@ -1112,6 +1131,30 @@ const resolveGlobeZoomControlsConfiguration = (
         step: controls?.step ?? 0.22,
         x: controls?.x ?? 8,
         y: controls?.y ?? 8
+    };
+};
+
+const resolveGlobeDrilldownConfiguration = <T = any>(
+    drilldown?: boolean | KChartGlobeDrilldownConfiguration<T>
+): Required<Omit<KChartGlobeDrilldownConfiguration<T>, 'onEnter' | 'onExit' | 'landFill' | 'landStroke' | 'landOpacity'>> & Pick<KChartGlobeDrilldownConfiguration<T>, 'onEnter' | 'onExit' | 'landFill' | 'landStroke' | 'landOpacity'> => {
+    if (typeof drilldown === 'boolean') {
+        return {
+            enabled: drilldown,
+            zoomScale: 6,
+            duration: 720,
+            resetControl: true
+        };
+    }
+    return {
+        enabled: drilldown?.enabled ?? false,
+        zoomScale: drilldown?.zoomScale ?? 6,
+        duration: drilldown?.duration ?? 720,
+        resetControl: drilldown?.resetControl ?? true,
+        landFill: drilldown?.landFill,
+        landStroke: drilldown?.landStroke,
+        landOpacity: drilldown?.landOpacity,
+        onEnter: drilldown?.onEnter,
+        onExit: drilldown?.onExit
     };
 };
 
@@ -3143,6 +3186,9 @@ export const createSvgGlobeSeries = <T = any>(
     const activePointers = new Map<number, [number, number]>();
     let pinchStartDistance = 0;
     let pinchStartZoom = 1;
+    let viewMode: 'globe' | 'map' = 'globe';
+    let focusedPoint: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
+    let warpEffect: { x: number; y: number; startedAt: number } | undefined;
 
     return createCustomSeries<T>({
         selector: configuration.selector,
@@ -3159,14 +3205,20 @@ export const createSvgGlobeSeries = <T = any>(
             const minZoom = Math.min(zoomConfiguration.min, zoomConfiguration.max);
             const maxZoom = Math.max(zoomConfiguration.min, zoomConfiguration.max);
             const zoomControlsConfiguration = resolveGlobeZoomControlsConfiguration(zoomConfiguration.controls);
+            const drilldownConfiguration = resolveGlobeDrilldownConfiguration(configuration.drilldown);
             zoomLevel = clampNumber(zoomLevel, minZoom, maxZoom);
             const baseScale = Math.max(1, Math.min(width, height) / 2 * (configuration.globeScale ?? 0.88));
-            const projection = geoOrthographic()
+            const globeProjection = geoOrthographic()
                 .translate([centerX, centerY])
                 .scale(baseScale * zoomLevel)
                 .rotate(rotation)
                 .clipAngle(90);
-            const path = geoPath(projection);
+            const mapProjection = geoMercator()
+                .translate([centerX, centerY])
+                .scale(Math.max(1, Math.min(width, height) / Math.PI * drilldownConfiguration.zoomScale * zoomLevel))
+                .center(focusedPoint ? [focusedPoint.lon, focusedPoint.lat] : [0, 0]);
+            const path = geoPath(globeProjection);
+            const mapPath = geoPath(mapProjection);
             const getFirstTwoPointerDistance = (): number => {
                 const points = Array.from(activePointers.values());
                 if (points.length < 2) {
@@ -3180,20 +3232,61 @@ export const createSvgGlobeSeries = <T = any>(
                 zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
                 draw();
             };
+            const enterDrilldown = (datum: {
+                data: T;
+                lat: number;
+                lon: number;
+                projected: [number, number];
+            }): void => {
+                if (!drilldownConfiguration.enabled) {
+                    return;
+                }
+                focusedPoint = datum;
+                viewMode = 'map';
+                warpEffect = {
+                    x: datum.projected[0],
+                    y: datum.projected[1],
+                    startedAt: Date.now()
+                };
+                drilldownConfiguration.onEnter?.({
+                    data: datum.data,
+                    lat: datum.lat,
+                    lon: datum.lon
+                });
+                globalThis.setTimeout(() => {
+                    warpEffect = undefined;
+                    draw();
+                }, drilldownConfiguration.duration);
+                draw();
+            };
+            const exitDrilldown = (): void => {
+                if (viewMode === 'globe') {
+                    return;
+                }
+                viewMode = 'globe';
+                focusedPoint = undefined;
+                warpEffect = undefined;
+                drilldownConfiguration.onExit?.();
+                draw();
+            };
 
             const draw = (): void => {
-                projection.rotate(rotation);
-                projection.scale(baseScale * zoomLevel);
+                globeProjection.rotate(rotation);
+                globeProjection.scale(baseScale * zoomLevel);
+                if (focusedPoint) {
+                    mapProjection.center([focusedPoint.lon, focusedPoint.lat]);
+                }
+                mapProjection.scale(Math.max(1, Math.min(width, height) / Math.PI * drilldownConfiguration.zoomScale * zoomLevel));
 
                 const globeGroup = group.selectAll<SVGGElement, unknown>('g.kchart-globe-layer')
                     .data([undefined])
                     .join('g')
                     .attr('class', 'kchart-globe-layer')
-                    .style('cursor', configuration.draggable === false ? 'default' : dragging ? 'grabbing' : 'grab')
+                    .style('cursor', configuration.draggable === false || viewMode === 'map' ? 'default' : dragging ? 'grabbing' : 'grab')
                     .style('touch-action', configuration.draggable === false && !zoomConfiguration.enabled ? null : 'none');
 
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-sphere')
-                    .data([{ type: 'Sphere' }])
+                    .data(viewMode === 'globe' ? [{ type: 'Sphere' }] : [])
                     .join('path')
                     .attr('class', 'kchart-globe-sphere')
                     .attr('d', (datum: any) => path(datum) ?? '')
@@ -3208,15 +3301,36 @@ export const createSvgGlobeSeries = <T = any>(
                 const landData = configuration.landVisible === false
                     ? []
                     : normalizeGlobeLandFeatures(configuration.landGeoJson ?? defaultLandGeoJson);
+                const activePath = viewMode === 'map' ? mapPath : path;
+                const activeLandFill = viewMode === 'map'
+                    ? drilldownConfiguration.landFill ?? configuration.landFill
+                    : configuration.landFill;
+                const activeLandStroke = viewMode === 'map'
+                    ? drilldownConfiguration.landStroke ?? configuration.landStroke
+                    : configuration.landStroke;
+                const activeLandOpacity = viewMode === 'map'
+                    ? drilldownConfiguration.landOpacity ?? configuration.landOpacity
+                    : configuration.landOpacity;
+
+                globeGroup.selectAll<SVGRectElement, unknown>('rect.kchart-globe-map-background')
+                    .data(viewMode === 'map' ? [undefined] : [])
+                    .join('rect')
+                    .attr('class', 'kchart-globe-map-background')
+                    .attr('x', 0)
+                    .attr('y', 0)
+                    .attr('width', width)
+                    .attr('height', height)
+                    .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
+                    .style('pointer-events', 'all');
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
                     .data(landData)
                     .join('path')
                     .attr('class', 'kchart-globe-land')
-                    .attr('d', (datum: any) => path(datum) ?? '')
-                    .style('fill', (datum, index) => resolveGlobeLandStyle(configuration.landFill, datum, index, '#2dd4bf'))
-                    .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(configuration.landOpacity, datum, index))
-                    .style('stroke', (datum, index) => resolveGlobeLandStyle(configuration.landStroke, datum, index, 'rgba(236, 253, 245, 0.9)'))
+                    .attr('d', (datum: any) => activePath(datum) ?? '')
+                    .style('fill', (datum, index) => resolveGlobeLandStyle(activeLandFill, datum, index, '#2dd4bf'))
+                    .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(activeLandOpacity, datum, index))
+                    .style('stroke', (datum, index) => resolveGlobeLandStyle(activeLandStroke, datum, index, 'rgba(236, 253, 245, 0.9)'))
                     .style('stroke-width', 1)
                     .style('pointer-events', 'none');
 
@@ -3224,7 +3338,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .data(configuration.countryBordersVisible === false || configuration.landVisible === false ? [] : [WORLD_COUNTRY_BORDERS_GEOJSON])
                     .join('path')
                     .attr('class', 'kchart-globe-country-borders')
-                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .attr('d', (datum: any) => activePath(datum) ?? '')
                     .style('fill', 'none')
                     .style('stroke', configuration.countryBordersStroke ?? 'rgba(236, 253, 245, 0.26)')
                     .style('stroke-width', configuration.countryBordersStrokeWidth ?? 0.55)
@@ -3234,7 +3348,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .data(configuration.graticuleVisible === false ? [] : [geoGraticule10()])
                     .join('path')
                     .attr('class', 'kchart-globe-graticule')
-                    .attr('d', (datum: any) => path(datum) ?? '')
+                    .attr('d', (datum: any) => activePath(datum) ?? '')
                     .style('fill', 'none')
                     .style('stroke', configuration.graticuleStroke ?? 'rgba(148, 163, 184, 0.22)')
                     .style('stroke-width', 0.8)
@@ -3243,13 +3357,19 @@ export const createSvgGlobeSeries = <T = any>(
                 const markerData = data.map((point) => {
                     const lat = resolveGlobePointValue(point, configuration.latField);
                     const lon = resolveGlobePointValue(point, configuration.lonField);
-                    const projected = projection([lon, lat]);
+                    const projected = viewMode === 'map'
+                        ? mapProjection([lon, lat])
+                        : globeProjection([lon, lat]);
                     return {
                         data: point,
                         lat,
                         lon,
                         projected,
-                        visible: Boolean(projected) && isGlobePointVisible(lon, lat, rotation)
+                        visible: Boolean(projected) && (
+                            viewMode === 'map'
+                                ? true
+                                : isGlobePointVisible(lon, lat, rotation)
+                        )
                     };
                 }).filter((point) => point.visible && point.projected) as Array<{
                     data: T;
@@ -3267,7 +3387,7 @@ export const createSvgGlobeSeries = <T = any>(
                 markers.enter()
                     .append('circle')
                     .attr('class', 'kchart-globe-marker')
-                    .style('cursor', configuration.onMarkerClick ? 'pointer' : 'default')
+                    .style('cursor', configuration.onMarkerClick || drilldownConfiguration.enabled ? 'pointer' : 'default')
                     .style('pointer-events', 'all')
                     .merge(markers as any)
                     .attr('cx', (datum) => datum.projected[0])
@@ -3278,12 +3398,13 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke-width', configuration.markerStrokeWidth ?? 1.4)
                     .style('opacity', configuration.markerOpacity ?? 0.95)
                     .on('click', (event: MouseEvent, datum) => {
-                        if (!configuration.onMarkerClick) {
+                        if (!configuration.onMarkerClick && !drilldownConfiguration.enabled) {
                             return;
                         }
                         event.preventDefault();
                         event.stopPropagation();
-                        configuration.onMarkerClick({
+                        enterDrilldown(datum);
+                        configuration.onMarkerClick?.({
                             data: datum.data,
                             event,
                             lat: datum.lat,
@@ -3310,17 +3431,64 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('font-weight', 700)
                     .text((datum) => String(datum.data[configuration.labelField as keyof T & string]));
 
-                const controlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
+                const warpData = warpEffect
+                    ? [0, 1, 2].map((index) => ({...warpEffect, index}))
+                    : [];
+                const warpRings = globeGroup.selectAll<SVGCircleElement, typeof warpData[number]>('circle.kchart-globe-warp-ring')
+                    .data(warpData, (datum: any) => datum.index);
+
+                warpRings.exit().remove();
+
+                warpRings.enter()
+                    .append('circle')
+                    .attr('class', 'kchart-globe-warp-ring')
+                    .style('fill', 'none')
+                    .style('pointer-events', 'none')
+                    .merge(warpRings as any)
+                    .attr('cx', (datum) => datum.x)
+                    .attr('cy', (datum) => datum.y)
+                    .attr('r', (datum) => 24 + datum.index * 42)
+                    .style('stroke', (datum) => datum.index === 0 ? 'rgba(255, 255, 255, 0.9)' : 'rgba(93, 184, 255, 0.62)')
+                    .style('stroke-width', (datum) => 1.8 - datum.index * 0.35)
+                    .style('stroke-dasharray', (datum) => datum.index === 0 ? 'none' : '6 10')
+                    .style('opacity', (datum) => Math.max(0, 0.88 - datum.index * 0.2));
+
+                const warpLines = globeGroup.selectAll<SVGLineElement, number>('line.kchart-globe-warp-line')
+                    .data(warpEffect ? Array.from({length: 18}, (_, index) => index) : []);
+
+                warpLines.exit().remove();
+
+                warpLines.enter()
+                    .append('line')
+                    .attr('class', 'kchart-globe-warp-line')
+                    .style('stroke', 'rgba(248, 251, 255, 0.5)')
+                    .style('stroke-width', 1)
+                    .style('pointer-events', 'none')
+                    .merge(warpLines as any)
+                    .attr('x1', (index) => (warpEffect?.x ?? centerX) + Math.cos(index / 18 * Math.PI * 2) * 18)
+                    .attr('y1', (index) => (warpEffect?.y ?? centerY) + Math.sin(index / 18 * Math.PI * 2) * 18)
+                    .attr('x2', (index) => (warpEffect?.x ?? centerX) + Math.cos(index / 18 * Math.PI * 2) * Math.max(width, height))
+                    .attr('y2', (index) => (warpEffect?.y ?? centerY) + Math.sin(index / 18 * Math.PI * 2) * Math.max(width, height))
+                    .style('opacity', 0.38);
+
+                const zoomControlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
+                const drilldownResetVisible = viewMode === 'map' && drilldownConfiguration.resetControl;
+                const controlsVisible = zoomControlsVisible || drilldownResetVisible;
                 const controlsX = Math.max(
                     -margin.left,
                     size.width - margin.left - zoomControlsConfiguration.x - 34
                 );
                 const controlsY = Math.max(-margin.top, zoomControlsConfiguration.y - margin.top);
                 const controlItems = [
-                    { key: 'in', label: '+', title: 'Zoom in', y: 0 },
-                    { key: 'reset', label: `${Math.round(zoomLevel * 100)}%`, title: 'Reset zoom', y: 31 },
-                    { key: 'out', label: '-', title: 'Zoom out', y: 62 }
-                ];
+                    ...(zoomControlsVisible ? [
+                        { key: 'in', label: '+', title: 'Zoom in' },
+                        { key: 'reset', label: `${Math.round(zoomLevel * 100)}%`, title: 'Reset zoom' },
+                        { key: 'out', label: '-', title: 'Zoom out' }
+                    ] : []),
+                    ...(drilldownResetVisible ? [
+                        { key: 'globe', label: 'G', title: 'Back to globe' }
+                    ] : [])
+                ].map((item, index) => ({...item, y: index * 31}));
                 const zoomControls = globeGroup.selectAll<SVGGElement, unknown>('g.kchart-globe-zoom-controls')
                     .data(controlsVisible ? [undefined] : []);
 
@@ -3357,6 +3525,10 @@ export const createSvgGlobeSeries = <T = any>(
                         }
                         if (datum.key === 'out') {
                             applyGlobeZoom(zoomLevel / (1 + zoomControlsConfiguration.step));
+                            return;
+                        }
+                        if (datum.key === 'globe') {
+                            exitDrilldown();
                             return;
                         }
                         applyGlobeZoom(1);
@@ -3425,7 +3597,7 @@ export const createSvgGlobeSeries = <T = any>(
                             dragging = false;
                             pinchStartDistance = getFirstTwoPointerDistance();
                             pinchStartZoom = zoomLevel;
-                        } else if (configuration.draggable !== false) {
+                        } else if (configuration.draggable !== false && viewMode === 'globe') {
                             dragging = true;
                             dragStart = currentPoint;
                             rotationStart = [...rotation];

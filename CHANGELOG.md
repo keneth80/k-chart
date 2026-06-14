@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added optional globe marker drilldown from orthographic globe mode to a focused Mercator map mode with a lightweight warp overlay and return control.
+
 ## 1.5.0 - 2026-06-14
 
 ### Added

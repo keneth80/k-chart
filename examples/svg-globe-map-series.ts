@@ -43,6 +43,11 @@ createKChart<CityPoint>({
             countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
             markerRadius: (point) => point.radius,
             markerColor: '#5db8ff',
+            drilldown: {
+                enabled: true,
+                zoomScale: 7,
+                resetControl: true
+            },
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
             }
