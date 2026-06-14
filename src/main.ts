@@ -943,6 +943,8 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 markerColor: '#5db8ff',
                 drilldown: {
                     enabled: true,
+                    mode: 'zoom',
+                    focusZoom: 2.7,
                     zoomScale: 7,
                     resetControl: true,
                     landFill: '#38bdf8',
@@ -1175,6 +1177,8 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     markerRadius: (point) => Number(point.radius) || 5,
     drilldown: {
         enabled: true,
+        mode: 'zoom',
+        focusZoom: 2.7,
         zoomScale: 7,
         resetControl: true,
         landFill: '#38bdf8',

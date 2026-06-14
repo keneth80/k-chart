@@ -277,7 +277,7 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks transition from the globe to a focused Mercator map with a short warp overlay and a return-to-globe control.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks focus a coordinate with a short warp overlay. `drilldown.mode: 'zoom'` keeps the orthographic globe and zooms into the marker, while `mode: 'map'` switches to a focused Mercator map.
 
 ```ts
 import {
@@ -318,6 +318,8 @@ createKChart<CityPoint>({
             countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
             drilldown: {
                 enabled: true,
+                mode: 'zoom',
+                focusZoom: 2.7,
                 zoomScale: 7,
                 resetControl: true
             },

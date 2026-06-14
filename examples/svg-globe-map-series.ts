@@ -45,6 +45,8 @@ createKChart<CityPoint>({
             markerColor: '#5db8ff',
             drilldown: {
                 enabled: true,
+                mode: 'zoom',
+                focusZoom: 2.7,
                 zoomScale: 7,
                 resetControl: true
             },

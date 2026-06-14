@@ -227,8 +227,12 @@ export interface KChartGlobeDrilldownContext<T = any> {
     lon: number;
 }
 
+export type KChartGlobeDrilldownMode = 'map' | 'zoom';
+
 export interface KChartGlobeDrilldownConfiguration<T = any> {
     enabled?: boolean;
+    mode?: KChartGlobeDrilldownMode;
+    focusZoom?: number;
     zoomScale?: number;
     duration?: number;
     resetControl?: boolean;
@@ -1140,6 +1144,8 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
     if (typeof drilldown === 'boolean') {
         return {
             enabled: drilldown,
+            mode: 'map',
+            focusZoom: 2.6,
             zoomScale: 6,
             duration: 720,
             resetControl: true
@@ -1147,6 +1153,8 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
     }
     return {
         enabled: drilldown?.enabled ?? false,
+        mode: drilldown?.mode ?? 'map',
+        focusZoom: drilldown?.focusZoom ?? 2.6,
         zoomScale: drilldown?.zoomScale ?? 6,
         duration: drilldown?.duration ?? 720,
         resetControl: drilldown?.resetControl ?? true,
@@ -3188,6 +3196,7 @@ export const createSvgGlobeSeries = <T = any>(
     let pinchStartZoom = 1;
     let viewMode: 'globe' | 'map' = 'globe';
     let focusedPoint: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
+    let drilldownRestoreState: { rotation: [number, number, number]; zoomLevel: number } | undefined;
     let warpEffect: { x: number; y: number; startedAt: number } | undefined;
 
     return createCustomSeries<T>({
@@ -3241,8 +3250,24 @@ export const createSvgGlobeSeries = <T = any>(
                 if (!drilldownConfiguration.enabled) {
                     return;
                 }
+                if (!focusedPoint) {
+                    drilldownRestoreState = {
+                        rotation: [...rotation],
+                        zoomLevel
+                    };
+                }
                 focusedPoint = datum;
-                viewMode = 'map';
+                if (drilldownConfiguration.mode === 'zoom') {
+                    viewMode = 'globe';
+                    rotation = [
+                        -datum.lon,
+                        -datum.lat,
+                        rotation[2]
+                    ];
+                    zoomLevel = clampNumber(drilldownConfiguration.focusZoom, minZoom, maxZoom);
+                } else {
+                    viewMode = 'map';
+                }
                 warpEffect = {
                     x: datum.projected[0],
                     y: datum.projected[1],
@@ -3260,11 +3285,16 @@ export const createSvgGlobeSeries = <T = any>(
                 draw();
             };
             const exitDrilldown = (): void => {
-                if (viewMode === 'globe') {
+                if (viewMode === 'globe' && !focusedPoint) {
                     return;
                 }
                 viewMode = 'globe';
                 focusedPoint = undefined;
+                if (drilldownRestoreState) {
+                    rotation = [...drilldownRestoreState.rotation];
+                    zoomLevel = clampNumber(drilldownRestoreState.zoomLevel, minZoom, maxZoom);
+                    drilldownRestoreState = undefined;
+                }
                 warpEffect = undefined;
                 drilldownConfiguration.onExit?.();
                 draw();
@@ -3472,7 +3502,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('opacity', 0.38);
 
                 const zoomControlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
-                const drilldownResetVisible = viewMode === 'map' && drilldownConfiguration.resetControl;
+                const drilldownResetVisible = Boolean(focusedPoint) && drilldownConfiguration.resetControl;
                 const controlsVisible = zoomControlsVisible || drilldownResetVisible;
                 const controlsX = Math.max(
                     -margin.left,
