@@ -3351,7 +3351,8 @@ export const createSvgGlobeSeries = <T = any>(
                     .attr('width', width)
                     .attr('height', height)
                     .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
-                    .style('pointer-events', 'all');
+                    .style('pointer-events', 'all')
+                    .lower();
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-land')
                     .data(landData)
