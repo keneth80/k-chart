@@ -208,9 +208,17 @@ export interface KChartGlobeZoomConfiguration {
     enabled?: boolean;
     wheel?: boolean;
     pinch?: boolean;
+    controls?: boolean | KChartGlobeZoomControlsConfiguration;
     min?: number;
     max?: number;
     wheelSensitivity?: number;
+}
+
+export interface KChartGlobeZoomControlsConfiguration {
+    visible?: boolean;
+    step?: number;
+    x?: number;
+    y?: number;
 }
 
 export interface KChartSvgGlobeSeriesConfiguration<T = any> {
@@ -1071,6 +1079,7 @@ const resolveGlobeZoomConfiguration = (zoom?: boolean | KChartGlobeZoomConfigura
             enabled: zoom,
             wheel: true,
             pinch: true,
+            controls: false,
             min: 0.55,
             max: 3,
             wheelSensitivity: 0.0012
@@ -1080,9 +1089,29 @@ const resolveGlobeZoomConfiguration = (zoom?: boolean | KChartGlobeZoomConfigura
         enabled: zoom?.enabled ?? false,
         wheel: zoom?.wheel ?? true,
         pinch: zoom?.pinch ?? true,
+        controls: zoom?.controls ?? false,
         min: zoom?.min ?? 0.55,
         max: zoom?.max ?? 3,
         wheelSensitivity: zoom?.wheelSensitivity ?? 0.0012
+    };
+};
+
+const resolveGlobeZoomControlsConfiguration = (
+    controls: boolean | KChartGlobeZoomControlsConfiguration | undefined
+): Required<KChartGlobeZoomControlsConfiguration> => {
+    if (typeof controls === 'boolean') {
+        return {
+            visible: controls,
+            step: 0.22,
+            x: 14,
+            y: 14
+        };
+    }
+    return {
+        visible: controls?.visible ?? false,
+        step: controls?.step ?? 0.22,
+        x: controls?.x ?? 14,
+        y: controls?.y ?? 14
     };
 };
 
@@ -3129,6 +3158,7 @@ export const createSvgGlobeSeries = <T = any>(
             const zoomConfiguration = resolveGlobeZoomConfiguration(configuration.zoom);
             const minZoom = Math.min(zoomConfiguration.min, zoomConfiguration.max);
             const maxZoom = Math.max(zoomConfiguration.min, zoomConfiguration.max);
+            const zoomControlsConfiguration = resolveGlobeZoomControlsConfiguration(zoomConfiguration.controls);
             zoomLevel = clampNumber(zoomLevel, minZoom, maxZoom);
             const baseScale = Math.max(1, Math.min(width, height) / 2 * (configuration.globeScale ?? 0.88));
             const projection = geoOrthographic()
@@ -3145,6 +3175,10 @@ export const createSvgGlobeSeries = <T = any>(
                 const dx = points[0][0] - points[1][0];
                 const dy = points[0][1] - points[1][1];
                 return Math.hypot(dx, dy);
+            };
+            const applyGlobeZoom = (nextZoom: number): void => {
+                zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
+                draw();
             };
 
             const draw = (): void => {
@@ -3275,6 +3309,91 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('font-size', '11px')
                     .style('font-weight', 700)
                     .text((datum) => String(datum.data[configuration.labelField as keyof T & string]));
+
+                const controlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
+                const controlsX = Math.max(8, width - zoomControlsConfiguration.x - 34);
+                const controlsY = Math.max(8, zoomControlsConfiguration.y);
+                const controlItems = [
+                    { key: 'in', label: '+', title: 'Zoom in', y: 0 },
+                    { key: 'reset', label: `${Math.round(zoomLevel * 100)}%`, title: 'Reset zoom', y: 31 },
+                    { key: 'out', label: '-', title: 'Zoom out', y: 62 }
+                ];
+                const zoomControls = globeGroup.selectAll<SVGGElement, unknown>('g.kchart-globe-zoom-controls')
+                    .data(controlsVisible ? [undefined] : []);
+
+                zoomControls.exit().remove();
+
+                const zoomControlsEnter = zoomControls.enter()
+                    .append('g')
+                    .attr('class', 'kchart-globe-zoom-controls')
+                    .style('pointer-events', 'all');
+
+                const zoomControlsMerged = zoomControlsEnter
+                    .merge(zoomControls as any)
+                    .attr('transform', `translate(${controlsX},${controlsY})`);
+
+                const controlButtons = zoomControlsMerged.selectAll<SVGGElement, typeof controlItems[number]>('g.kchart-globe-zoom-control')
+                    .data(controlItems, (datum: any) => datum.key);
+
+                controlButtons.exit().remove();
+
+                const controlButtonsEnter = controlButtons.enter()
+                    .append('g')
+                    .attr('class', 'kchart-globe-zoom-control')
+                    .style('cursor', 'pointer')
+                    .on('pointerdown', (event: PointerEvent) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    })
+                    .on('click', (event: MouseEvent, datum) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (datum.key === 'in') {
+                            applyGlobeZoom(zoomLevel * (1 + zoomControlsConfiguration.step));
+                            return;
+                        }
+                        if (datum.key === 'out') {
+                            applyGlobeZoom(zoomLevel / (1 + zoomControlsConfiguration.step));
+                            return;
+                        }
+                        applyGlobeZoom(1);
+                    });
+
+                controlButtonsEnter.append('rect')
+                    .attr('class', 'kchart-globe-zoom-control-bg')
+                    .attr('width', 34)
+                    .attr('height', 27)
+                    .attr('rx', 6);
+
+                controlButtonsEnter.append('text')
+                    .attr('class', 'kchart-globe-zoom-control-label')
+                    .attr('x', 17)
+                    .attr('y', 18)
+                    .attr('text-anchor', 'middle');
+
+                controlButtonsEnter.append('title');
+
+                const controlButtonsMerged = controlButtonsEnter.merge(controlButtons as any)
+                    .attr('transform', (datum) => `translate(0,${datum.y})`)
+                    .style('opacity', (datum) => {
+                        if (datum.key === 'in' && zoomLevel >= maxZoom) return 0.48;
+                        if (datum.key === 'out' && zoomLevel <= minZoom) return 0.48;
+                        return 1;
+                    });
+
+                controlButtonsMerged.select('rect.kchart-globe-zoom-control-bg')
+                    .style('fill', 'rgba(15, 23, 42, 0.72)')
+                    .style('stroke', 'rgba(226, 232, 240, 0.42)')
+                    .style('stroke-width', 1);
+
+                controlButtonsMerged.select('text.kchart-globe-zoom-control-label')
+                    .style('fill', 'rgba(248, 251, 255, 0.92)')
+                    .style('font-size', (datum) => datum.key === 'reset' ? '10px' : '17px')
+                    .style('font-weight', 800)
+                    .text((datum) => datum.label);
+
+                controlButtonsMerged.select('title')
+                    .text((datum) => datum.title);
             };
 
             draw();
