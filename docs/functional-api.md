@@ -215,7 +215,7 @@ const chart = createKChart<CityPoint>({
 });
 ```
 
-`draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `controls: true`를 지정하면 `+`, 현재 배율, `-` 버튼이 표시되고 현재 배율 버튼은 1x로 리셋합니다. `controls: { visible: true, x, y }`의 `x`, `y`는 plot 영역 오른쪽/위쪽 edge 기준 offset이며, 음수 값을 주면 title/margin 영역 쪽으로 더 붙일 수 있습니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
+`draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `controls: true`를 지정하면 `+`, 현재 배율, `-` 버튼이 표시되고 현재 배율 버튼은 1x로 리셋합니다. `controls: { visible: true, x, y }`의 `x`, `y`는 차트 전체 SVG의 오른쪽/위쪽 edge 기준 offset입니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
 
 ## Built-In WebGL Series
 

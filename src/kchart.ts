@@ -3150,7 +3150,7 @@ export const createSvgGlobeSeries = <T = any>(
         xField: configuration.lonField,
         yField: configuration.latField,
         color: typeof configuration.markerColor === 'string' ? configuration.markerColor : undefined,
-        render({ group, data, plotSize, color }) {
+        render({ group, data, size, plotSize, margin, color }) {
             const width = plotSize.width;
             const height = plotSize.height;
             const centerX = width / 2;
@@ -3311,8 +3311,11 @@ export const createSvgGlobeSeries = <T = any>(
                     .text((datum) => String(datum.data[configuration.labelField as keyof T & string]));
 
                 const controlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
-                const controlsX = Math.max(8, width - zoomControlsConfiguration.x - 34);
-                const controlsY = Math.max(8, zoomControlsConfiguration.y);
+                const controlsX = Math.max(
+                    -margin.left,
+                    size.width - margin.left - zoomControlsConfiguration.x - 34
+                );
+                const controlsY = Math.max(-margin.top, zoomControlsConfiguration.y - margin.top);
                 const controlItems = [
                     { key: 'in', label: '+', title: 'Zoom in', y: 0 },
                     { key: 'reset', label: `${Math.round(zoomLevel * 100)}%`, title: 'Reset zoom', y: 31 },
