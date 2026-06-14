@@ -201,7 +201,7 @@ const chart = createKChart<CityPoint>({
             lonField: 'lon',
             labelField: 'name',
             initialRotate: [-120, -18, 0],
-            zoom: { enabled: true, min: 0.65, max: 2.6, controls: { visible: true, x: 6, y: 6 } },
+            zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
             landFill: '#22c55e',
             landStroke: 'rgba(236, 253, 245, 0.72)',
             landOpacity: 0.58,
