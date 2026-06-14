@@ -12,6 +12,7 @@
         ],
         "declaration": true,
         "esModuleInterop": true,
+        "resolveJsonModule": true,
         "strict": false,
         "noImplicitAny": false,
         "strictNullChecks": false,

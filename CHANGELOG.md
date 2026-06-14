@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added optional globe marker drilldown with `mode: 'zoom'` for same-globe coordinate focus and `mode: 'map'` for focused Mercator map mode, both with a lightweight warp overlay and return control.
+- Added separate Globe Zoom and Globe Map demo entries so zoom focus and flat-map drilldown can be tested independently.
+
+## 1.5.0 - 2026-06-14
+
+### Added
+
+- Added `createSvgGlobeSeries` for draggable SVG orthographic globe maps with latitude/longitude markers and marker click callbacks.
+- Added a default World Atlas 110m land layer for globe maps, with `landVisible` and `landGeoJson` controls.
+- Added feature-level `landFill`, `landStroke`, and `landOpacity` styling callbacks for globe map land/country layers.
+- Added optional globe wheel, pinch, and in-chart button zoom controls through `createSvgGlobeSeries({ zoom })`.
+- Changed the default globe land rendering to a smooth World Atlas land layer with country borders as a mesh; country fills remain available through `landMode: 'countries'`.
+
 ## 1.4.0 - 2026-06-13
 
 ### Added
