@@ -1103,15 +1103,15 @@ const resolveGlobeZoomControlsConfiguration = (
         return {
             visible: controls,
             step: 0.22,
-            x: 14,
-            y: 14
+            x: 8,
+            y: 8
         };
     }
     return {
         visible: controls?.visible ?? false,
         step: controls?.step ?? 0.22,
-        x: controls?.x ?? 14,
-        y: controls?.y ?? 14
+        x: controls?.x ?? 8,
+        y: controls?.y ?? 8
     };
 };
 
