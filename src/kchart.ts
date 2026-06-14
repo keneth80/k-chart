@@ -3409,6 +3409,41 @@ export const createSvgGlobeSeries = <T = any>(
                     projected: [number, number];
                     visible: boolean;
                 }>;
+                const markerSelectable = Boolean(configuration.onMarkerClick || drilldownConfiguration.enabled);
+                const handleMarkerClick = (event: MouseEvent, datum: typeof markerData[number]): void => {
+                    if (!markerSelectable) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    enterDrilldown(datum);
+                    configuration.onMarkerClick?.({
+                        data: datum.data,
+                        event,
+                        lat: datum.lat,
+                        lon: datum.lon,
+                        x: datum.projected[0],
+                        y: datum.projected[1]
+                    });
+                };
+
+                const markerHitAreas = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker-hit-area')
+                    .data(markerData, (datum: any) => String(configuration.labelField ? datum.data[configuration.labelField] : `${datum.lat},${datum.lon}`));
+
+                markerHitAreas.exit().remove();
+
+                markerHitAreas.enter()
+                    .append('circle')
+                    .attr('class', 'kchart-globe-marker-hit-area')
+                    .merge(markerHitAreas as any)
+                    .attr('cx', (datum) => datum.projected[0])
+                    .attr('cy', (datum) => datum.projected[1])
+                    .attr('r', (datum) => Math.max(resolveGlobeMarkerRadius(datum.data, configuration) + 10, 16))
+                    .style('fill', 'transparent')
+                    .style('stroke', 'transparent')
+                    .style('cursor', markerSelectable ? 'pointer' : 'default')
+                    .style('pointer-events', markerSelectable ? 'all' : 'none')
+                    .on('click', handleMarkerClick);
 
                 const markers = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker')
                     .data(markerData, (datum: any) => String(configuration.labelField ? datum.data[configuration.labelField] : `${datum.lat},${datum.lon}`));
@@ -3418,7 +3453,7 @@ export const createSvgGlobeSeries = <T = any>(
                 markers.enter()
                     .append('circle')
                     .attr('class', 'kchart-globe-marker')
-                    .style('cursor', configuration.onMarkerClick || drilldownConfiguration.enabled ? 'pointer' : 'default')
+                    .style('cursor', markerSelectable ? 'pointer' : 'default')
                     .style('pointer-events', 'all')
                     .merge(markers as any)
                     .attr('cx', (datum) => datum.projected[0])
@@ -3428,22 +3463,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke', configuration.markerStroke ?? 'rgba(248, 251, 255, 0.92)')
                     .style('stroke-width', configuration.markerStrokeWidth ?? 1.4)
                     .style('opacity', configuration.markerOpacity ?? 0.95)
-                    .on('click', (event: MouseEvent, datum) => {
-                        if (!configuration.onMarkerClick && !drilldownConfiguration.enabled) {
-                            return;
-                        }
-                        event.preventDefault();
-                        event.stopPropagation();
-                        enterDrilldown(datum);
-                        configuration.onMarkerClick?.({
-                            data: datum.data,
-                            event,
-                            lat: datum.lat,
-                            lon: datum.lon,
-                            x: datum.projected[0],
-                            y: datum.projected[1]
-                        });
-                    });
+                    .on('click', handleMarkerClick);
 
                 const labels = globeGroup.selectAll<SVGTextElement, typeof markerData[number]>('text.kchart-globe-marker-label')
                     .data(configuration.labelField ? markerData : [], (datum: any) => String(datum.data[configuration.labelField as keyof T & string]));
@@ -3453,14 +3473,16 @@ export const createSvgGlobeSeries = <T = any>(
                 labels.enter()
                     .append('text')
                     .attr('class', 'kchart-globe-marker-label')
-                    .style('pointer-events', 'none')
                     .merge(labels as any)
                     .attr('x', (datum) => datum.projected[0] + resolveGlobeMarkerRadius(datum.data, configuration) + 5)
                     .attr('y', (datum) => datum.projected[1] + 4)
                     .style('fill', 'rgba(248, 251, 255, 0.82)')
                     .style('font-size', '11px')
                     .style('font-weight', 700)
-                    .text((datum) => String(datum.data[configuration.labelField as keyof T & string]));
+                    .style('cursor', markerSelectable ? 'pointer' : 'default')
+                    .style('pointer-events', markerSelectable ? 'all' : 'none')
+                    .text((datum) => String(datum.data[configuration.labelField as keyof T & string]))
+                    .on('click', handleMarkerClick);
 
                 const warpData = warpEffect
                     ? [0, 1, 2].map((index) => ({...warpEffect, index}))
