@@ -321,6 +321,7 @@ createKChart<CityPoint>({
                 mode: 'zoom',
                 focusZoom: 2.7,
                 zoomScale: 7,
+                duration: 1200,
                 resetControl: true
             },
             onMarkerClick: ({ data }) => {

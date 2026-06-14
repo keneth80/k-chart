@@ -51,6 +51,7 @@ type DemoKind =
     | 'tooltip-custom'
     | 'topology'
     | 'globe-map'
+    | 'globe-map-drilldown'
     | 'update-series'
     | 'update-data'
     | 'real-time'
@@ -216,7 +217,8 @@ const examples: ExampleMeta[] = [
     { kind: 'plot', title: 'SVG plot renderer' },
     { kind: 'area', title: 'SVG area renderer' },
     { kind: 'multi-options', title: 'SVG multi series renderer' },
-    { kind: 'globe-map', title: 'Draggable globe map renderer', dataLabel: 'lat/lon markers' },
+    { kind: 'globe-map', title: 'Globe marker zoom focus', dataLabel: 'same globe zoom' },
+    { kind: 'globe-map-drilldown', title: 'Globe marker map drilldown', dataLabel: 'Mercator map focus' },
     { kind: 'option-spec-area', title: 'Spec area option' },
     { kind: 'option-guide-line', title: 'Guide line option' },
     { kind: 'option-cursor-line', title: 'Cursor line option' },
@@ -237,6 +239,9 @@ const configView = document.querySelector<HTMLElement>('#json-configuration');
 const summary = document.querySelector<HTMLElement>('#example-filter-summary');
 const themeLabel = document.querySelector<HTMLElement>('#current-theme-label');
 const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart-example');
+
+const isGlobeMapExample = (kind: DemoKind): boolean =>
+    kind === 'globe-map' || kind === 'globe-map-drilldown';
 
 const scaledX = (scale: any, value: unknown): number => {
     const position = scale.scale(value);
@@ -815,14 +820,14 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-candlestick') {
         return stockData;
     }
-    if (kind === 'globe-map') {
+    if (isGlobeMapExample(kind)) {
         return globeData;
     }
     return baseData;
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (kind === 'globe-map') {
+    if (isGlobeMapExample(kind)) {
         return [];
     }
     if (kind === 'column') {
@@ -921,7 +926,8 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             })
         ];
     }
-    if (kind === 'globe-map') {
+    if (isGlobeMapExample(kind)) {
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'map' : 'zoom';
         return [
             createSvgGlobeSeries({
                 selector: 'demo-globe',
@@ -943,9 +949,10 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 markerColor: '#5db8ff',
                 drilldown: {
                     enabled: true,
-                    mode: 'zoom',
+                    mode: drilldownMode,
                     focusZoom: 2.7,
                     zoomScale: 7,
+                    duration: 1200,
                     resetControl: true,
                     landFill: '#38bdf8',
                     landStroke: 'rgba(240, 249, 255, 0.78)',
@@ -1048,7 +1055,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
-    const isGlobeMap = kind === 'globe-map';
+    const isGlobeMap = isGlobeMapExample(kind);
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1160,7 +1167,8 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     }
 })`;
     }
-    if (kind === 'globe-map') {
+    if (isGlobeMapExample(kind)) {
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'map' : 'zoom';
         return `createSvgGlobeSeries({
     selector: 'demo-globe',
     displayName: 'Cities',
@@ -1177,9 +1185,10 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     markerRadius: (point) => Number(point.radius) || 5,
     drilldown: {
         enabled: true,
-        mode: 'zoom',
+        mode: '${drilldownMode}',
         focusZoom: 2.7,
         zoomScale: 7,
+        duration: 1200,
         resetControl: true,
         landFill: '#38bdf8',
         landStroke: 'rgba(240, 249, 255, 0.78)',
@@ -1295,6 +1304,7 @@ createLineSeries({
 
 const createUsageSnippet = (kind: DemoKind): string => {
     const selected = examples.find((example) => example.kind === kind);
+    const isUsageGlobeMap = isGlobeMapExample(kind);
     const hasUsageSpecAreas = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'option-spec-area';
     const hasUsageGuideLines = kind === 'webgl-large-line' || kind === 'option-guide-line';
     const hasUsageCursorGuide = kind === 'webgl-line'
@@ -1308,7 +1318,7 @@ const createUsageSnippet = (kind: DemoKind): string => {
             ? 'createLargeData(50000)'
             : kind === 'canvas-candlestick'
                 ? 'stockData'
-                : kind === 'globe-map'
+                : isUsageGlobeMap
                     ? 'globeData'
                     : 'baseData';
     const dataSnippet = kind === 'canvas-candlestick'
@@ -1371,7 +1381,7 @@ const stockDomain = [
     formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
 ];
 `
-        : kind === 'globe-map'
+        : isUsageGlobeMap
         ? `
 type GlobePoint = {
     label: string;
@@ -1449,13 +1459,13 @@ const baseData = [
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : kind === 'globe-map' ? 'GlobePoint' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${kind === 'globe-map' ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${kind === 'globe-map' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
+    grid: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1480,7 +1490,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : kind
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'globe-map' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
@@ -1493,7 +1503,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : kind
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || kind === 'globe-map' ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

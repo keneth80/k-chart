@@ -5,6 +5,7 @@
 ### Added
 
 - Added optional globe marker drilldown with `mode: 'zoom'` for same-globe coordinate focus and `mode: 'map'` for focused Mercator map mode, both with a lightweight warp overlay and return control.
+- Added separate Globe Zoom and Globe Map demo entries so zoom focus and flat-map drilldown can be tested independently.
 
 ## 1.5.0 - 2026-06-14
 
