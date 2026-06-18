@@ -3276,7 +3276,7 @@ export const createSvgGlobeSeries = <T = any>(
                 lat: number;
                 lon: number;
                 projected: [number, number];
-            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number): void => {
+            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number, moveCamera = true): void => {
                 if (!drilldownConfiguration.enabled || externalMapTransitioning) {
                     return;
                 }
@@ -3326,10 +3326,9 @@ export const createSvgGlobeSeries = <T = any>(
                 };
 
                 if (mode === 'external-map') {
-                    const cameraDuration = Math.min(
-                        460,
-                        Math.max(280, drilldownConfiguration.duration * 0.34)
-                    );
+                    const cameraDuration = moveCamera
+                        ? Math.min(460, Math.max(280, drilldownConfiguration.duration * 0.34))
+                        : 0;
                     const warpDuration = Math.max(600, drilldownConfiguration.duration - cameraDuration);
                     const startRotation: [number, number, number] = [...rotation];
                     const targetRotation: [number, number, number] = [
@@ -3350,6 +3349,23 @@ export const createSvgGlobeSeries = <T = any>(
                             draw();
                         }, warpDuration);
                     };
+                    const startWarp = (): void => {
+                        warpEffect = {
+                            x: centerX,
+                            y: centerY,
+                            startedAt: Date.now(),
+                            duration: warpDuration
+                        };
+                        draw();
+                        revealExternalMap();
+                    };
+
+                    if (!moveCamera) {
+                        draw();
+                        startWarp();
+                        return;
+                    }
+
                     const animateCamera = (now: number): void => {
                         const progress = clampNumber((now - startedAt) / cameraDuration, 0, 1);
                         const easedProgress = easeInOutCubic(progress);
@@ -3367,14 +3383,7 @@ export const createSvgGlobeSeries = <T = any>(
 
                         warpFrame = undefined;
                         rotation = targetRotation;
-                        warpEffect = {
-                            x: centerX,
-                            y: centerY,
-                            startedAt: Date.now(),
-                            duration: warpDuration
-                        };
-                        draw();
-                        revealExternalMap();
+                        startWarp();
                     };
 
                     draw();
@@ -3473,7 +3482,12 @@ export const createSvgGlobeSeries = <T = any>(
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
                     const target = preferredTarget ?? resolveAutoMapTarget(reference);
                     if (target) {
-                        enterDrilldown(target, drilldownConfiguration.mode, Math.min(zoomLevel, exitThreshold));
+                        enterDrilldown(
+                            target,
+                            drilldownConfiguration.mode,
+                            Math.min(zoomLevel, exitThreshold),
+                            false
+                        );
                         return true;
                     }
                 }
