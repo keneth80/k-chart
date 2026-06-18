@@ -274,16 +274,16 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             places = options.places ?? places;
             exit = options.exit;
             locationLabel.textContent = options.label ?? '';
+            const target = {
+                center: [options.lon, options.lat] as [number, number],
+                zoom: options.zoom ?? configuration.initialZoom ?? 12
+            };
+            map?.jumpTo(target);
             overlay.hidden = false;
             await ensureMap();
             updateSource();
+            map?.jumpTo(target);
             map?.resize();
-            map?.flyTo({
-                center: [options.lon, options.lat],
-                zoom: options.zoom ?? configuration.initialZoom ?? 12,
-                duration: 1100,
-                essential: true
-            });
         },
         hide() {
             overlay.hidden = true;

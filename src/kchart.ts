@@ -3210,6 +3210,9 @@ export const createSvgGlobeSeries = <T = any>(
     let warpEffect: { x: number; y: number; startedAt: number; duration: number } | undefined;
     let warpTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let warpFrame: number | undefined;
+    let wheelZoomReference: [number, number] | undefined;
+    let wheelZoomReferenceTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let hoveredMarkerTarget: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
     let externalMapTransitioning = false;
 
     return createCustomSeries<T>({
@@ -3256,6 +3259,13 @@ export const createSvgGlobeSeries = <T = any>(
                     warpFrame = undefined;
                 }
             };
+            const clearWheelZoomReference = (): void => {
+                wheelZoomReference = undefined;
+                if (wheelZoomReferenceTimer !== undefined) {
+                    globalThis.clearTimeout(wheelZoomReferenceTimer);
+                    wheelZoomReferenceTimer = undefined;
+                }
+            };
             const easeInOutCubic = (progress: number): number => progress < 0.5
                 ? 4 * progress * progress * progress
                 : 1 - Math.pow(-2 * progress + 2, 3) / 2;
@@ -3270,6 +3280,8 @@ export const createSvgGlobeSeries = <T = any>(
                 if (!drilldownConfiguration.enabled || externalMapTransitioning) {
                     return;
                 }
+                clearWheelZoomReference();
+                hoveredMarkerTarget = undefined;
                 if (warpTimer !== undefined) {
                     globalThis.clearTimeout(warpTimer);
                     warpTimer = undefined;
@@ -3387,6 +3399,7 @@ export const createSvgGlobeSeries = <T = any>(
                     warpTimer = undefined;
                 }
                 cancelWarpFrame();
+                hoveredMarkerTarget = undefined;
                 externalMapTransitioning = false;
                 viewMode = 'globe';
                 focusedPoint = undefined;
@@ -3399,7 +3412,7 @@ export const createSvgGlobeSeries = <T = any>(
                 drilldownConfiguration.onExit?.();
                 draw();
             };
-            const resolveAutoMapTarget = (): {
+            const resolveAutoMapTarget = (reference?: [number, number]): {
                 data: T;
                 lat: number;
                 lon: number;
@@ -3412,7 +3425,11 @@ export const createSvgGlobeSeries = <T = any>(
                     projected: [number, number];
                     distance: number;
                 } | undefined;
-                const center: [number, number] = [-rotation[0], -rotation[1]];
+                const projectedCenter = globeProjection.invert?.([centerX, centerY]) as [number, number] | null | undefined;
+                const center: [number, number] = reference
+                    ?? (projectedCenter && Number.isFinite(projectedCenter[0]) && Number.isFinite(projectedCenter[1])
+                        ? projectedCenter
+                        : [-rotation[0], -rotation[1]]);
 
                 data.forEach((point) => {
                     const lat = resolveGlobePointValue(point, configuration.latField);
@@ -3438,7 +3455,10 @@ export const createSvgGlobeSeries = <T = any>(
 
                 return nearest;
             };
-            const syncZoomViewMode = (): boolean => {
+            const syncZoomViewMode = (
+                reference?: [number, number],
+                preferredTarget?: { data: T; lat: number; lon: number; projected: [number, number] }
+            ): boolean => {
                 if (!drilldownConfiguration.enabled || !drilldownConfiguration.autoMapOnZoom || externalMapTransitioning) {
                     return false;
                 }
@@ -3451,7 +3471,7 @@ export const createSvgGlobeSeries = <T = any>(
                     drilldownConfiguration.globeZoomThreshold
                 );
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
-                    const target = resolveAutoMapTarget();
+                    const target = preferredTarget ?? resolveAutoMapTarget(reference);
                     if (target) {
                         enterDrilldown(target, drilldownConfiguration.mode, Math.min(zoomLevel, exitThreshold));
                         return true;
@@ -3463,12 +3483,16 @@ export const createSvgGlobeSeries = <T = any>(
                 }
                 return false;
             };
-            const applyGlobeZoom = (nextZoom: number): void => {
+            const applyGlobeZoom = (
+                nextZoom: number,
+                reference?: [number, number],
+                preferredTarget?: { data: T; lat: number; lon: number; projected: [number, number] }
+            ): void => {
                 if (externalMapTransitioning) {
                     return;
                 }
                 zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
-                if (!syncZoomViewMode()) {
+                if (!syncZoomViewMode(reference, preferredTarget)) {
                     draw();
                 }
             };
@@ -3618,6 +3642,12 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke', 'transparent')
                     .style('cursor', markerSelectable ? 'pointer' : 'default')
                     .style('pointer-events', markerSelectable ? 'all' : 'none')
+                    .on('mouseenter.kchart-globe-zoom-target', (_event, datum) => {
+                        hoveredMarkerTarget = datum;
+                    })
+                    .on('mouseleave.kchart-globe-zoom-target', () => {
+                        hoveredMarkerTarget = undefined;
+                    })
                     .on('click', handleMarkerClick);
 
                 const markers = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker')
@@ -3638,6 +3668,12 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke', configuration.markerStroke ?? 'rgba(248, 251, 255, 0.92)')
                     .style('stroke-width', configuration.markerStrokeWidth ?? 1.4)
                     .style('opacity', configuration.markerOpacity ?? 0.95)
+                    .on('mouseenter.kchart-globe-zoom-target', (_event, datum) => {
+                        hoveredMarkerTarget = datum;
+                    })
+                    .on('mouseleave.kchart-globe-zoom-target', () => {
+                        hoveredMarkerTarget = undefined;
+                    })
                     .on('click', handleMarkerClick);
 
                 const labels = globeGroup.selectAll<SVGTextElement, typeof markerData[number]>('text.kchart-globe-marker-label')
@@ -3657,6 +3693,12 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('cursor', markerSelectable ? 'pointer' : 'default')
                     .style('pointer-events', markerSelectable ? 'all' : 'none')
                     .text((datum) => String(datum.data[configuration.labelField as keyof T & string]))
+                    .on('mouseenter.kchart-globe-zoom-target', (_event, datum) => {
+                        hoveredMarkerTarget = datum;
+                    })
+                    .on('mouseleave.kchart-globe-zoom-target', () => {
+                        hoveredMarkerTarget = undefined;
+                    })
                     .on('click', handleMarkerClick);
 
                 const activeWarpDuration = Math.max(480, warpEffect?.duration ?? drilldownConfiguration.duration);
@@ -3877,8 +3919,22 @@ export const createSvgGlobeSeries = <T = any>(
             if (zoomConfiguration.enabled && zoomConfiguration.wheel) {
                 globeLayer.on('wheel.kchart-globe-zoom', (event: WheelEvent) => {
                     event.preventDefault();
+                    if (!wheelZoomReference) {
+                        const currentPoint = pointer(event, globeLayer.node() as any) as [number, number];
+                        const reference = globeProjection.invert?.(currentPoint) as [number, number] | null | undefined;
+                        if (reference && Number.isFinite(reference[0]) && Number.isFinite(reference[1])) {
+                            wheelZoomReference = reference;
+                        }
+                    }
+                    if (wheelZoomReferenceTimer !== undefined) {
+                        globalThis.clearTimeout(wheelZoomReferenceTimer);
+                    }
+                    wheelZoomReferenceTimer = globalThis.setTimeout(() => {
+                        wheelZoomReference = undefined;
+                        wheelZoomReferenceTimer = undefined;
+                    }, 180);
                     const zoomDelta = Math.exp(-event.deltaY * zoomConfiguration.wheelSensitivity);
-                    applyGlobeZoom(zoomLevel * zoomDelta);
+                    applyGlobeZoom(zoomLevel * zoomDelta, wheelZoomReference, hoveredMarkerTarget);
                 });
             }
 
@@ -3948,6 +4004,12 @@ export const createSvgGlobeSeries = <T = any>(
             if (warpFrame !== undefined) {
                 globalThis.cancelAnimationFrame(warpFrame);
                 warpFrame = undefined;
+            }
+            wheelZoomReference = undefined;
+            hoveredMarkerTarget = undefined;
+            if (wheelZoomReferenceTimer !== undefined) {
+                globalThis.clearTimeout(wheelZoomReferenceTimer);
+                wheelZoomReferenceTimer = undefined;
             }
             externalMapTransitioning = false;
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-drag', null);
