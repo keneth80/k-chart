@@ -6,8 +6,8 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.6.0` release preparation
-- Active feature branch at handoff: `feature/globe-map-series`
+- Current release baseline: `1.6.0`
+- Release branch at handoff: `release/1.6.0`
 - Main source entry: `src/index.ts` -> `src/kchart.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
