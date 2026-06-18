@@ -6,8 +6,12 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.6.0`
-- Release branch at handoff: `release/1.6.0`
+- Current release baseline: `1.6.0` published on 2026-06-18
+- Current integration branch at handoff: `develop`
+- Release tag: `v1.6.0`
+- Published packages:
+  - `@keneth80/k-chart@1.6.0`
+  - `@keneth80/k-chart-maplibre@0.1.0`
 - Main source entry: `src/index.ts` -> `src/kchart.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
