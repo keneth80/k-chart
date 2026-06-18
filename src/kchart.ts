@@ -3251,14 +3251,14 @@ export const createSvgGlobeSeries = <T = any>(
                 lat: number;
                 lon: number;
                 projected: [number, number];
-            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode): void => {
+            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number): void => {
                 if (!drilldownConfiguration.enabled) {
                     return;
                 }
                 if (!focusedPoint) {
                     drilldownRestoreState = {
                         rotation: [...rotation],
-                        zoomLevel
+                        zoomLevel: clampNumber(restoreZoomLevel ?? zoomLevel, minZoom, maxZoom)
                     };
                 }
                 focusedPoint = datum;
@@ -3358,7 +3358,11 @@ export const createSvgGlobeSeries = <T = any>(
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
                     const target = resolveAutoMapTarget();
                     if (target) {
-                        enterDrilldown(target, 'map');
+                        enterDrilldown(
+                            target,
+                            'map',
+                            Math.min(zoomLevel, exitThreshold)
+                        );
                         return true;
                     }
                 }
