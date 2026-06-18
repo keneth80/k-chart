@@ -3213,6 +3213,7 @@ export const createSvgGlobeSeries = <T = any>(
     let wheelZoomReference: [number, number] | undefined;
     let wheelZoomReferenceTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let hoveredMarkerTarget: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
+    let settledCenter: [number, number] = [-rotation[0], -rotation[1]];
     let externalMapTransitioning = false;
 
     return createCustomSeries<T>({
@@ -3244,6 +3245,12 @@ export const createSvgGlobeSeries = <T = any>(
                 .center(focusedPoint ? [focusedPoint.lon, focusedPoint.lat] : [0, 0]);
             const path = geoPath(globeProjection);
             const mapPath = geoPath(mapProjection);
+            const resolveGlobeCenter = (): [number, number] => {
+                const inverted = globeProjection.invert?.([centerX, centerY]) as [number, number] | null | undefined;
+                return inverted && Number.isFinite(inverted[0]) && Number.isFinite(inverted[1])
+                    ? inverted
+                    : [-rotation[0], -rotation[1]];
+            };
             const getFirstTwoPointerDistance = (): number => {
                 const points = Array.from(activePointers.values());
                 if (points.length < 2) {
@@ -3434,11 +3441,8 @@ export const createSvgGlobeSeries = <T = any>(
                     projected: [number, number];
                     distance: number;
                 } | undefined;
-                const projectedCenter = globeProjection.invert?.([centerX, centerY]) as [number, number] | null | undefined;
                 const center: [number, number] = reference
-                    ?? (projectedCenter && Number.isFinite(projectedCenter[0]) && Number.isFinite(projectedCenter[1])
-                        ? projectedCenter
-                        : [-rotation[0], -rotation[1]]);
+                    ?? settledCenter;
 
                 data.forEach((point) => {
                     const lat = resolveGlobePointValue(point, configuration.latField);
@@ -3480,10 +3484,16 @@ export const createSvgGlobeSeries = <T = any>(
                     drilldownConfiguration.globeZoomThreshold
                 );
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
-                    const target = preferredTarget ?? resolveAutoMapTarget(reference);
+                    const target = preferredTarget ?? resolveAutoMapTarget(settledCenter);
                     if (target) {
+                        const automaticTarget = {
+                            ...target,
+                            lon: settledCenter[0],
+                            lat: settledCenter[1],
+                            projected: [centerX, centerY] as [number, number]
+                        };
                         enterDrilldown(
-                            target,
+                            automaticTarget,
                             drilldownConfiguration.mode,
                             Math.min(zoomLevel, exitThreshold),
                             false
@@ -4005,6 +4015,7 @@ export const createSvgGlobeSeries = <T = any>(
                             pinchStartZoom = zoomLevel;
                         }
                         dragging = false;
+                        settledCenter = resolveGlobeCenter();
                         (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
                         draw();
                     });
