@@ -10,6 +10,11 @@ import {
     KChartMapLibrePlace
 } from '../packages/k-chart-maplibre/src';
 import {
+    createThreeConstellationSeries,
+    ariesLinks,
+    ariesNodes
+} from '../examples/three-constellation-series';
+import {
     createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
@@ -59,6 +64,7 @@ type DemoKind =
     | 'tooltip-template'
     | 'tooltip-custom'
     | 'topology'
+    | 'three-constellation'
     | 'globe-map'
     | 'globe-map-drilldown'
     | 'update-series'
@@ -253,6 +259,7 @@ const examples: ExampleMeta[] = [
     { kind: 'tooltip-template', title: 'Tooltip template change' },
     { kind: 'tooltip-custom', title: 'Tooltip custom template' },
     { kind: 'topology', title: 'Topology renderer' },
+    { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Real time series API' },
@@ -873,11 +880,21 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (isGlobeMapExample(kind)) {
         return globeData;
     }
+    if (kind === 'three-constellation') {
+        return ariesNodes.map((node) => ({
+            ...node,
+            value: node.y,
+            volume: node.z,
+            extra: node.size,
+            radius: node.size,
+            category: 'Aries'
+        })) as DemoPoint[];
+    }
     return baseData;
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind)) {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation') {
         return [];
     }
     if (kind === 'column') {
@@ -1031,6 +1048,26 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     if (kind === 'topology') {
         return [topologySeries];
     }
+    if (kind === 'three-constellation') {
+        return [
+            createThreeConstellationSeries<DemoPoint>({
+                selector: 'demo-three-constellation',
+                displayName: 'Aries',
+                idField: 'id',
+                labelField: 'label',
+                xField: 'x',
+                yField: 'y',
+                zField: 'z',
+                sizeField: 'size',
+                colorField: 'color',
+                links: ariesLinks,
+                autoRotate: true,
+                onNodeClick: (node) => {
+                    console.info(`[KChart Three] selected ${node.label}`);
+                }
+            })
+        ];
+    }
     if (kind === 'circle') {
         return [circleSeries];
     }
@@ -1110,6 +1147,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
+    const isThreeConstellation = kind === 'three-constellation';
     const isGlobeMap = isGlobeMapExample(kind);
 
     return createKChart<DemoPoint>({
@@ -1120,11 +1158,15 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             : chartRoot?.clientWidth || 760,
         height: kind === 'topology'
             ? 620
+            : isThreeConstellation
+                ? 520
             : chartRoot?.clientHeight || 420,
         margin: kind === 'axis-custom-margin'
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
                 ? { top: 10, right: 10, bottom: 10, left: 10 }
+                : isThreeConstellation
+                    ? { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                     : kind === 'webgl-large-line'
@@ -1136,7 +1178,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGlobeMap,
+            visible: !isTopology && !isGlobeMap && !isThreeConstellation,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1144,11 +1186,11 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGlobeMap,
+            visible: kind !== 'topology' && !isGlobeMap && !isThreeConstellation,
             placement: 'top'
         },
         tooltip: {
-            visible: !isBigData && !isTopology && !isGlobeMap,
+            visible: !isBigData && !isTopology && !isGlobeMap && !isThreeConstellation,
             formatter: kind === 'tooltip-template'
                 ? ({ data: item }) => `<strong>${item.label}</strong><br/>Revenue ${item.value}<br/>Volume ${item.volume}`
                 : kind === 'tooltip-custom'
@@ -1164,7 +1206,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
-        axes: isTopology ? [] : createAxes(kind),
+        axes: isTopology || isThreeConstellation ? [] : createAxes(kind),
         series: createSeries(kind)
     });
 };
@@ -1220,6 +1262,22 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     render({ group, plotSize }) {
         // draw nodes and links inside the plot area
     }
+})`;
+    }
+    if (kind === 'three-constellation') {
+        return `createThreeConstellationSeries({
+    selector: 'demo-three-constellation',
+    displayName: 'Aries',
+    idField: 'id',
+    labelField: 'label',
+    xField: 'x',
+    yField: 'y',
+    zField: 'z',
+    sizeField: 'size',
+    colorField: 'color',
+    links: ariesLinks,
+    autoRotate: true,
+    onNodeClick: (node) => console.log(node.label)
 })`;
     }
     if (isGlobeMapExample(kind)) {
@@ -1378,10 +1436,39 @@ const createUsageSnippet = (kind: DemoKind): string => {
             ? 'createLargeData(50000)'
             : kind === 'canvas-candlestick'
                 ? 'stockData'
+                : kind === 'three-constellation'
+                    ? 'ariesNodes'
                 : isUsageGlobeMap
                     ? 'globeData'
                     : 'baseData';
-    const dataSnippet = kind === 'canvas-candlestick'
+    const dataSnippet = kind === 'three-constellation'
+        ? `
+type ConstellationNode = {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    z: number;
+    size: number;
+    color: string;
+};
+
+const ariesNodes: ConstellationNode[] = [
+    { id: 'mesarthim', label: 'Mesarthim · γ Ari', x: -2.25, y: -0.78, z: 0.08, size: 0.82, color: '#f8fcff' },
+    { id: 'sheratan', label: 'Sheratan · β Ari', x: -2.08, y: -0.34, z: -0.06, size: 1.15, color: '#e8f5ff' },
+    { id: 'hamal', label: 'Hamal · α Ari', x: -1.05, y: 0.62, z: 0.1, size: 1.55, color: '#fff7e8' },
+    { id: 'botein', label: 'Botein · δ Ari', x: 1.95, y: -0.62, z: 0.04, size: 0.78, color: '#f2f8ff' },
+    { id: 'bharani', label: 'Bharani · 41 Ari', x: 0.82, y: 1.78, z: -0.12, size: 0.9, color: '#e1f2ff' }
+];
+
+const ariesLinks = [
+    { source: 'mesarthim', target: 'sheratan' },
+    { source: 'sheratan', target: 'hamal' },
+    { source: 'hamal', target: 'botein' },
+    { source: 'hamal', target: 'bharani' }
+];
+`
+        : kind === 'canvas-candlestick'
         ? `
 type StockPoint = {
     label: string;
@@ -1534,7 +1621,10 @@ const baseData = [
     createWebglLineSeries,
     createWebglPointSeries
 } from 'kchart';
-${kind === 'globe-map-drilldown' ? `import {
+${kind === 'three-constellation' ? `import {
+    createThreeConstellationSeries
+} from './three-constellation-series';
+` : ''}${kind === 'globe-map-drilldown' ? `import {
     createMapLibreFlatMap,
     createMapLibreGlobeBridge
 } from '@keneth80/k-chart-maplibre';
@@ -1549,8 +1639,8 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
+    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1575,7 +1665,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'three-constellation' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
@@ -1588,7 +1678,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || kind === 'three-constellation' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

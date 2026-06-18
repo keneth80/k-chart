@@ -414,6 +414,41 @@ Renderer context 주요 필드:
 - `getCanvas(name)`: Canvas 2D layer
 - `getWebglCanvas(name)`: WebGL canvas layer
 
+### Three.js renderer 연결
+
+Three.js 같은 외부 렌더링 엔진도 동일한 함수형 확장 지점을 사용합니다. KChart는
+plot 영역 크기와 WebGL canvas를 제공하고, custom series가 Three.js scene, camera,
+controls, raycaster를 소유합니다.
+
+```ts
+import * as THREE from 'three';
+import { createCustomSeries } from '@keneth80/k-chart';
+
+let renderer: THREE.WebGLRenderer | undefined;
+
+const series = createCustomSeries<Node>({
+    selector: 'three-network',
+    render({ getWebglCanvas, plotSize }) {
+        const canvas = getWebglCanvas('three-network');
+        renderer ??= new THREE.WebGLRenderer({
+            canvas,
+            antialias: true,
+            alpha: true
+        });
+        renderer.setSize(plotSize.width, plotSize.height, false);
+        // Build or update THREE.Scene objects from chart data.
+    },
+    destroy() {
+        renderer?.dispose();
+        renderer = undefined;
+    }
+});
+```
+
+렌더러를 매 render마다 새로 생성하지 않도록 factory closure에 상태를 보관해야 합니다.
+animation frame, controls, geometry, material도 `destroy()`에서 정리합니다. 전체 양자리
+별자리 예제는 `examples/three-constellation-series.ts`를 참고합니다.
+
 ```ts
 const circleSeries = createCustomSeries<CirclePoint>({
     selector: 'custom-circle',

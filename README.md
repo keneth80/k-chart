@@ -30,6 +30,38 @@ createKChart(config)
 - `render(context)`는 `group`, `data`, `scales`, `xScale`, `yScale`, `plotSize`, `color`, `getCanvas`, `getWebglCanvas`를 받습니다.
 - Canvas/WebGL 시각화도 renderer 안에서 필요한 layer를 받아 직접 그릴 수 있습니다.
 
+### Three.js Custom Series
+
+Three.js는 KChart 코어 의존성이 아닙니다. 애플리케이션에서 `three`를 설치한 뒤
+`createCustomSeries(...)`와 `getWebglCanvas()`를 사용해 선택적으로 결합할 수 있습니다.
+
+```bash
+npm install three
+```
+
+양자리의 실제 주요 별 배치를 기반으로 별 노드와 연결선을 3D로 표현하는 전체 예제는
+[`examples/three-constellation-series.ts`](examples/three-constellation-series.ts)에 있습니다.
+
+```ts
+const constellation = createThreeConstellationSeries({
+    selector: 'aries',
+    idField: 'id',
+    labelField: 'label',
+    xField: 'x',
+    yField: 'y',
+    zField: 'z',
+    sizeField: 'size',
+    colorField: 'color',
+    links: [
+        { source: 'mesarthim', target: 'sheratan' },
+        { source: 'sheratan', target: 'hamal' }
+    ]
+});
+```
+
+예제는 기존 KChart WebGL canvas를 Three.js renderer에 주입하고, `InstancedMesh`,
+`LineSegments`, `OrbitControls`, `Raycaster`, resize 및 dispose 생명주기를 처리합니다.
+
 ## Install
 
 ```bash

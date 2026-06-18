@@ -210,6 +210,7 @@ Important state fields:
 - `@keneth80/k-chart-react`: separate React wrapper package.
 - `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
+- Three.js integration is currently an optional custom-series example on `feature/three-constellation-series`, not a core runtime dependency. The demo uses `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
 
 ## Known Design Decisions
 
