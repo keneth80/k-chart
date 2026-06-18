@@ -5,6 +5,10 @@ import { area as d3Area, linkVertical } from 'd3-shape';
 import {
     createMapLibreFlatMap,
     createMapLibreGlobeBridge,
+    createMapLibrePlaceResolver,
+    parseMapLibrePlaces
+} from '../packages/k-chart-maplibre/src';
+import type {
     KChartMapLibreController,
     KChartMapLibreGlobeBridge,
     KChartMapLibrePlace
@@ -101,7 +105,7 @@ interface DemoPlace extends KChartMapLibrePlace {
     city: string;
 }
 
-const globePlaces: DemoPlace[] = [
+const globePlaces = parseMapLibrePlaces<DemoPlace, DemoPlace>([
     { id: 'seoul-gyeongbokgung', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', description: 'Main royal palace of the Joseon dynasty.', lat: 37.5796, lon: 126.9770 },
     { id: 'seoul-bukchon', city: 'Seoul', name: 'Bukchon Hanok Village', category: 'Attraction', address: '37 Gyedong-gil, Jongno-gu, Seoul', description: 'Traditional neighborhood with preserved hanok houses.', lat: 37.5826, lon: 126.9830 },
     { id: 'seoul-gwangjang', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', description: 'Market known for bindaetteok, mayak gimbap, and street food.', lat: 37.5700, lon: 126.9996 },
@@ -113,7 +117,15 @@ const globePlaces: DemoPlace[] = [
     { id: 'london-borough-market', city: 'London', name: 'Borough Market', category: 'Restaurant', address: 'London SE1 9AL', description: 'Historic food market near London Bridge.', lat: 51.5055, lon: -0.0910 },
     { id: 'sydney-opera-house', city: 'Sydney', name: 'Sydney Opera House', category: 'Attraction', address: 'Bennelong Point, Sydney NSW', description: 'Performing arts center on Sydney Harbour.', lat: -33.8568, lon: 151.2153 },
     { id: 'sao-paulo-mercadao', city: 'Sao Paulo', name: 'Mercadao Municipal', category: 'Restaurant', address: 'Rua da Cantareira 306, Sao Paulo', description: 'Municipal market famous for local food.', lat: -23.5418, lon: -46.6291 }
-];
+], (place) => place);
+
+const resolveGlobePlaces = createMapLibrePlaceResolver<DemoPoint, DemoPlace>(
+    globePlaces,
+    {
+        getCityKey: (city) => city.label,
+        getPlaceCityKey: (place) => place.city
+    }
+);
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
 
@@ -289,7 +301,7 @@ const setupMapLibreDemo = (): void => {
     });
     mapLibreBridge = createMapLibreGlobeBridge(
         mapLibreController,
-        (city) => globePlaces.filter((place) => place.city === city.label),
+        resolveGlobePlaces,
         {
             getLabel: (city) => `${city.label} places`,
             zoom: 13
@@ -1544,10 +1556,30 @@ const globeData: GlobePoint[] = [
     { label: 'London', lat: 51.5072, lon: -0.1276, radius: 5, url: 'https://en.wikipedia.org/wiki/London' }
 ];
 ${kind === 'globe-map-drilldown' ? `
-const places = [
-    { id: 'palace', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', lat: 37.5796, lon: 126.9770 },
-    { id: 'market', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', lat: 37.5700, lon: 126.9996 }
+type Place = KChartMapLibrePlace & { city: string };
+
+const placeApiData = [
+    { id: 'palace', city: 'Seoul', title: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', latitude: '37.5796', longitude: '126.9770' },
+    { id: 'market', city: 'Seoul', title: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', latitude: '37.5700', longitude: '126.9996' }
 ];
+
+const places = parseMapLibrePlaces<(typeof placeApiData)[number], Place>(
+    placeApiData,
+    (item) => ({
+        id: item.id,
+        city: item.city,
+        name: item.title,
+        category: item.category,
+        address: item.address,
+        lat: Number(item.latitude),
+        lon: Number(item.longitude)
+    })
+);
+
+const resolvePlaces = createMapLibrePlaceResolver<GlobePoint, Place>(places, {
+    getCityKey: (city) => city.label,
+    getPlaceCityKey: (place) => place.city
+});
 
 const flatMap = createMapLibreFlatMap({
     container: '#chart-div',
@@ -1557,7 +1589,7 @@ const flatMap = createMapLibreFlatMap({
 
 const mapBridge = createMapLibreGlobeBridge(
     flatMap,
-    (city: GlobePoint) => places.filter((place) => place.city === city.label),
+    resolvePlaces,
     { getLabel: (city: GlobePoint) => \`\${city.label} places\` }
 );
 ` : ''}
@@ -1620,14 +1652,17 @@ const baseData = [
     createSvgGlobeSeries,
     createWebglLineSeries,
     createWebglPointSeries
-} from 'kchart';
+} from '@keneth80/k-chart';
 ${kind === 'three-constellation' ? `import {
     createThreeConstellationSeries
 } from './three-constellation-series';
 ` : ''}${kind === 'globe-map-drilldown' ? `import {
     createMapLibreFlatMap,
-    createMapLibreGlobeBridge
+    createMapLibreGlobeBridge,
+    createMapLibrePlaceResolver,
+    parseMapLibrePlaces
 } from '@keneth80/k-chart-maplibre';
+import type { KChartMapLibrePlace } from '@keneth80/k-chart-maplibre';
 import '@keneth80/k-chart-maplibre/style.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 ` : ''}

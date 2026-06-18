@@ -230,6 +230,12 @@ const chart = createKChart<CityPoint>({
 
 실제 도로·건물 타일 지도가 필요한 경우 `mode: 'external-map'`을 사용합니다. 이 모드에서는 KChart가 내부 SVG 평면도를 그리지 않고 `onEnter` 콜백에 `{ data, lat, lon, exit }`를 전달합니다. `@keneth80/k-chart-maplibre` 어댑터는 이 컨텍스트를 받아 MapLibre 지도를 표시하며, 어댑터의 `G` 버튼은 `exit()`을 호출해 지구본으로 복귀합니다. MapLibre는 지도 렌더러이므로 주소 변환과 맛집 검색은 Kakao Local API, Naver Maps, MapTiler Geocoding 등 별도 공급자에서 받아 장소 좌표 데이터로 전달해야 합니다.
 
+외부 장소 API 응답은 `parseMapLibrePlaces()`로 `id`, `name`, `lat`, `lon`을
+검증·변환할 수 있습니다. `createMapLibrePlaceResolver()`는 변환된 장소를 도시별로
+한 번 인덱싱하고 `createMapLibreGlobeBridge()`에 바로 전달할 resolver를 반환합니다.
+완전히 실행 가능한 예제와 import 목록은
+[`packages/k-chart-maplibre/README.md`](../packages/k-chart-maplibre/README.md)에 있습니다.
+
 ## Built-In WebGL Series
 
 ```ts
