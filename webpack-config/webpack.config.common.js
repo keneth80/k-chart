@@ -10,7 +10,7 @@ const helpers = require('./helpers');
 module.exports = {
     entry: './src/main.ts',
     resolve: {
-        extensions: ['.js', '.ts']
+        extensions: ['.js', '.ts', '.json']
     },
     devtool: 'inline-source-map',
     devServer: {
@@ -30,11 +30,7 @@ module.exports = {
             },
             {
                 test: /\.js$/,
-                // exclude: /node_modules/,
-                exclude : [
-                    /\bcore-js\b/,
-                    /\bwebpack\/buildin\b/
-                ],
+                exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
                     options: {

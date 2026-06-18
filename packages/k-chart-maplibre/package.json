@@ -1,0 +1,31 @@
+{
+  "name": "@keneth80/k-chart-maplibre",
+  "version": "0.1.0",
+  "description": "MapLibre flat-map adapter for KChart globe drilldown.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./style.css": "./src/style.css"
+  },
+  "files": ["lib", "src/style.css", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "keywords": ["k-chart", "maplibre", "map", "globe", "typescript"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@keneth80/k-chart": ">=1.5.0",
+    "maplibre-gl": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@keneth80/k-chart": "file:../..",
+    "maplibre-gl": "^5.19.0",
+    "typescript": "^6.0.3"
+  }
+}

@@ -65,6 +65,8 @@ Then open `http://127.0.0.1:9003/`.
 - [Release Guide](docs/release.md)
 - [React Wrapper Example](examples/react-wrapper.tsx)
 - [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
+- [SVG Globe Map Example](examples/svg-globe-map-series.ts)
+- [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
 
 ## Quick Start
 
@@ -273,6 +275,84 @@ createKChart<StockPoint>({
 ```
 
 `colorMode` 기본값은 `'open-close'`이며 `close`와 `open`을 비교합니다. 한국 주식 화면처럼 전일 종가 대비 상승/하락 색상을 쓰려면 `colorMode: 'previous-close'`를 지정합니다. `previousCloseField`를 넘기면 해당 필드를 기준으로 비교하고, 생략하면 현재 데이터 배열에서 바로 앞 캔들의 `closeField` 값을 사용합니다.
+
+## Globe Map
+
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks focus a coordinate with a short warp overlay. `drilldown.mode: 'zoom'` keeps the orthographic globe and zooms into the marker, while `mode: 'map'` switches to a focused Mercator map. With `autoMapOnZoom: true`, zooming past `mapZoomThreshold` automatically selects the registered city nearest the center of the visible globe and switches to the flat map. Zooming back below `globeZoomThreshold` returns to the globe.
+
+Use `drilldown.mode: 'external-map'` with `@keneth80/k-chart-maplibre` when the destination needs real vector/raster map tiles, roads, interactive place markers, clustering, and popups. The `onEnter` context includes `exit()`, allowing the external map's back control to restore the globe. MapLibre renders the map but does not provide restaurant or address search data; connect a separate place/geocoding provider and pass the resulting coordinates to `setPlaces()` or `addPlaces()`.
+
+```ts
+import {
+    createKChart,
+    createSvgGlobeSeries
+} from '@keneth80/k-chart';
+
+interface CityPoint {
+    name: string;
+    lat: number;
+    lon: number;
+    url: string;
+}
+
+const cities: CityPoint[] = [
+    { name: 'Seoul', lat: 37.5665, lon: 126.9780, url: 'https://en.wikipedia.org/wiki/Seoul' },
+    { name: 'New York', lat: 40.7128, lon: -74.0060, url: 'https://en.wikipedia.org/wiki/New_York_City' }
+];
+
+createKChart<CityPoint>({
+    selector: '#chart',
+    data: cities,
+    grid: { visible: false },
+    legend: { visible: false },
+    tooltip: { visible: false },
+    axes: [],
+    series: [
+        createSvgGlobeSeries({
+            selector: 'cities',
+            latField: 'lat',
+            lonField: 'lon',
+            labelField: 'name',
+            initialRotate: [-120, -18, 0],
+            zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
+            landFill: '#22c55e',
+            landStroke: 'rgba(236, 253, 245, 0.72)',
+            landOpacity: 0.58,
+            countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
+            drilldown: {
+                enabled: true,
+                mode: 'map',
+                autoMapOnZoom: true,
+                mapZoomThreshold: 2.4,
+                globeZoomThreshold: 1.8,
+                focusZoom: 2.7,
+                zoomScale: 7,
+                duration: 1200,
+                resetControl: true
+            },
+            onMarkerClick: ({ data }) => {
+                window.open(data.url, '_blank', 'noopener,noreferrer');
+            }
+        })
+    ]
+}).render();
+```
+
+Country-level styling is available when the land layer uses country features:
+
+```ts
+createSvgGlobeSeries({
+    selector: 'country-colors',
+    latField: 'lat',
+    lonField: 'lon',
+    landMode: 'countries',
+    landFill: (feature, index) => {
+        const name = feature.properties?.name;
+        if (name === 'South Korea') return '#60a5fa';
+        return ['#22c55e', '#14b8a6', '#f59e0b'][index % 3];
+    }
+});
+```
 
 대용량 line 예제에서는 축 tick 수를 줄여 라벨 겹침을 피할 수 있습니다.
 

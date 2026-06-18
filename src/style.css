@@ -439,12 +439,23 @@ svg {
 .tooltip-a:before,
 .tooltip-b:before,
 .topology-a:before,
+.globe-a:before,
 .axis-a:before {
     background:
         radial-gradient(circle, var(--accent-blue) 0 3px, transparent 4px) 12% 65% / 100% 100% no-repeat,
         radial-gradient(circle, var(--accent-green) 0 3px, transparent 4px) 38% 34% / 100% 100% no-repeat,
         radial-gradient(circle, var(--accent-amber) 0 3px, transparent 4px) 68% 54% / 100% 100% no-repeat,
         radial-gradient(circle, var(--accent-blue) 0 3px, transparent 4px) 88% 26% / 100% 100% no-repeat;
+}
+
+.globe-a:after {
+    inset: 4px 32%;
+    border: 1px solid rgba(148, 163, 184, 0.52);
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, var(--accent-green) 0 2px, transparent 3px) 66% 36% / 100% 100% no-repeat,
+        radial-gradient(circle, var(--accent-blue) 0 2px, transparent 3px) 42% 48% / 100% 100% no-repeat,
+        linear-gradient(90deg, transparent 48%, rgba(148, 163, 184, 0.28) 49% 51%, transparent 52%);
 }
 
 .container-chart-example {
