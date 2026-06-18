@@ -3213,6 +3213,13 @@ export const createSvgGlobeSeries = <T = any>(
     let wheelZoomReference: [number, number] | undefined;
     let wheelZoomReferenceTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let hoveredMarkerTarget: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
+    let markerPress: {
+        pointerId: number;
+        startX: number;
+        startY: number;
+        moved: boolean;
+        datum: { data: T; lat: number; lon: number; projected: [number, number] };
+    } | undefined;
     let settledCenter: [number, number] = [-rotation[0], -rotation[1]];
     let externalMapTransitioning = false;
 
@@ -3633,7 +3640,7 @@ export const createSvgGlobeSeries = <T = any>(
                     visible: boolean;
                 }>;
                 const markerSelectable = Boolean(configuration.onMarkerClick || drilldownConfiguration.enabled);
-                const handleMarkerClick = (event: MouseEvent, datum: typeof markerData[number]): void => {
+                const activateMarker = (event: MouseEvent, datum: typeof markerData[number]): void => {
                     if (!markerSelectable) {
                         return;
                     }
@@ -3648,6 +3655,47 @@ export const createSvgGlobeSeries = <T = any>(
                         x: datum.projected[0],
                         y: datum.projected[1]
                     });
+                };
+                const handleMarkerPointerDown = (event: PointerEvent, datum: typeof markerData[number]): void => {
+                    if (!markerSelectable || event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    markerPress = {
+                        pointerId: event.pointerId,
+                        startX: event.clientX,
+                        startY: event.clientY,
+                        moved: false,
+                        datum
+                    };
+                    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+                };
+                const handleMarkerPointerMove = (event: PointerEvent): void => {
+                    if (!markerPress || markerPress.pointerId !== event.pointerId) {
+                        return;
+                    }
+                    if (Math.hypot(event.clientX - markerPress.startX, event.clientY - markerPress.startY) > 5) {
+                        markerPress.moved = true;
+                    }
+                };
+                const handleMarkerPointerUp = (event: PointerEvent): void => {
+                    if (!markerPress || markerPress.pointerId !== event.pointerId) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const pressed = markerPress;
+                    markerPress = undefined;
+                    (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+                    if (!pressed.moved) {
+                        activateMarker(event, pressed.datum as typeof markerData[number]);
+                    }
+                };
+                const handleMarkerPointerCancel = (event: PointerEvent): void => {
+                    if (markerPress?.pointerId === event.pointerId) {
+                        markerPress = undefined;
+                    }
                 };
 
                 const markerHitAreas = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker-hit-area')
@@ -3672,7 +3720,11 @@ export const createSvgGlobeSeries = <T = any>(
                     .on('mouseleave.kchart-globe-zoom-target', () => {
                         hoveredMarkerTarget = undefined;
                     })
-                    .on('click', handleMarkerClick);
+                    .on('click', null)
+                    .on('pointerdown.kchart-globe-marker-press', handleMarkerPointerDown)
+                    .on('pointermove.kchart-globe-marker-press', handleMarkerPointerMove)
+                    .on('pointerup.kchart-globe-marker-press', handleMarkerPointerUp)
+                    .on('pointercancel.kchart-globe-marker-press', handleMarkerPointerCancel);
 
                 const markers = globeGroup.selectAll<SVGCircleElement, typeof markerData[number]>('circle.kchart-globe-marker')
                     .data(markerData, (datum: any) => String(configuration.labelField ? datum.data[configuration.labelField] : `${datum.lat},${datum.lon}`));
@@ -3698,7 +3750,11 @@ export const createSvgGlobeSeries = <T = any>(
                     .on('mouseleave.kchart-globe-zoom-target', () => {
                         hoveredMarkerTarget = undefined;
                     })
-                    .on('click', handleMarkerClick);
+                    .on('click', null)
+                    .on('pointerdown.kchart-globe-marker-press', handleMarkerPointerDown)
+                    .on('pointermove.kchart-globe-marker-press', handleMarkerPointerMove)
+                    .on('pointerup.kchart-globe-marker-press', handleMarkerPointerUp)
+                    .on('pointercancel.kchart-globe-marker-press', handleMarkerPointerCancel);
 
                 const labels = globeGroup.selectAll<SVGTextElement, typeof markerData[number]>('text.kchart-globe-marker-label')
                     .data(configuration.labelField ? markerData : [], (datum: any) => String(datum.data[configuration.labelField as keyof T & string]));
@@ -3723,7 +3779,11 @@ export const createSvgGlobeSeries = <T = any>(
                     .on('mouseleave.kchart-globe-zoom-target', () => {
                         hoveredMarkerTarget = undefined;
                     })
-                    .on('click', handleMarkerClick);
+                    .on('click', null)
+                    .on('pointerdown.kchart-globe-marker-press', handleMarkerPointerDown)
+                    .on('pointermove.kchart-globe-marker-press', handleMarkerPointerMove)
+                    .on('pointerup.kchart-globe-marker-press', handleMarkerPointerUp)
+                    .on('pointercancel.kchart-globe-marker-press', handleMarkerPointerCancel);
 
                 const activeWarpDuration = Math.max(480, warpEffect?.duration ?? drilldownConfiguration.duration);
                 const warpData = warpEffect
@@ -4038,6 +4098,7 @@ export const createSvgGlobeSeries = <T = any>(
             }
             wheelZoomReference = undefined;
             hoveredMarkerTarget = undefined;
+            markerPress = undefined;
             if (wheelZoomReferenceTimer !== undefined) {
                 globalThis.clearTimeout(wheelZoomReferenceTimer);
                 wheelZoomReferenceTimer = undefined;
