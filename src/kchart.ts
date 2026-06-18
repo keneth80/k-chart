@@ -3207,7 +3207,10 @@ export const createSvgGlobeSeries = <T = any>(
     let viewMode: 'globe' | 'map' | 'external-map' = 'globe';
     let focusedPoint: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
     let drilldownRestoreState: { rotation: [number, number, number]; zoomLevel: number } | undefined;
-    let warpEffect: { x: number; y: number; startedAt: number } | undefined;
+    let warpEffect: { x: number; y: number; startedAt: number; duration: number } | undefined;
+    let warpTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let warpFrame: number | undefined;
+    let externalMapTransitioning = false;
 
     return createCustomSeries<T>({
         selector: configuration.selector,
@@ -3247,15 +3250,31 @@ export const createSvgGlobeSeries = <T = any>(
                 const dy = points[0][1] - points[1][1];
                 return Math.hypot(dx, dy);
             };
+            const cancelWarpFrame = (): void => {
+                if (warpFrame !== undefined) {
+                    globalThis.cancelAnimationFrame(warpFrame);
+                    warpFrame = undefined;
+                }
+            };
+            const easeInOutCubic = (progress: number): number => progress < 0.5
+                ? 4 * progress * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+            const shortestAngleDelta = (from: number, to: number): number =>
+                (to - from + 540) % 360 - 180;
             const enterDrilldown = (datum: {
                 data: T;
                 lat: number;
                 lon: number;
                 projected: [number, number];
             }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number): void => {
-                if (!drilldownConfiguration.enabled) {
+                if (!drilldownConfiguration.enabled || externalMapTransitioning) {
                     return;
                 }
+                if (warpTimer !== undefined) {
+                    globalThis.clearTimeout(warpTimer);
+                    warpTimer = undefined;
+                }
+                cancelWarpFrame();
                 if (!focusedPoint) {
                     drilldownRestoreState = {
                         rotation: [...rotation],
@@ -3271,21 +3290,89 @@ export const createSvgGlobeSeries = <T = any>(
                         rotation[2]
                     ];
                     zoomLevel = clampNumber(drilldownConfiguration.focusZoom, minZoom, maxZoom);
+                } else if (mode === 'external-map') {
+                    externalMapTransitioning = true;
+                    viewMode = 'globe';
                 } else {
                     viewMode = mode;
                 }
-                warpEffect = {
-                    x: datum.projected[0],
-                    y: datum.projected[1],
-                    startedAt: Date.now()
+                warpEffect = mode === 'external-map'
+                    ? undefined
+                    : {
+                        x: datum.projected[0],
+                        y: datum.projected[1],
+                        startedAt: Date.now(),
+                        duration: drilldownConfiguration.duration
+                    };
+                const notifyEnter = (): void => {
+                    drilldownConfiguration.onEnter?.({
+                        data: datum.data,
+                        lat: datum.lat,
+                        lon: datum.lon,
+                        exit: () => exitDrilldown()
+                    });
                 };
-                drilldownConfiguration.onEnter?.({
-                    data: datum.data,
-                    lat: datum.lat,
-                    lon: datum.lon,
-                    exit: () => exitDrilldown()
-                });
-                globalThis.setTimeout(() => {
+
+                if (mode === 'external-map') {
+                    const cameraDuration = Math.min(
+                        460,
+                        Math.max(280, drilldownConfiguration.duration * 0.34)
+                    );
+                    const warpDuration = Math.max(600, drilldownConfiguration.duration - cameraDuration);
+                    const startRotation: [number, number, number] = [...rotation];
+                    const targetRotation: [number, number, number] = [
+                        -datum.lon,
+                        -datum.lat,
+                        rotation[2]
+                    ];
+                    const longitudeDelta = shortestAngleDelta(startRotation[0], targetRotation[0]);
+                    const startedAt = globalThis.performance.now();
+
+                    const revealExternalMap = (): void => {
+                        warpTimer = globalThis.setTimeout(() => {
+                            warpTimer = undefined;
+                            externalMapTransitioning = false;
+                            viewMode = 'external-map';
+                            warpEffect = undefined;
+                            notifyEnter();
+                            draw();
+                        }, warpDuration);
+                    };
+                    const animateCamera = (now: number): void => {
+                        const progress = clampNumber((now - startedAt) / cameraDuration, 0, 1);
+                        const easedProgress = easeInOutCubic(progress);
+                        rotation = [
+                            startRotation[0] + longitudeDelta * easedProgress,
+                            startRotation[1] + (targetRotation[1] - startRotation[1]) * easedProgress,
+                            startRotation[2]
+                        ];
+                        draw();
+
+                        if (progress < 1) {
+                            warpFrame = globalThis.requestAnimationFrame(animateCamera);
+                            return;
+                        }
+
+                        warpFrame = undefined;
+                        rotation = targetRotation;
+                        warpEffect = {
+                            x: centerX,
+                            y: centerY,
+                            startedAt: Date.now(),
+                            duration: warpDuration
+                        };
+                        draw();
+                        revealExternalMap();
+                    };
+
+                    draw();
+                    warpFrame = globalThis.requestAnimationFrame(animateCamera);
+                    return;
+                }
+
+                notifyEnter();
+                warpTimer = globalThis.setTimeout(() => {
+                    warpTimer = undefined;
                     warpEffect = undefined;
                     draw();
                 }, drilldownConfiguration.duration);
@@ -3295,6 +3382,12 @@ export const createSvgGlobeSeries = <T = any>(
                 if (viewMode === 'globe' && !focusedPoint) {
                     return;
                 }
+                if (warpTimer !== undefined) {
+                    globalThis.clearTimeout(warpTimer);
+                    warpTimer = undefined;
+                }
+                cancelWarpFrame();
+                externalMapTransitioning = false;
                 viewMode = 'globe';
                 focusedPoint = undefined;
                 if (restoreState && drilldownRestoreState) {
@@ -3346,7 +3439,7 @@ export const createSvgGlobeSeries = <T = any>(
                 return nearest;
             };
             const syncZoomViewMode = (): boolean => {
-                if (!drilldownConfiguration.enabled || !drilldownConfiguration.autoMapOnZoom) {
+                if (!drilldownConfiguration.enabled || !drilldownConfiguration.autoMapOnZoom || externalMapTransitioning) {
                     return false;
                 }
                 const enterThreshold = Math.max(
@@ -3371,6 +3464,9 @@ export const createSvgGlobeSeries = <T = any>(
                 return false;
             };
             const applyGlobeZoom = (nextZoom: number): void => {
+                if (externalMapTransitioning) {
+                    return;
+                }
                 zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
                 if (!syncZoomViewMode()) {
                     draw();
@@ -3563,6 +3659,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .text((datum) => String(datum.data[configuration.labelField as keyof T & string]))
                     .on('click', handleMarkerClick);
 
+                const activeWarpDuration = Math.max(480, warpEffect?.duration ?? drilldownConfiguration.duration);
                 const warpData = warpEffect
                     ? [0, 1, 2].map((index) => ({...warpEffect, index}))
                     : [];
@@ -3571,40 +3668,108 @@ export const createSvgGlobeSeries = <T = any>(
 
                 warpRings.exit().remove();
 
-                warpRings.enter()
+                const warpRingsEnter = warpRings.enter()
                     .append('circle')
                     .attr('class', 'kchart-globe-warp-ring')
                     .style('fill', 'none')
-                    .style('pointer-events', 'none')
-                    .merge(warpRings as any)
+                    .style('pointer-events', 'none');
+
+                warpRingsEnter.append('animate')
+                    .attr('attributeName', 'r')
+                    .attr('begin', (datum) => `${datum.index * 80}ms`)
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('values', `12;${Math.max(width, height) * 0.78}`)
+                    .attr('keyTimes', '0;1')
+                    .attr('calcMode', 'spline')
+                    .attr('keySplines', '0.18 0.72 0.2 1')
+                    .attr('fill', 'freeze');
+
+                warpRingsEnter.append('animate')
+                    .attr('attributeName', 'opacity')
+                    .attr('begin', (datum) => `${datum.index * 80}ms`)
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('values', '0;1;0')
+                    .attr('keyTimes', '0;0.16;1')
+                    .attr('fill', 'freeze');
+
+                warpRingsEnter.merge(warpRings as any)
                     .attr('cx', (datum) => datum.x)
                     .attr('cy', (datum) => datum.y)
-                    .attr('r', (datum) => 24 + datum.index * 42)
+                    .attr('r', 12)
                     .style('stroke', (datum) => datum.index === 0 ? 'rgba(255, 255, 255, 0.9)' : 'rgba(93, 184, 255, 0.62)')
-                    .style('stroke-width', (datum) => 1.8 - datum.index * 0.35)
+                    .style('stroke-width', (datum) => 3 - datum.index * 0.55)
                     .style('stroke-dasharray', (datum) => datum.index === 0 ? 'none' : '6 10')
-                    .style('opacity', (datum) => Math.max(0, 0.88 - datum.index * 0.2));
+                    .style('filter', 'drop-shadow(0 0 8px rgba(93, 184, 255, 0.9))');
+
+                const warpFlash = globeGroup.selectAll<SVGCircleElement, typeof warpData[number]>('circle.kchart-globe-warp-flash')
+                    .data(warpEffect ? [warpEffect] : []);
+
+                warpFlash.exit().remove();
+
+                const warpFlashEnter = warpFlash.enter()
+                    .append('circle')
+                    .attr('class', 'kchart-globe-warp-flash')
+                    .style('fill', 'rgba(248, 251, 255, 0.96)')
+                    .style('pointer-events', 'none')
+                    .style('filter', 'drop-shadow(0 0 18px rgba(93, 184, 255, 1))');
+
+                warpFlashEnter.append('animate')
+                    .attr('attributeName', 'r')
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('values', `5;${Math.max(width, height) * 0.42}`)
+                    .attr('keyTimes', '0;1')
+                    .attr('fill', 'freeze');
+
+                warpFlashEnter.append('animate')
+                    .attr('attributeName', 'opacity')
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('values', '1;0.72;0')
+                    .attr('keyTimes', '0;0.18;1')
+                    .attr('fill', 'freeze');
+
+                warpFlashEnter.merge(warpFlash as any)
+                    .attr('cx', (datum) => datum.x)
+                    .attr('cy', (datum) => datum.y)
+                    .attr('r', 5);
 
                 const warpLines = globeGroup.selectAll<SVGLineElement, number>('line.kchart-globe-warp-line')
                     .data(warpEffect ? Array.from({length: 18}, (_, index) => index) : []);
 
                 warpLines.exit().remove();
 
-                warpLines.enter()
+                const warpLinesEnter = warpLines.enter()
                     .append('line')
                     .attr('class', 'kchart-globe-warp-line')
                     .style('stroke', 'rgba(248, 251, 255, 0.5)')
-                    .style('stroke-width', 1)
-                    .style('pointer-events', 'none')
-                    .merge(warpLines as any)
+                    .style('stroke-width', 1.4)
+                    .style('stroke-dasharray', '18 12')
+                    .style('pointer-events', 'none');
+
+                warpLinesEnter.append('animate')
+                    .attr('attributeName', 'opacity')
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('values', '0;0.85;0')
+                    .attr('keyTimes', '0;0.22;1')
+                    .attr('fill', 'freeze');
+
+                warpLinesEnter.append('animate')
+                    .attr('attributeName', 'stroke-dashoffset')
+                    .attr('dur', `${activeWarpDuration}ms`)
+                    .attr('from', '180')
+                    .attr('to', '0')
+                    .attr('fill', 'freeze');
+
+                warpLinesEnter.merge(warpLines as any)
                     .attr('x1', (index) => (warpEffect?.x ?? centerX) + Math.cos(index / 18 * Math.PI * 2) * 18)
                     .attr('y1', (index) => (warpEffect?.y ?? centerY) + Math.sin(index / 18 * Math.PI * 2) * 18)
                     .attr('x2', (index) => (warpEffect?.x ?? centerX) + Math.cos(index / 18 * Math.PI * 2) * Math.max(width, height))
                     .attr('y2', (index) => (warpEffect?.y ?? centerY) + Math.sin(index / 18 * Math.PI * 2) * Math.max(width, height))
-                    .style('opacity', 0.38);
+                    .style('filter', 'drop-shadow(0 0 5px rgba(93, 184, 255, 0.82))');
 
                 const zoomControlsVisible = zoomConfiguration.enabled && zoomControlsConfiguration.visible;
-                const drilldownResetVisible = Boolean(focusedPoint) && drilldownConfiguration.resetControl;
+                const drilldownResetVisible = Boolean(focusedPoint)
+                    && drilldownConfiguration.resetControl
+                    && !externalMapTransitioning;
                 const controlsVisible = zoomControlsVisible || drilldownResetVisible;
                 const controlsX = Math.max(
                     -margin.left,
@@ -3776,6 +3941,15 @@ export const createSvgGlobeSeries = <T = any>(
             }
         },
         destroy({ plotGroup }) {
+            if (warpTimer !== undefined) {
+                globalThis.clearTimeout(warpTimer);
+                warpTimer = undefined;
+            }
+            if (warpFrame !== undefined) {
+                globalThis.cancelAnimationFrame(warpFrame);
+                warpFrame = undefined;
+            }
+            externalMapTransitioning = false;
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-drag', null);
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-zoom', null);
         }
