@@ -11,7 +11,9 @@
 - Release tag: `v1.6.0`
 - Published packages:
   - `@keneth80/k-chart@1.6.0`
-  - `@keneth80/k-chart-maplibre@0.1.0`
+- MapLibre publication status:
+  - `npm publish --access public` accepted `@keneth80/k-chart-maplibre@0.1.0`.
+  - Registry lookup still returned `E404` immediately afterward; verify package visibility before depending on the public package.
 - Main source entry: `src/index.ts` -> `src/kchart.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
