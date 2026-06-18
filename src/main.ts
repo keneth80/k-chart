@@ -950,6 +950,9 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 drilldown: {
                     enabled: true,
                     mode: drilldownMode,
+                    autoMapOnZoom: kind === 'globe-map-drilldown',
+                    mapZoomThreshold: 2.4,
+                    globeZoomThreshold: 1.8,
                     focusZoom: 2.7,
                     zoomScale: 7,
                     duration: 1200,
@@ -1186,6 +1189,9 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     drilldown: {
         enabled: true,
         mode: '${drilldownMode}',
+        autoMapOnZoom: ${kind === 'globe-map-drilldown'},
+        mapZoomThreshold: 2.4,
+        globeZoomThreshold: 1.8,
         focusZoom: 2.7,
         zoomScale: 7,
         duration: 1200,

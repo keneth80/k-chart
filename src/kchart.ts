@@ -232,6 +232,9 @@ export type KChartGlobeDrilldownMode = 'map' | 'zoom';
 export interface KChartGlobeDrilldownConfiguration<T = any> {
     enabled?: boolean;
     mode?: KChartGlobeDrilldownMode;
+    autoMapOnZoom?: boolean;
+    mapZoomThreshold?: number;
+    globeZoomThreshold?: number;
     focusZoom?: number;
     zoomScale?: number;
     duration?: number;
@@ -1145,6 +1148,9 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
         return {
             enabled: drilldown,
             mode: 'map',
+            autoMapOnZoom: false,
+            mapZoomThreshold: 2.4,
+            globeZoomThreshold: 1.8,
             focusZoom: 2.6,
             zoomScale: 6,
             duration: 720,
@@ -1154,6 +1160,9 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
     return {
         enabled: drilldown?.enabled ?? false,
         mode: drilldown?.mode ?? 'map',
+        autoMapOnZoom: drilldown?.autoMapOnZoom ?? false,
+        mapZoomThreshold: drilldown?.mapZoomThreshold ?? 2.4,
+        globeZoomThreshold: drilldown?.globeZoomThreshold ?? 1.8,
         focusZoom: drilldown?.focusZoom ?? 2.6,
         zoomScale: drilldown?.zoomScale ?? 6,
         duration: drilldown?.duration ?? 720,
@@ -3237,16 +3246,12 @@ export const createSvgGlobeSeries = <T = any>(
                 const dy = points[0][1] - points[1][1];
                 return Math.hypot(dx, dy);
             };
-            const applyGlobeZoom = (nextZoom: number): void => {
-                zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
-                draw();
-            };
             const enterDrilldown = (datum: {
                 data: T;
                 lat: number;
                 lon: number;
                 projected: [number, number];
-            }): void => {
+            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode): void => {
                 if (!drilldownConfiguration.enabled) {
                     return;
                 }
@@ -3257,7 +3262,7 @@ export const createSvgGlobeSeries = <T = any>(
                     };
                 }
                 focusedPoint = datum;
-                if (drilldownConfiguration.mode === 'zoom') {
+                if (mode === 'zoom') {
                     viewMode = 'globe';
                     rotation = [
                         -datum.lon,
@@ -3284,20 +3289,90 @@ export const createSvgGlobeSeries = <T = any>(
                 }, drilldownConfiguration.duration);
                 draw();
             };
-            const exitDrilldown = (): void => {
+            const exitDrilldown = (restoreState = true): void => {
                 if (viewMode === 'globe' && !focusedPoint) {
                     return;
                 }
                 viewMode = 'globe';
                 focusedPoint = undefined;
-                if (drilldownRestoreState) {
+                if (restoreState && drilldownRestoreState) {
                     rotation = [...drilldownRestoreState.rotation];
                     zoomLevel = clampNumber(drilldownRestoreState.zoomLevel, minZoom, maxZoom);
-                    drilldownRestoreState = undefined;
                 }
+                drilldownRestoreState = undefined;
                 warpEffect = undefined;
                 drilldownConfiguration.onExit?.();
                 draw();
+            };
+            const resolveAutoMapTarget = (): {
+                data: T;
+                lat: number;
+                lon: number;
+                projected: [number, number];
+            } | undefined => {
+                let nearest: {
+                    data: T;
+                    lat: number;
+                    lon: number;
+                    projected: [number, number];
+                    distance: number;
+                } | undefined;
+                const center: [number, number] = [-rotation[0], -rotation[1]];
+
+                data.forEach((point) => {
+                    const lat = resolveGlobePointValue(point, configuration.latField);
+                    const lon = resolveGlobePointValue(point, configuration.lonField);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !isGlobePointVisible(lon, lat, rotation)) {
+                        return;
+                    }
+                    const projected = globeProjection([lon, lat]);
+                    if (!projected) {
+                        return;
+                    }
+                    const distance = geoDistance(center, [lon, lat]);
+                    if (!nearest || distance < nearest.distance) {
+                        nearest = {
+                            data: point,
+                            lat,
+                            lon,
+                            projected,
+                            distance
+                        };
+                    }
+                });
+
+                return nearest;
+            };
+            const syncZoomViewMode = (): boolean => {
+                if (!drilldownConfiguration.enabled || !drilldownConfiguration.autoMapOnZoom) {
+                    return false;
+                }
+                const enterThreshold = Math.max(
+                    drilldownConfiguration.mapZoomThreshold,
+                    drilldownConfiguration.globeZoomThreshold
+                );
+                const exitThreshold = Math.min(
+                    drilldownConfiguration.mapZoomThreshold,
+                    drilldownConfiguration.globeZoomThreshold
+                );
+                if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
+                    const target = resolveAutoMapTarget();
+                    if (target) {
+                        enterDrilldown(target, 'map');
+                        return true;
+                    }
+                }
+                if (viewMode === 'map' && zoomLevel <= exitThreshold) {
+                    exitDrilldown(false);
+                    return true;
+                }
+                return false;
+            };
+            const applyGlobeZoom = (nextZoom: number): void => {
+                zoomLevel = clampNumber(nextZoom, minZoom, maxZoom);
+                if (!syncZoomViewMode()) {
+                    draw();
+                }
             };
 
             const draw = (): void => {
@@ -3634,8 +3709,7 @@ export const createSvgGlobeSeries = <T = any>(
                 globeLayer.on('wheel.kchart-globe-zoom', (event: WheelEvent) => {
                     event.preventDefault();
                     const zoomDelta = Math.exp(-event.deltaY * zoomConfiguration.wheelSensitivity);
-                    zoomLevel = clampNumber(zoomLevel * zoomDelta, minZoom, maxZoom);
-                    draw();
+                    applyGlobeZoom(zoomLevel * zoomDelta);
                 });
             }
 
@@ -3666,8 +3740,7 @@ export const createSvgGlobeSeries = <T = any>(
                         if (zoomConfiguration.enabled && zoomConfiguration.pinch && activePointers.size >= 2) {
                             const distance = getFirstTwoPointerDistance();
                             if (pinchStartDistance > 0 && distance > 0) {
-                                zoomLevel = clampNumber(pinchStartZoom * distance / pinchStartDistance, minZoom, maxZoom);
-                                draw();
+                                applyGlobeZoom(pinchStartZoom * distance / pinchStartDistance);
                             }
                             event.preventDefault();
                             return;
