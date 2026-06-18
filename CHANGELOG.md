@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.6.0 - 2026-06-18
+
+### Added
+
+- Added optional globe marker drilldown with `mode: 'zoom'` for same-globe coordinate focus and `mode: 'map'` for focused Mercator map mode, both with a lightweight warp overlay and return control.
+- Added separate Globe Zoom and Globe Map demo entries so zoom focus and flat-map drilldown can be tested independently.
+- Added `mode: 'external-map'` for integrating a real tile map after the globe warp transition.
+- Added the optional `@keneth80/k-chart-maplibre` adapter package with MapLibre place markers, address popups, map navigation, and a return-to-globe bridge.
+- Added automatic map transition thresholds that use the globe's settled center coordinate after dragging.
+
+### Changed
+
+- Smoothed the globe-to-map transition into camera focus, centered warp, and delayed map reveal stages.
+- Automatic zoom drilldown now preserves the coordinate being viewed instead of recentering on a nearby marker.
+- Reused MapLibre maps are positioned at the next destination before becoming visible.
+- Marker activation now occurs on stationary pointer release and is cancelled after more than 5px of movement.
+
+### Fixed
+
+- Fixed incorrect city selection when wheel zooming near a marker.
+- Fixed low-zoom marker input being captured by globe dragging.
+- Fixed unsafe globe zoom restoration when returning from the flat map.
+- Fixed previous city content briefly appearing during a subsequent map transition.
+
+## 1.5.0 - 2026-06-14
+
+### Added
+
+- Added `createSvgGlobeSeries` for draggable SVG orthographic globe maps with latitude/longitude markers and marker click callbacks.
+- Added a default World Atlas 110m land layer for globe maps, with `landVisible` and `landGeoJson` controls.
+- Added feature-level `landFill`, `landStroke`, and `landOpacity` styling callbacks for globe map land/country layers.
+- Added optional globe wheel, pinch, and in-chart button zoom controls through `createSvgGlobeSeries({ zoom })`.
+- Changed the default globe land rendering to a smooth World Atlas land layer with country borders as a mesh; country fills remain available through `landMode: 'countries'`.
+
 ## 1.4.0 - 2026-06-13
 
 ### Added

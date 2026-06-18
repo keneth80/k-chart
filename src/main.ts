@@ -1,5 +1,14 @@
 import './style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '../packages/k-chart-maplibre/src/style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
+import {
+    createMapLibreFlatMap,
+    createMapLibreGlobeBridge,
+    KChartMapLibreController,
+    KChartMapLibreGlobeBridge,
+    KChartMapLibrePlace
+} from '../packages/k-chart-maplibre/src';
 import {
     createCanvasCandlestickSeries,
     createCanvasLineSeries,
@@ -10,6 +19,7 @@ import {
     createKChart,
     createLineSeries,
     createSpecAreaOption,
+    createSvgGlobeSeries,
     createWebglLineSeries,
     createWebglPointSeries,
     KChartAxis,
@@ -49,6 +59,8 @@ type DemoKind =
     | 'tooltip-template'
     | 'tooltip-custom'
     | 'topology'
+    | 'globe-map'
+    | 'globe-map-drilldown'
     | 'update-series'
     | 'update-data'
     | 'real-time'
@@ -69,6 +81,32 @@ const baseData: DemoPoint[] = [
     { label: 'Apr', x: 4, value: 56, volume: 34, extra: 26, radius: 12, category: 'D' },
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
+];
+
+const globeData: DemoPoint[] = [
+    { label: 'Seoul', x: 126.9780, value: 37.5665, volume: 1, extra: 1, radius: 6, category: 'Asia', lat: 37.5665, lon: 126.9780, url: 'https://en.wikipedia.org/wiki/Seoul' },
+    { label: 'New York', x: -74.0060, value: 40.7128, volume: 1, extra: 1, radius: 5, category: 'North America', lat: 40.7128, lon: -74.0060, url: 'https://en.wikipedia.org/wiki/New_York_City' },
+    { label: 'London', x: -0.1276, value: 51.5072, volume: 1, extra: 1, radius: 5, category: 'Europe', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' },
+    { label: 'Sydney', x: 151.2093, value: -33.8688, volume: 1, extra: 1, radius: 5, category: 'Oceania', lat: -33.8688, lon: 151.2093, url: 'https://en.wikipedia.org/wiki/Sydney' },
+    { label: 'Sao Paulo', x: -46.6333, value: -23.5505, volume: 1, extra: 1, radius: 5, category: 'South America', lat: -23.5505, lon: -46.6333, url: 'https://en.wikipedia.org/wiki/S%C3%A3o_Paulo' }
+];
+
+interface DemoPlace extends KChartMapLibrePlace {
+    city: string;
+}
+
+const globePlaces: DemoPlace[] = [
+    { id: 'seoul-gyeongbokgung', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', description: 'Main royal palace of the Joseon dynasty.', lat: 37.5796, lon: 126.9770 },
+    { id: 'seoul-bukchon', city: 'Seoul', name: 'Bukchon Hanok Village', category: 'Attraction', address: '37 Gyedong-gil, Jongno-gu, Seoul', description: 'Traditional neighborhood with preserved hanok houses.', lat: 37.5826, lon: 126.9830 },
+    { id: 'seoul-gwangjang', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', description: 'Market known for bindaetteok, mayak gimbap, and street food.', lat: 37.5700, lon: 126.9996 },
+    { id: 'seoul-myeongdong-kyoja', city: 'Seoul', name: 'Myeongdong Kyoja', category: 'Restaurant', address: '29 Myeongdong 10-gil, Jung-gu, Seoul', description: 'Long-running kalguksu and dumpling restaurant.', lat: 37.5625, lon: 126.9856 },
+    { id: 'seoul-namsan', city: 'Seoul', name: 'N Seoul Tower', category: 'Attraction', address: '105 Namsangongwon-gil, Yongsan-gu, Seoul', description: 'Observation tower overlooking central Seoul.', lat: 37.5512, lon: 126.9882 },
+    { id: 'new-york-central-park', city: 'New York', name: 'Central Park', category: 'Attraction', address: 'New York, NY 10024', description: 'Large urban park in Manhattan.', lat: 40.7829, lon: -73.9654 },
+    { id: 'new-york-katz', city: 'New York', name: "Katz's Delicatessen", category: 'Restaurant', address: '205 E Houston St, New York, NY', description: 'Historic delicatessen known for pastrami sandwiches.', lat: 40.7223, lon: -73.9874 },
+    { id: 'london-tower-bridge', city: 'London', name: 'Tower Bridge', category: 'Attraction', address: 'Tower Bridge Rd, London', description: 'Landmark suspension bridge over the Thames.', lat: 51.5055, lon: -0.0754 },
+    { id: 'london-borough-market', city: 'London', name: 'Borough Market', category: 'Restaurant', address: 'London SE1 9AL', description: 'Historic food market near London Bridge.', lat: 51.5055, lon: -0.0910 },
+    { id: 'sydney-opera-house', city: 'Sydney', name: 'Sydney Opera House', category: 'Attraction', address: 'Bennelong Point, Sydney NSW', description: 'Performing arts center on Sydney Harbour.', lat: -33.8568, lon: 151.2153 },
+    { id: 'sao-paulo-mercadao', city: 'Sao Paulo', name: 'Mercadao Municipal', category: 'Restaurant', address: 'Rua da Cantareira 306, Sao Paulo', description: 'Municipal market famous for local food.', lat: -23.5418, lon: -46.6291 }
 ];
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -206,6 +244,8 @@ const examples: ExampleMeta[] = [
     { kind: 'plot', title: 'SVG plot renderer' },
     { kind: 'area', title: 'SVG area renderer' },
     { kind: 'multi-options', title: 'SVG multi series renderer' },
+    { kind: 'globe-map', title: 'Globe marker zoom focus', dataLabel: 'same globe zoom' },
+    { kind: 'globe-map-drilldown', title: 'Globe marker map drilldown', dataLabel: 'Mercator map focus' },
     { kind: 'option-spec-area', title: 'Spec area option' },
     { kind: 'option-guide-line', title: 'Guide line option' },
     { kind: 'option-cursor-line', title: 'Cursor line option' },
@@ -226,6 +266,32 @@ const configView = document.querySelector<HTMLElement>('#json-configuration');
 const summary = document.querySelector<HTMLElement>('#example-filter-summary');
 const themeLabel = document.querySelector<HTMLElement>('#current-theme-label');
 const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart-example');
+let mapLibreController: KChartMapLibreController<DemoPlace> | undefined;
+let mapLibreBridge: KChartMapLibreGlobeBridge<DemoPoint, DemoPlace> | undefined;
+
+const setupMapLibreDemo = (): void => {
+    if (!chartRoot) {
+        return;
+    }
+    mapLibreController = createMapLibreFlatMap<DemoPlace>({
+        container: chartRoot,
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        initialZoom: 13,
+        cluster: true,
+        markerColor: '#0ea5e9'
+    });
+    mapLibreBridge = createMapLibreGlobeBridge(
+        mapLibreController,
+        (city) => globePlaces.filter((place) => place.city === city.label),
+        {
+            getLabel: (city) => `${city.label} places`,
+            zoom: 13
+        }
+    );
+};
+
+const isGlobeMapExample = (kind: DemoKind): boolean =>
+    kind === 'globe-map' || kind === 'globe-map-drilldown';
 
 const scaledX = (scale: any, value: unknown): number => {
     const position = scale.scale(value);
@@ -804,10 +870,16 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-candlestick') {
         return stockData;
     }
+    if (isGlobeMapExample(kind)) {
+        return globeData;
+    }
     return baseData;
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
+    if (isGlobeMapExample(kind)) {
+        return [];
+    }
     if (kind === 'column') {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
@@ -901,6 +973,46 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 wickColor: 'rgba(237, 243, 248, 0.78)',
                 minCandleWidth: 2,
                 maxCandleWidth: 10
+            })
+        ];
+    }
+    if (isGlobeMapExample(kind)) {
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'external-map' : 'zoom';
+        return [
+            createSvgGlobeSeries({
+                selector: 'demo-globe',
+                displayName: 'Cities',
+                latField: 'lat',
+                lonField: 'lon',
+                labelField: 'label',
+                initialRotate: [-120, -18, 0],
+                zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
+                sphereFill: 'rgba(14, 58, 91, 0.94)',
+                sphereStroke: 'rgba(148, 163, 184, 0.65)',
+                graticuleStroke: 'rgba(148, 163, 184, 0.24)',
+                landFill: '#22c55e',
+                landStroke: 'rgba(236, 253, 245, 0.72)',
+                landOpacity: 0.58,
+                countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
+                countryBordersStrokeWidth: 0.55,
+                markerRadius: (point) => Number(point.radius) || 5,
+                markerColor: '#5db8ff',
+                drilldown: {
+                    enabled: true,
+                    mode: drilldownMode,
+                    autoMapOnZoom: kind === 'globe-map-drilldown',
+                    mapZoomThreshold: 2.4,
+                    globeZoomThreshold: 1.8,
+                    focusZoom: 2.7,
+                    zoomScale: 7,
+                    duration: 1200,
+                    resetControl: true,
+                    landFill: '#38bdf8',
+                    landStroke: 'rgba(240, 249, 255, 0.78)',
+                    landOpacity: 0.5,
+                    onEnter: mapLibreBridge?.onEnter,
+                    onExit: mapLibreBridge?.onExit
+                }
             })
         ];
     }
@@ -998,6 +1110,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
+    const isGlobeMap = isGlobeMapExample(kind);
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1012,16 +1125,18 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
                 ? { top: 10, right: 10, bottom: 10, left: 10 }
-                : kind === 'webgl-large-line'
-                    ? { top: 170, right: 28, bottom: 44, left: 52 }
-            : { top: 104, right: 28, bottom: 44, left: 52 },
+                : isGlobeMap
+                    ? { top: 74, right: 20, bottom: 20, left: 20 }
+                    : kind === 'webgl-large-line'
+                        ? { top: 170, right: 28, bottom: 44, left: 52 }
+                        : { top: 104, right: 28, bottom: 44, left: 52 },
         title: kind === 'topology' ? undefined : {
             text: examples.find((example) => example.kind === kind)?.title ?? 'KChart Example',
             align: 'left',
             fontSize: 14
         },
         grid: {
-            visible: !isTopology,
+            visible: !isTopology && !isGlobeMap,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1029,11 +1144,11 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology',
+            visible: kind !== 'topology' && !isGlobeMap,
             placement: 'top'
         },
         tooltip: {
-            visible: !isBigData && !isTopology,
+            visible: !isBigData && !isTopology && !isGlobeMap,
             formatter: kind === 'tooltip-template'
                 ? ({ data: item }) => `<strong>${item.label}</strong><br/>Revenue ${item.value}<br/>Volume ${item.volume}`
                 : kind === 'tooltip-custom'
@@ -1104,6 +1219,40 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     selector: 'demo-topology',
     render({ group, plotSize }) {
         // draw nodes and links inside the plot area
+    }
+})`;
+    }
+    if (isGlobeMapExample(kind)) {
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'external-map' : 'zoom';
+        return `createSvgGlobeSeries({
+    selector: 'demo-globe',
+    displayName: 'Cities',
+    latField: 'lat',
+    lonField: 'lon',
+    labelField: 'label',
+    initialRotate: [-120, -18, 0],
+    zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
+    landFill: '#22c55e',
+    landStroke: 'rgba(236, 253, 245, 0.72)',
+    landOpacity: 0.58,
+    countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
+    markerColor: '#5db8ff',
+    markerRadius: (point) => Number(point.radius) || 5,
+    drilldown: {
+        enabled: true,
+        mode: '${drilldownMode}',
+        autoMapOnZoom: ${kind === 'globe-map-drilldown'},
+        mapZoomThreshold: 2.4,
+        globeZoomThreshold: 1.8,
+        focusZoom: 2.7,
+        zoomScale: 7,
+        duration: 1200,
+        resetControl: true,
+        onEnter: mapBridge.onEnter,
+        onExit: mapBridge.onExit,
+        landFill: '#38bdf8',
+        landStroke: 'rgba(240, 249, 255, 0.78)',
+        landOpacity: 0.5
     }
 })`;
     }
@@ -1215,6 +1364,7 @@ createLineSeries({
 
 const createUsageSnippet = (kind: DemoKind): string => {
     const selected = examples.find((example) => example.kind === kind);
+    const isUsageGlobeMap = isGlobeMapExample(kind);
     const hasUsageSpecAreas = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'option-spec-area';
     const hasUsageGuideLines = kind === 'webgl-large-line' || kind === 'option-guide-line';
     const hasUsageCursorGuide = kind === 'webgl-line'
@@ -1228,7 +1378,9 @@ const createUsageSnippet = (kind: DemoKind): string => {
             ? 'createLargeData(50000)'
             : kind === 'canvas-candlestick'
                 ? 'stockData'
-            : 'baseData';
+                : isUsageGlobeMap
+                    ? 'globeData'
+                    : 'baseData';
     const dataSnippet = kind === 'canvas-candlestick'
         ? `
 type StockPoint = {
@@ -1289,6 +1441,40 @@ const stockDomain = [
     formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
 ];
 `
+        : isUsageGlobeMap
+        ? `
+type GlobePoint = {
+    label: string;
+    lat: number;
+    lon: number;
+    radius: number;
+    url: string;
+};
+
+const globeData: GlobePoint[] = [
+    { label: 'Seoul', lat: 37.5665, lon: 126.9780, radius: 6, url: 'https://en.wikipedia.org/wiki/Seoul' },
+    { label: 'New York', lat: 40.7128, lon: -74.0060, radius: 5, url: 'https://en.wikipedia.org/wiki/New_York_City' },
+    { label: 'London', lat: 51.5072, lon: -0.1276, radius: 5, url: 'https://en.wikipedia.org/wiki/London' }
+];
+${kind === 'globe-map-drilldown' ? `
+const places = [
+    { id: 'palace', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', lat: 37.5796, lon: 126.9770 },
+    { id: 'market', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', lat: 37.5700, lon: 126.9996 }
+];
+
+const flatMap = createMapLibreFlatMap({
+    container: '#chart-div',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    initialZoom: 13
+});
+
+const mapBridge = createMapLibreGlobeBridge(
+    flatMap,
+    (city: GlobePoint) => places.filter((place) => place.city === city.label),
+    { getLabel: (city: GlobePoint) => \`\${city.label} places\` }
+);
+` : ''}
+`
         : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
         ? `
 type DemoPoint = {
@@ -1344,19 +1530,27 @@ const baseData = [
     createKChart,
     createLineSeries,
     createSpecAreaOption,
+    createSvgGlobeSeries,
     createWebglLineSeries,
     createWebglPointSeries
 } from 'kchart';
+${kind === 'globe-map-drilldown' ? `import {
+    createMapLibreFlatMap,
+    createMapLibreGlobeBridge
+} from '@keneth80/k-chart-maplibre';
+import '@keneth80/k-chart-maplibre/style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+` : ''}
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: true, y: true, x: false },
-    legend: { visible: true, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
+    grid: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1381,7 +1575,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
@@ -1394,7 +1588,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : 'Dem
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},
@@ -1475,7 +1669,13 @@ const renderExample = (kind: DemoKind): void => {
 
     activeKind = kind;
     chart?.destroy();
+    mapLibreController?.destroy();
+    mapLibreController = undefined;
+    mapLibreBridge = undefined;
     chartRoot.innerHTML = '';
+    if (kind === 'globe-map-drilldown') {
+        setupMapLibreDemo();
+    }
     chartRoot.classList.toggle('topology-chart', kind === 'topology');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
     chart = createDemoChart(kind).render();
@@ -1537,6 +1737,7 @@ window.addEventListener('resize', () => {
         width: chartRoot?.clientWidth || 760,
         height: chartRoot?.clientHeight || 420
     });
+    mapLibreController?.resize();
 });
 
 setupExampleButtons();
