@@ -3965,6 +3965,12 @@ export const createSvgGlobeSeries = <T = any>(
             if (configuration.draggable !== false || (zoomConfiguration.enabled && zoomConfiguration.pinch)) {
                 globeLayer
                     .on('pointerdown.kchart-globe-drag', (event: PointerEvent) => {
+                        const eventTarget = event.target as Element | null;
+                        if (eventTarget?.closest(
+                            '.kchart-globe-marker-hit-area, .kchart-globe-marker, .kchart-globe-marker-label'
+                        )) {
+                            return;
+                        }
                         const currentPoint = pointer(event, group.node() as any) as [number, number];
                         if (zoomConfiguration.enabled && zoomConfiguration.pinch) {
                             activePointers.set(event.pointerId, currentPoint);
