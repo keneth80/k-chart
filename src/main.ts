@@ -1,5 +1,14 @@
 import './style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '../packages/k-chart-maplibre/src/style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
+import {
+    createMapLibreFlatMap,
+    createMapLibreGlobeBridge,
+    KChartMapLibreController,
+    KChartMapLibreGlobeBridge,
+    KChartMapLibrePlace
+} from '../packages/k-chart-maplibre/src';
 import {
     createCanvasCandlestickSeries,
     createCanvasLineSeries,
@@ -80,6 +89,24 @@ const globeData: DemoPoint[] = [
     { label: 'London', x: -0.1276, value: 51.5072, volume: 1, extra: 1, radius: 5, category: 'Europe', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' },
     { label: 'Sydney', x: 151.2093, value: -33.8688, volume: 1, extra: 1, radius: 5, category: 'Oceania', lat: -33.8688, lon: 151.2093, url: 'https://en.wikipedia.org/wiki/Sydney' },
     { label: 'Sao Paulo', x: -46.6333, value: -23.5505, volume: 1, extra: 1, radius: 5, category: 'South America', lat: -23.5505, lon: -46.6333, url: 'https://en.wikipedia.org/wiki/S%C3%A3o_Paulo' }
+];
+
+interface DemoPlace extends KChartMapLibrePlace {
+    city: string;
+}
+
+const globePlaces: DemoPlace[] = [
+    { id: 'seoul-gyeongbokgung', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', description: 'Main royal palace of the Joseon dynasty.', lat: 37.5796, lon: 126.9770 },
+    { id: 'seoul-bukchon', city: 'Seoul', name: 'Bukchon Hanok Village', category: 'Attraction', address: '37 Gyedong-gil, Jongno-gu, Seoul', description: 'Traditional neighborhood with preserved hanok houses.', lat: 37.5826, lon: 126.9830 },
+    { id: 'seoul-gwangjang', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', description: 'Market known for bindaetteok, mayak gimbap, and street food.', lat: 37.5700, lon: 126.9996 },
+    { id: 'seoul-myeongdong-kyoja', city: 'Seoul', name: 'Myeongdong Kyoja', category: 'Restaurant', address: '29 Myeongdong 10-gil, Jung-gu, Seoul', description: 'Long-running kalguksu and dumpling restaurant.', lat: 37.5625, lon: 126.9856 },
+    { id: 'seoul-namsan', city: 'Seoul', name: 'N Seoul Tower', category: 'Attraction', address: '105 Namsangongwon-gil, Yongsan-gu, Seoul', description: 'Observation tower overlooking central Seoul.', lat: 37.5512, lon: 126.9882 },
+    { id: 'new-york-central-park', city: 'New York', name: 'Central Park', category: 'Attraction', address: 'New York, NY 10024', description: 'Large urban park in Manhattan.', lat: 40.7829, lon: -73.9654 },
+    { id: 'new-york-katz', city: 'New York', name: "Katz's Delicatessen", category: 'Restaurant', address: '205 E Houston St, New York, NY', description: 'Historic delicatessen known for pastrami sandwiches.', lat: 40.7223, lon: -73.9874 },
+    { id: 'london-tower-bridge', city: 'London', name: 'Tower Bridge', category: 'Attraction', address: 'Tower Bridge Rd, London', description: 'Landmark suspension bridge over the Thames.', lat: 51.5055, lon: -0.0754 },
+    { id: 'london-borough-market', city: 'London', name: 'Borough Market', category: 'Restaurant', address: 'London SE1 9AL', description: 'Historic food market near London Bridge.', lat: 51.5055, lon: -0.0910 },
+    { id: 'sydney-opera-house', city: 'Sydney', name: 'Sydney Opera House', category: 'Attraction', address: 'Bennelong Point, Sydney NSW', description: 'Performing arts center on Sydney Harbour.', lat: -33.8568, lon: 151.2153 },
+    { id: 'sao-paulo-mercadao', city: 'Sao Paulo', name: 'Mercadao Municipal', category: 'Restaurant', address: 'Rua da Cantareira 306, Sao Paulo', description: 'Municipal market famous for local food.', lat: -23.5418, lon: -46.6291 }
 ];
 
 const formatDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -239,6 +266,29 @@ const configView = document.querySelector<HTMLElement>('#json-configuration');
 const summary = document.querySelector<HTMLElement>('#example-filter-summary');
 const themeLabel = document.querySelector<HTMLElement>('#current-theme-label');
 const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart-example');
+let mapLibreController: KChartMapLibreController<DemoPlace> | undefined;
+let mapLibreBridge: KChartMapLibreGlobeBridge<DemoPoint, DemoPlace> | undefined;
+
+const setupMapLibreDemo = (): void => {
+    if (!chartRoot) {
+        return;
+    }
+    mapLibreController = createMapLibreFlatMap<DemoPlace>({
+        container: chartRoot,
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        initialZoom: 13,
+        cluster: true,
+        markerColor: '#0ea5e9'
+    });
+    mapLibreBridge = createMapLibreGlobeBridge(
+        mapLibreController,
+        (city) => globePlaces.filter((place) => place.city === city.label),
+        {
+            getLabel: (city) => `${city.label} places`,
+            zoom: 13
+        }
+    );
+};
 
 const isGlobeMapExample = (kind: DemoKind): boolean =>
     kind === 'globe-map' || kind === 'globe-map-drilldown';
@@ -927,7 +977,7 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
         ];
     }
     if (isGlobeMapExample(kind)) {
-        const drilldownMode = kind === 'globe-map-drilldown' ? 'map' : 'zoom';
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'external-map' : 'zoom';
         return [
             createSvgGlobeSeries({
                 selector: 'demo-globe',
@@ -959,7 +1009,9 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                     resetControl: true,
                     landFill: '#38bdf8',
                     landStroke: 'rgba(240, 249, 255, 0.78)',
-                    landOpacity: 0.5
+                    landOpacity: 0.5,
+                    onEnter: mapLibreBridge?.onEnter,
+                    onExit: mapLibreBridge?.onExit
                 }
             })
         ];
@@ -1171,7 +1223,7 @@ const createSeriesSnippet = (kind: DemoKind): string => {
 })`;
     }
     if (isGlobeMapExample(kind)) {
-        const drilldownMode = kind === 'globe-map-drilldown' ? 'map' : 'zoom';
+        const drilldownMode = kind === 'globe-map-drilldown' ? 'external-map' : 'zoom';
         return `createSvgGlobeSeries({
     selector: 'demo-globe',
     displayName: 'Cities',
@@ -1196,6 +1248,8 @@ const createSeriesSnippet = (kind: DemoKind): string => {
         zoomScale: 7,
         duration: 1200,
         resetControl: true,
+        onEnter: mapBridge.onEnter,
+        onExit: mapBridge.onExit,
         landFill: '#38bdf8',
         landStroke: 'rgba(240, 249, 255, 0.78)',
         landOpacity: 0.5
@@ -1402,6 +1456,24 @@ const globeData: GlobePoint[] = [
     { label: 'New York', lat: 40.7128, lon: -74.0060, radius: 5, url: 'https://en.wikipedia.org/wiki/New_York_City' },
     { label: 'London', lat: 51.5072, lon: -0.1276, radius: 5, url: 'https://en.wikipedia.org/wiki/London' }
 ];
+${kind === 'globe-map-drilldown' ? `
+const places = [
+    { id: 'palace', city: 'Seoul', name: 'Gyeongbokgung Palace', category: 'Attraction', address: '161 Sajik-ro, Jongno-gu, Seoul', lat: 37.5796, lon: 126.9770 },
+    { id: 'market', city: 'Seoul', name: 'Gwangjang Market', category: 'Restaurant', address: '88 Changgyeonggung-ro, Jongno-gu, Seoul', lat: 37.5700, lon: 126.9996 }
+];
+
+const flatMap = createMapLibreFlatMap({
+    container: '#chart-div',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    initialZoom: 13
+});
+
+const mapBridge = createMapLibreGlobeBridge(
+    flatMap,
+    (city: GlobePoint) => places.filter((place) => place.city === city.label),
+    { getLabel: (city: GlobePoint) => \`\${city.label} places\` }
+);
+` : ''}
 `
         : kind === 'webgl-large-line' || kind === 'canvas-bigdata-line'
         ? `
@@ -1462,6 +1534,13 @@ const baseData = [
     createWebglLineSeries,
     createWebglPointSeries
 } from 'kchart';
+${kind === 'globe-map-drilldown' ? `import {
+    createMapLibreFlatMap,
+    createMapLibreGlobeBridge
+} from '@keneth80/k-chart-maplibre';
+import '@keneth80/k-chart-maplibre/style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+` : ''}
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
@@ -1590,7 +1669,13 @@ const renderExample = (kind: DemoKind): void => {
 
     activeKind = kind;
     chart?.destroy();
+    mapLibreController?.destroy();
+    mapLibreController = undefined;
+    mapLibreBridge = undefined;
     chartRoot.innerHTML = '';
+    if (kind === 'globe-map-drilldown') {
+        setupMapLibreDemo();
+    }
     chartRoot.classList.toggle('topology-chart', kind === 'topology');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
     chart = createDemoChart(kind).render();
@@ -1652,6 +1737,7 @@ window.addEventListener('resize', () => {
         width: chartRoot?.clientWidth || 760,
         height: chartRoot?.clientHeight || 420
     });
+    mapLibreController?.resize();
 });
 
 setupExampleButtons();

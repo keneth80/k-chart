@@ -225,9 +225,10 @@ export interface KChartGlobeDrilldownContext<T = any> {
     data: T;
     lat: number;
     lon: number;
+    exit: () => void;
 }
 
-export type KChartGlobeDrilldownMode = 'map' | 'zoom';
+export type KChartGlobeDrilldownMode = 'map' | 'zoom' | 'external-map';
 
 export interface KChartGlobeDrilldownConfiguration<T = any> {
     enabled?: boolean;
@@ -3203,7 +3204,7 @@ export const createSvgGlobeSeries = <T = any>(
     const activePointers = new Map<number, [number, number]>();
     let pinchStartDistance = 0;
     let pinchStartZoom = 1;
-    let viewMode: 'globe' | 'map' = 'globe';
+    let viewMode: 'globe' | 'map' | 'external-map' = 'globe';
     let focusedPoint: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
     let drilldownRestoreState: { rotation: [number, number, number]; zoomLevel: number } | undefined;
     let warpEffect: { x: number; y: number; startedAt: number } | undefined;
@@ -3271,7 +3272,7 @@ export const createSvgGlobeSeries = <T = any>(
                     ];
                     zoomLevel = clampNumber(drilldownConfiguration.focusZoom, minZoom, maxZoom);
                 } else {
-                    viewMode = 'map';
+                    viewMode = mode;
                 }
                 warpEffect = {
                     x: datum.projected[0],
@@ -3281,7 +3282,8 @@ export const createSvgGlobeSeries = <T = any>(
                 drilldownConfiguration.onEnter?.({
                     data: datum.data,
                     lat: datum.lat,
-                    lon: datum.lon
+                    lon: datum.lon,
+                    exit: () => exitDrilldown()
                 });
                 globalThis.setTimeout(() => {
                     warpEffect = undefined;
@@ -3358,11 +3360,7 @@ export const createSvgGlobeSeries = <T = any>(
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
                     const target = resolveAutoMapTarget();
                     if (target) {
-                        enterDrilldown(
-                            target,
-                            'map',
-                            Math.min(zoomLevel, exitThreshold)
-                        );
+                        enterDrilldown(target, drilldownConfiguration.mode, Math.min(zoomLevel, exitThreshold));
                         return true;
                     }
                 }
@@ -3409,7 +3407,9 @@ export const createSvgGlobeSeries = <T = any>(
                     : WORLD_LAND_GEOJSON;
                 const landData = configuration.landVisible === false
                     ? []
-                    : normalizeGlobeLandFeatures(configuration.landGeoJson ?? defaultLandGeoJson);
+                    : viewMode === 'external-map'
+                        ? []
+                        : normalizeGlobeLandFeatures(configuration.landGeoJson ?? defaultLandGeoJson);
                 const activePath = viewMode === 'map' ? mapPath : path;
                 const activeLandFill = viewMode === 'map'
                     ? drilldownConfiguration.landFill ?? configuration.landFill
@@ -3455,7 +3455,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('pointer-events', 'none');
 
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-graticule')
-                    .data(configuration.graticuleVisible === false ? [] : [geoGraticule10()])
+                    .data(configuration.graticuleVisible === false || viewMode === 'external-map' ? [] : [geoGraticule10()])
                     .join('path')
                     .attr('class', 'kchart-globe-graticule')
                     .attr('d', (datum: any) => activePath(datum) ?? '')
@@ -3464,7 +3464,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('stroke-width', 0.8)
                     .style('pointer-events', 'none');
 
-                const markerData = data.map((point) => {
+                const markerData = (viewMode === 'external-map' ? [] : data).map((point) => {
                     const lat = resolveGlobePointValue(point, configuration.latField);
                     const lon = resolveGlobePointValue(point, configuration.lonField);
                     const projected = viewMode === 'map'

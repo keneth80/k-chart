@@ -66,6 +66,7 @@ Then open `http://127.0.0.1:9003/`.
 - [React Wrapper Example](examples/react-wrapper.tsx)
 - [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
 - [SVG Globe Map Example](examples/svg-globe-map-series.ts)
+- [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
 
 ## Quick Start
 
@@ -278,6 +279,8 @@ createKChart<StockPoint>({
 ## Globe Map
 
 SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks focus a coordinate with a short warp overlay. `drilldown.mode: 'zoom'` keeps the orthographic globe and zooms into the marker, while `mode: 'map'` switches to a focused Mercator map. With `autoMapOnZoom: true`, zooming past `mapZoomThreshold` automatically selects the registered city nearest the center of the visible globe and switches to the flat map. Zooming back below `globeZoomThreshold` returns to the globe.
+
+Use `drilldown.mode: 'external-map'` with `@keneth80/k-chart-maplibre` when the destination needs real vector/raster map tiles, roads, interactive place markers, clustering, and popups. The `onEnter` context includes `exit()`, allowing the external map's back control to restore the globe. MapLibre renders the map but does not provide restaurant or address search data; connect a separate place/geocoding provider and pass the resulting coordinates to `setPlaces()` or `addPlaces()`.
 
 ```ts
 import {

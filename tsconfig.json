@@ -19,7 +19,7 @@
         "strictPropertyInitialization": false,
         // produce a source map
         "sourceMap": true,
-        "rootDir": "./src",
+        "rootDir": ".",
         "baseUrl": ".",
         "ignoreDeprecations": "6.0",
         "outDir": "dist",
