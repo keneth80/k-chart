@@ -254,9 +254,3 @@ createWebglLineSeries<Point>({
 ```
 
 OffscreenCanvas나 Worker를 지원하지 않는 브라우저에서는 기존 main-thread renderer로 fallback됩니다.
-
-## React Plugin 상태
-
-- `@keneth80/k-chart` npm package에는 아직 공식 React plugin이 포함되어 있지 않습니다.
-- `kchart-next-playground/packages/react/src`에 로컬 wrapper 예제가 있습니다.
-- 공식 plugin으로 분리한다면 `@keneth80/k-chart-react` 같은 별도 package로 배포하는 방향이 적합합니다.

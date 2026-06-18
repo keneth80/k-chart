@@ -6,7 +6,8 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.3.0`
+- Current release baseline: `1.6.0` release preparation
+- Active feature branch at handoff: `feature/globe-map-series`
 - Main source entry: `src/index.ts` -> `src/kchart.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
@@ -36,6 +37,8 @@ flowchart TD
     CanvasSeries["Canvas Series"]
     WebglSeries["WebGL Series"]
     Worker["OffscreenCanvas Worker"]
+    Globe["SVG Globe / Marker Interaction"]
+    MapAdapter["MapLibre Adapter Package"]
 
     App --> API
     API --> Core
@@ -56,6 +59,8 @@ flowchart TD
     Series --> WebglSeries
     CanvasSeries --> Worker
     WebglSeries --> Worker
+    Series --> Globe
+    Globe --> MapAdapter
 ```
 
 ## Runtime Render Pipeline
@@ -142,6 +147,8 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
 | WebGL series | `createWebglLineSeries`, `createWebglPointSeries` | Render WebGL line/point visuals. |
 | Worker rendering | `startKChartRenderWorker`, `src/kchart-render.worker.ts` | OffscreenCanvas worker bootstrap and async line drawing. |
+| Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp transition, and drilldown lifecycle. |
+| Flat map adapter | `packages/k-chart-maplibre` | Optional MapLibre tile-map overlay, place markers, address popups, and return-to-globe bridge. |
 
 ## Data And Interaction Flow
 
@@ -187,10 +194,15 @@ Important state fields:
 - `zoom.wheelZoom` and `zoom.gestureZoom` split desktop wheel/trackpad input from mobile touch gesture input without removing the older `mode` contract.
 - Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
 - Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields. It renders a built-in World Atlas 110m land layer plus country border mesh by default, accepts external GeoJSON through `landGeoJson`, supports country feature styling through `landMode: 'countries'`, `landFill`, `landStroke`, and `landOpacity`, and can enable wheel/pinch scaling plus in-chart zoom buttons through the `zoom` option.
+- Globe drilldown supports `zoom`, internal `map`, and external `external-map` modes.
+- Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
+- Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
+- `packages/k-chart-maplibre` provides `createMapLibreFlatMap` and `createMapLibreGlobeBridge`. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
 
 ### External Packages Around This Library
 
 - `@keneth80/k-chart-react`: separate React wrapper package.
+- `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
 
 ## Known Design Decisions
@@ -202,6 +214,35 @@ Important state fields:
 - OHLC-style charts should use axis `domainFields` so a single y-axis can derive its domain from multiple value fields such as `low` and `high`.
 - The library does not execute user-edited JavaScript. Playground-generated configs should be validated before applying.
 - Web Worker rendering is opt-in with `asyncRender` because bundler worker setup differs by application.
+- Globe automatic zoom and marker clicks intentionally use separate camera behavior: automatic zoom preserves the settled viewport center, while marker activation may fly to the selected city.
+
+## Latest Globe Interaction Flow
+
+```txt
+drag globe
+  -> pointerup
+  -> save projection center as [lon, lat]
+
+automatic zoom threshold
+  -> choose nearest registered city only for associated place data
+  -> keep saved center as the drilldown coordinate
+  -> play centered warp without rotating the globe
+  -> reveal MapLibre at the saved center
+
+marker press
+  -> track pointer movement
+  -> release within 5px: fly to marker, warp, reveal city map
+  -> release after movement: cancel activation
+```
+
+## Release 1.6.0 Scope
+
+- Globe zoom focus and internal Mercator drilldown examples.
+- Automatic zoom-threshold transition and safe return zoom.
+- Optional MapLibre flat-map adapter with real map tiles and place markers.
+- Smoothed warp/reveal transition.
+- Settled-center preservation for automatic drilldown.
+- Reliable low-zoom marker activation on stationary pointer release.
 
 ## Verification Commands
 
