@@ -577,6 +577,40 @@ pre > code {
     min-width: 1400px;
 }
 
+.kchart-three-constellation-label {
+    position: absolute;
+    z-index: 5;
+    right: 34px;
+    bottom: 28px;
+    max-width: calc(100% - 68px);
+    padding: 7px 10px;
+    border: 1px solid rgba(134, 217, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(5, 12, 24, 0.76);
+    color: rgba(231, 244, 255, 0.88);
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+}
+
+.sparkline.constellation-a {
+    background:
+        radial-gradient(circle at 22% 68%, #f3b45b 0 2px, transparent 3px),
+        radial-gradient(circle at 43% 44%, #ffffff 0 2px, transparent 3px),
+        radial-gradient(circle at 66% 50%, #86d9ff 0 2px, transparent 3px),
+        radial-gradient(circle at 78% 20%, #a8c7ff 0 2px, transparent 3px);
+}
+
+.sparkline.constellation-a::before {
+    content: '';
+    position: absolute;
+    inset: 8px 14px;
+    border-top: 1px solid rgba(93, 184, 255, 0.56);
+    border-bottom: 1px solid rgba(93, 184, 255, 0.28);
+    transform: skewY(-12deg);
+}
+
 .container-chart.has-background-grid:before {
     content: "";
     position: absolute;

@@ -6,9 +6,18 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.6.0`
-- Release branch at handoff: `release/1.6.0`
-- Main source entry: `src/index.ts` -> `src/kchart.ts`
+- Current release baseline: `1.6.0` published on 2026-06-18
+- Current integration branch at handoff: `develop`
+- Release tag: `v1.6.0`
+- Published packages:
+  - `@keneth80/k-chart@1.6.0`
+- MapLibre publication status:
+  - `npm publish --access public` accepted `@keneth80/k-chart-maplibre@0.1.0`.
+  - Registry lookup still returned `E404` immediately afterward; verify package visibility before depending on the public package.
+- Main source entry: `src/index.ts`
+- Backward-compatible barrel: `src/kchart.ts`
+- Core runtime: `src/core/create-kchart.ts`
+- Shared contracts: `src/core/contracts.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
 - Local playground target: `http://127.0.0.1:9011`
@@ -20,7 +29,7 @@
 flowchart TD
     App["Consumer App / React Wrapper / Playground"]
     API["src/index.ts"]
-    Core["src/kchart.ts"]
+    Core["src/core/create-kchart.ts"]
     Config["KChartConfiguration<T>"]
     Controller["KChartController<T>"]
     State["KChartState<T>"]
@@ -62,6 +71,19 @@ flowchart TD
     Series --> Globe
     Globe --> MapAdapter
 ```
+
+## Module Ownership
+
+- `src/core/contracts.ts`: public types and renderer contracts.
+- `src/core/create-kchart.ts`: state, layers, scales, axes, legend, tooltip,
+  zoom, lifecycle, and renderer orchestration.
+- `src/series/`: concrete SVG, Canvas, WebGL, candlestick, and globe series.
+- `src/options/`: option factories and option rendering behavior.
+- `src/worker/`: OffscreenCanvas worker runtime.
+- `src/utils/`: renderer-independent algorithms.
+
+Dependency direction is `series/options -> core contracts`. The core receives
+concrete series through configuration and does not own their implementations.
 
 ## Runtime Render Pipeline
 
@@ -119,6 +141,7 @@ Primary exports come from `src/kchart.ts` through `src/index.ts`.
 - `createSpecAreaOption(...)`
 - `createGuideLineOption(...)`
 - `createCursorLineOption(...)`
+- `createTooltipNoteOption(...)`: preserves tooltip snapshots as editable chart annotations while normal hover inspection remains active.
 
 Options can be passed through the unified `config.options` array. Legacy direct fields such as `specAreas`, `guideLines`, and `cursorGuide` are still read by the renderer.
 
@@ -197,13 +220,14 @@ Important state fields:
 - Globe drilldown supports `zoom`, internal `map`, and external `external-map` modes.
 - Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
 - Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
-- `packages/k-chart-maplibre` provides `createMapLibreFlatMap` and `createMapLibreGlobeBridge`. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
+- `packages/k-chart-maplibre` provides `createMapLibreFlatMap`, `createMapLibreGlobeBridge`, `parseMapLibrePlaces`, and `createMapLibrePlaceResolver`. Provider-specific place records are normalized and validated before a city-indexed resolver supplies them to the globe bridge. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
 
 ### External Packages Around This Library
 
 - `@keneth80/k-chart-react`: separate React wrapper package.
 - `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
+- Three.js integration is currently an optional custom-series example on `feature/three-constellation-series`, not a core runtime dependency. The demo uses `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
 
 ## Known Design Decisions
 
@@ -235,14 +259,13 @@ marker press
   -> release after movement: cancel activation
 ```
 
-## Release 1.6.0 Scope
+## Release 1.7.0 Scope
 
-- Globe zoom focus and internal Mercator drilldown examples.
-- Automatic zoom-threshold transition and safe return zoom.
-- Optional MapLibre flat-map adapter with real map tiles and place markers.
-- Smoothed warp/reveal transition.
-- Settled-center preservation for automatic drilldown.
-- Reliable low-zoom marker activation on stationary pointer release.
+- Modular public entry points for core, series, options, utilities, and workers.
+- Draggable pinned tooltip notes with editable memo text and change callbacks.
+- Three.js Aries constellation custom-series example.
+- Reusable MapLibre place parsing and city resolver utilities.
+- Backward-compatible root exports for existing consumers.
 
 ## Verification Commands
 

@@ -30,6 +30,38 @@ createKChart(config)
 - `render(context)`는 `group`, `data`, `scales`, `xScale`, `yScale`, `plotSize`, `color`, `getCanvas`, `getWebglCanvas`를 받습니다.
 - Canvas/WebGL 시각화도 renderer 안에서 필요한 layer를 받아 직접 그릴 수 있습니다.
 
+### Three.js Custom Series
+
+Three.js는 KChart 코어 의존성이 아닙니다. 애플리케이션에서 `three`를 설치한 뒤
+`createCustomSeries(...)`와 `getWebglCanvas()`를 사용해 선택적으로 결합할 수 있습니다.
+
+```bash
+npm install three
+```
+
+양자리의 실제 주요 별 배치를 기반으로 별 노드와 연결선을 3D로 표현하는 전체 예제는
+[`examples/three-constellation-series.ts`](examples/three-constellation-series.ts)에 있습니다.
+
+```ts
+const constellation = createThreeConstellationSeries({
+    selector: 'aries',
+    idField: 'id',
+    labelField: 'label',
+    xField: 'x',
+    yField: 'y',
+    zField: 'z',
+    sizeField: 'size',
+    colorField: 'color',
+    links: [
+        { source: 'mesarthim', target: 'sheratan' },
+        { source: 'sheratan', target: 'hamal' }
+    ]
+});
+```
+
+예제는 기존 KChart WebGL canvas를 Three.js renderer에 주입하고, `InstancedMesh`,
+`LineSegments`, `OrbitControls`, `Raycaster`, resize 및 dispose 생명주기를 처리합니다.
+
 ## Install
 
 ```bash
@@ -67,6 +99,34 @@ Then open `http://127.0.0.1:9003/`.
 - [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
 - [SVG Globe Map Example](examples/svg-globe-map-series.ts)
 - [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
+
+## Module Structure
+
+KChart keeps its public root API compatible while separating implementation by
+responsibility:
+
+```text
+src/
+├── core/       # contracts, state, layers, scales, and chart lifecycle
+├── series/     # SVG, Canvas, WebGL, candlestick, and globe renderers
+├── options/    # spec area, fixed guide line, and cursor line
+├── worker/     # OffscreenCanvas worker entry
+└── utils/      # renderer-independent algorithms such as LTTB
+```
+
+Existing root imports continue to work. Explicit subpath imports are also
+available:
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core';
+import {createCanvasLineSeries} from '@keneth80/k-chart/series';
+import {createGuideLineOption} from '@keneth80/k-chart/options';
+import {downsampleLTTB} from '@keneth80/k-chart/utils';
+import {startKChartRenderWorker} from '@keneth80/k-chart/worker';
+```
+
+The core calls concrete renderers only through the
+`KChartSeries.render(context)` contract.
 
 ## Quick Start
 
@@ -639,6 +699,50 @@ tooltip: {
 ```
 
 Custom renderer가 한 series 안에서 여러 SVG/Canvas/WebGL 요소를 그리는 경우에는 series 단위 `tooltip(context)` hook을 사용할 수 있습니다. 예를 들어 stacked column, range bar, box plot처럼 하나의 datum에서 여러 시각 요소가 나올 때 core tooltip overlay는 이 hook이 돌려준 위치와 HTML을 그대로 사용합니다.
+
+### Pinned Tooltip Notes
+
+`createTooltipNoteOption()`을 추가하면 hover tooltip에 고정 버튼이 나타납니다. 버튼을 누르면 당시 tooltip 데이터가 차트 위의 독립적인 메모 카드로 남고, 헤더를 드래그해 위치를 옮기거나 textarea에 메모를 작성하고 삭제할 수 있습니다. 고정된 카드가 있어도 기존 hover tooltip은 계속 동작합니다.
+
+```ts
+import {
+    createKChart,
+    createLineSeries,
+    createTooltipNoteOption
+} from '@keneth80/k-chart';
+
+createKChart<Point>({
+    selector: '#chart',
+    data,
+    tooltip: {
+        visible: true,
+        formatter: ({data, series}) =>
+            `<strong>${series.displayName}</strong><br/>${data.label}: ${data.value}`
+    },
+    options: [
+        createTooltipNoteOption<Point>({
+            maxNotes: 6,
+            pinButtonLabel: 'Pin note',
+            notePlaceholder: 'Write a memo...',
+            onChange: (notes) => {
+                // Save notes to application state or an API when needed.
+                console.info(notes);
+            }
+        })
+    ],
+    axes,
+    series: [
+        createLineSeries({
+            selector: 'value',
+            displayName: 'Value',
+            xField: 'x',
+            yField: 'value'
+        })
+    ]
+}).render();
+```
+
+`onChange` receives the current `KChartTooltipNote<T>[]` after pin, memo edit, and delete. Notes live for the chart controller lifetime and are removed by `chart.destroy()`. Persist them externally through `onChange` when they must survive a page reload.
 
 ```ts
 const stackedSeries = createCustomSeries<Point>({
