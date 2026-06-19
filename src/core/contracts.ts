@@ -409,7 +409,37 @@ export interface KChartCursorLineOption {
     config?: KChartCursorGuideConfiguration;
 }
 
-export type KChartOption = KChartSpecAreaOption | KChartGuideLineOption | KChartCursorLineOption;
+export interface KChartTooltipNote<T = any> {
+    id: string;
+    seriesSelector: string;
+    seriesName: string;
+    x: number;
+    y: number;
+    color: string;
+    html: string;
+    note: string;
+    data: T;
+}
+
+export interface KChartTooltipNoteConfiguration<T = any> {
+    enabled?: boolean;
+    maxNotes?: number;
+    pinButtonLabel?: string;
+    notePlaceholder?: string;
+    onChange?: (notes: KChartTooltipNote<T>[]) => void;
+}
+
+export interface KChartTooltipNoteOption<T = any> {
+    type: 'tooltip-note';
+    visible?: boolean;
+    config?: KChartTooltipNoteConfiguration<T>;
+}
+
+export type KChartOption<T = any> =
+    | KChartSpecAreaOption
+    | KChartGuideLineOption
+    | KChartCursorLineOption
+    | KChartTooltipNoteOption<T>;
 
 export interface KChartConfiguration<T = any> {
     selector: string | HTMLElement;
@@ -430,7 +460,7 @@ export interface KChartConfiguration<T = any> {
     cursorGuide?: KChartCursorGuideConfiguration;
     guideLine?: KChartCursorGuideConfiguration;
     guideLines?: KChartGuideLinesConfiguration;
-    options?: KChartOption[];
+    options?: KChartOption<T>[];
 }
 
 export interface KChartState<T = any> {

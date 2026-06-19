@@ -700,6 +700,50 @@ tooltip: {
 
 Custom renderer가 한 series 안에서 여러 SVG/Canvas/WebGL 요소를 그리는 경우에는 series 단위 `tooltip(context)` hook을 사용할 수 있습니다. 예를 들어 stacked column, range bar, box plot처럼 하나의 datum에서 여러 시각 요소가 나올 때 core tooltip overlay는 이 hook이 돌려준 위치와 HTML을 그대로 사용합니다.
 
+### Pinned Tooltip Notes
+
+`createTooltipNoteOption()`을 추가하면 hover tooltip에 고정 버튼이 나타납니다. 버튼을 누르면 당시 tooltip 데이터가 차트 위의 독립적인 메모 카드로 남고, textarea에 메모를 작성하거나 삭제할 수 있습니다. 고정된 카드가 있어도 기존 hover tooltip은 계속 동작합니다.
+
+```ts
+import {
+    createKChart,
+    createLineSeries,
+    createTooltipNoteOption
+} from '@keneth80/k-chart';
+
+createKChart<Point>({
+    selector: '#chart',
+    data,
+    tooltip: {
+        visible: true,
+        formatter: ({data, series}) =>
+            `<strong>${series.displayName}</strong><br/>${data.label}: ${data.value}`
+    },
+    options: [
+        createTooltipNoteOption<Point>({
+            maxNotes: 6,
+            pinButtonLabel: 'Pin note',
+            notePlaceholder: 'Write a memo...',
+            onChange: (notes) => {
+                // Save notes to application state or an API when needed.
+                console.info(notes);
+            }
+        })
+    ],
+    axes,
+    series: [
+        createLineSeries({
+            selector: 'value',
+            displayName: 'Value',
+            xField: 'x',
+            yField: 'value'
+        })
+    ]
+}).render();
+```
+
+`onChange` receives the current `KChartTooltipNote<T>[]` after pin, memo edit, and delete. Notes live for the chart controller lifetime and are removed by `chart.destroy()`. Persist them externally through `onChange` when they must survive a page reload.
+
 ```ts
 const stackedSeries = createCustomSeries<Point>({
     selector: 'stacked-column',

@@ -15,7 +15,8 @@ import {
 import {
     createSpecAreaOption,
     createGuideLineOption,
-    createCursorLineOption
+    createCursorLineOption,
+    createTooltipNoteOption
 } from '@keneth80/k-chart/options';
 ```
 
@@ -42,6 +43,7 @@ import {
     createCanvasPointSeries,
     createSvgGlobeSeries,
     createSpecAreaOption,
+    createTooltipNoteOption,
     createWebglPointSeries,
     createCustomSeries,
     KChartController,
@@ -404,6 +406,30 @@ createKChart({
 
 The default tooltip shows the active series name and nearest x/y values. Provide `tooltip.formatter` for custom HTML/text.
 
+### Pinned Tooltip Notes
+
+Tooltip notes are opt-in. `createTooltipNoteOption()` adds a pin action to the normal hover tooltip and renders each pinned snapshot as an editable annotation card over the chart. Pinned cards do not replace or block later hover tooltips.
+
+```ts
+createKChart<Point>({
+    selector: '#chart',
+    data,
+    axes,
+    tooltip: {visible: true},
+    options: [
+        createTooltipNoteOption<Point>({
+            maxNotes: 8,
+            pinButtonLabel: 'Pin',
+            notePlaceholder: 'Add context...',
+            onChange: (notes) => saveNotes(notes)
+        })
+    ],
+    series
+});
+```
+
+The `onChange` callback receives `KChartTooltipNote<T>[]` whenever a note is pinned, edited, or deleted. Note state is scoped to the chart controller and is cleared by `destroy()`.
+
 ## Option Factories
 
 Series는 `series: [...]`로 받고, chart 부가 기능은 `options: [...]`로 받습니다.
@@ -424,6 +450,10 @@ createKChart({
         }),
         createCursorLineOption({
             valueFormat: (value: number) => Number(value).toFixed(1)
+        }),
+        createTooltipNoteOption<Point>({
+            maxNotes: 8,
+            onChange: (notes) => console.info(notes)
         })
     ]
 });

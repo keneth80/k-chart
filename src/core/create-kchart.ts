@@ -7,6 +7,12 @@ import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from 'd3-zoom';
 import {resolveCursorGuide} from '../options/cursor-line';
 import {renderGuideLines} from '../options/guide-line';
 import {renderSpecAreas, resolveSpecAreas} from '../options/spec-area';
+import {
+    destroyTooltipNotes,
+    pinTooltipNote,
+    renderTooltipNotes,
+    resolveTooltipNoteConfiguration
+} from '../options/tooltip-note';
 import {isCanvasTransferred} from '../series/support/canvas';
 import {resolveScalePosition} from '../series/support/scale';
 import {downsampleLTTB} from '../utils/downsample-lttb';
@@ -1098,6 +1104,7 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
 
 const renderTooltip = <T = any>(state: KChartState<T>): void => {
     const tooltipEnabled = state.config.tooltip?.visible === true;
+    const tooltipNoteConfiguration = resolveTooltipNoteConfiguration(state);
     const cursorGuide = resolveCursorGuide(state);
     const guideEnabled = cursorGuide?.visible === true;
     const enabled = tooltipEnabled || guideEnabled || isZoomEnabled(state);
@@ -1137,10 +1144,29 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
         .style('pointer-events', 'none');
 
     const tooltip = getTooltipElement(state);
+    renderTooltipNotes(state);
+    tooltip
+        .style(
+            'pointer-events',
+            tooltipNoteConfiguration?.enabled ? 'auto' : 'none'
+        );
     if (!enabled) {
         tooltip.style('opacity', 0);
         return;
     }
+
+    let activeTooltipCandidate: {
+        data: T;
+        series: KChartSeries<T>;
+        color: string;
+        x: number;
+        y: number;
+        html: string;
+    } | undefined;
+    const hideHoverTooltip = (): void => {
+        activeTooltipCandidate = undefined;
+        tooltip.style('opacity', 0);
+    };
 
     overlay
         .on('mousemove', (event: MouseEvent) => {
@@ -1356,32 +1382,110 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
             }
 
             if (!tooltipEnabled) {
-                tooltip.style('opacity', 0);
+                hideHoverTooltip();
                 return;
             }
 
             if (!nearest || nearest.distance > 36) {
-                tooltip.style('opacity', 0);
+                hideHoverTooltip();
                 return;
             }
 
+            const tooltipHtml = nearest.html ??
+                formatTooltip(
+                    state,
+                    nearest.data,
+                    nearest.series,
+                    nearest.color
+                );
+            activeTooltipCandidate = {
+                data: nearest.data,
+                series: nearest.series,
+                color: nearest.color,
+                x: nearest.x,
+                y: nearest.y,
+                html: tooltipHtml
+            };
+
+            const tooltipContent = tooltip
+                .selectAll<HTMLDivElement, string>(
+                    'div.kchart-tooltip-content'
+                )
+                .data([tooltipHtml])
+                .join('div')
+                .attr('class', 'kchart-tooltip-content')
+                .html((html) => html);
+            tooltipContent.style(
+                'padding-right',
+                tooltipNoteConfiguration?.enabled ? '36px' : null
+            );
+
+            const pinButton = tooltip
+                .selectAll<HTMLButtonElement, unknown>(
+                    'button.kchart-tooltip-pin'
+                )
+                .data(tooltipNoteConfiguration?.enabled ? [undefined] : [])
+                .join('button')
+                .attr('class', 'kchart-tooltip-pin')
+                .attr('type', 'button')
+                .attr('aria-label', 'Pin tooltip as note')
+                .attr('title', 'Pin tooltip as note')
+                .text(tooltipNoteConfiguration?.pinButtonLabel ?? 'Pin')
+                .style('position', 'absolute')
+                .style('top', '6px')
+                .style('right', '6px')
+                .style('height', '24px')
+                .style('padding', '0 7px')
+                .style('border', '1px solid rgba(248, 251, 255, 0.28)')
+                .style('border-radius', '5px')
+                .style('background', 'rgba(255, 255, 255, 0.08)')
+                .style('color', '#f8fbff')
+                .style('font-size', '10px')
+                .style('font-weight', 700)
+                .style('cursor', 'pointer');
+            pinButton.on('click', (event: MouseEvent) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (activeTooltipCandidate) {
+                    pinTooltipNote(state, activeTooltipCandidate);
+                    hideHoverTooltip();
+                }
+            });
+
             tooltip
-                .html(nearest.html ?? formatTooltip(state, nearest.data, nearest.series, nearest.color))
                 .style('left', `${state.margin.left + nearest.x + 12}px`)
                 .style('top', `${state.margin.top + nearest.y + 12}px`)
                 .style('opacity', 1);
         })
-        .on('mouseleave', () => {
+        .on('mouseleave', (event: MouseEvent) => {
+            const tooltipNode = tooltip.node();
+            if (
+                event.relatedTarget instanceof Node &&
+                tooltipNode?.contains(event.relatedTarget)
+            ) {
+                return;
+            }
             state.series.forEach((series: KChartSeries<T>) => {
                 if (!state.hiddenSeries.has(series.selector)) {
                     series.clearTooltip?.(state.layers);
                 }
             });
-            tooltip.style('opacity', 0);
+            hideHoverTooltip();
             guideLine.style('opacity', 0);
             guideMarkerGroup.style('opacity', 0);
             guideAxisLabel.style('opacity', 0);
         });
+
+    tooltip.on('mouseleave.kchart-tooltip-note', (event: MouseEvent) => {
+        const overlayNode = overlay.node();
+        if (
+            event.relatedTarget instanceof Node &&
+            overlayNode?.contains(event.relatedTarget)
+        ) {
+            return;
+        }
+        hideHoverTooltip();
+    });
 };
 
 const renderSeries = <T = any>(state: KChartState<T>): void => {
@@ -1530,6 +1634,7 @@ export const createKChart = <T = any>(
             });
             state.container.selectAll('.kchart-svg').remove();
             state.container.selectAll('canvas[class^="kchart-"]').remove();
+            destroyTooltipNotes(state);
         },
         getState() {
             return state;

@@ -141,6 +141,7 @@ Primary exports come from `src/kchart.ts` through `src/index.ts`.
 - `createSpecAreaOption(...)`
 - `createGuideLineOption(...)`
 - `createCursorLineOption(...)`
+- `createTooltipNoteOption(...)`: preserves tooltip snapshots as editable chart annotations while normal hover inspection remains active.
 
 Options can be passed through the unified `config.options` array. Legacy direct fields such as `specAreas`, `guideLines`, and `cursorGuide` are still read by the renderer.
 

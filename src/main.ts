@@ -29,6 +29,7 @@ import {
     createLineSeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
+    createTooltipNoteOption,
     createWebglLineSeries,
     createWebglPointSeries,
     KChartAxis,
@@ -67,6 +68,7 @@ type DemoKind =
     | 'axis-custom-margin'
     | 'tooltip-template'
     | 'tooltip-custom'
+    | 'tooltip-note'
     | 'topology'
     | 'three-constellation'
     | 'globe-map'
@@ -270,6 +272,7 @@ const examples: ExampleMeta[] = [
     { kind: 'axis-custom-margin', title: 'Axis custom margin' },
     { kind: 'tooltip-template', title: 'Tooltip template change' },
     { kind: 'tooltip-custom', title: 'Tooltip custom template' },
+    { kind: 'tooltip-note', title: 'Pinned tooltip notes', dataLabel: 'hover + memo' },
     { kind: 'topology', title: 'Topology renderer' },
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
     { kind: 'update-series', title: 'Update series API' },
@@ -1151,6 +1154,15 @@ const createOptions = (kind: DemoKind): KChartOption[] => {
         }));
     }
 
+    if (kind === 'tooltip-note') {
+        options.push(createTooltipNoteOption<DemoPoint>({
+            maxNotes: 6,
+            pinButtonLabel: 'Pin note',
+            notePlaceholder: 'Write a memo for this point...',
+            onChange: (notes) => console.info('[KChart tooltip notes]', notes)
+        }));
+    }
+
     return options;
 };
 
@@ -1442,6 +1454,7 @@ const createUsageSnippet = (kind: DemoKind): string => {
         || kind === 'canvas-bigdata-line'
         || kind === 'line'
         || kind === 'option-cursor-line';
+    const hasUsageTooltipNotes = kind === 'tooltip-note';
     const dataExpression = kind === 'webgl-large-line'
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
@@ -1650,6 +1663,7 @@ const baseData = [
     createLineSeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
+    createTooltipNoteOption,
     createWebglLineSeries,
     createWebglPointSeries
 } from '@keneth80/k-chart';
@@ -1675,7 +1689,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
     grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide ? `
+    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1696,6 +1710,12 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
             hasUsageCursorGuide ? `createCursorLineOption({
             valueFormat: (value: number) => Number(value).toFixed(1),
             xFormat: (value: number) => ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' ? '`${Math.round(Number(value) / 1000)}k`' : 'String(value)'}
+        })` : '',
+            hasUsageTooltipNotes ? `createTooltipNoteOption<DemoPoint>({
+            maxNotes: 6,
+            pinButtonLabel: 'Pin note',
+            notePlaceholder: 'Write a memo for this point...',
+            onChange: (notes) => console.info('Pinned notes', notes)
         })` : ''
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
