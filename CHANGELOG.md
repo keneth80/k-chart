@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.1 - 2026-06-19
+
+### Fixed
+
+- Fixed automatic globe drilldown selecting a city such as Seoul while opening the flat map at a stale viewport coordinate in another region.
+- Preserved the selected marker's latitude and longitude when wheel or button zoom crosses the automatic map threshold.
+- Restored the globe automatically when MapLibre style or tile initialization fails instead of leaving an empty external-map view.
+- Allowed local webpack HMR connections from both `localhost` and `127.0.0.1` without `Invalid Host/Origin header` errors.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.7.1`.
+- Published `@keneth80/k-chart-maplibre@0.1.1`.
+
 ## 1.7.0 - 2026-06-19
 
 ### Added
