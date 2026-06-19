@@ -1,5 +1,29 @@
 # KChart Functional API
 
+## Package Boundaries
+
+The root package remains backward compatible. Internally, implementation is
+separated into `core`, `series`, `options`, `worker`, and `utils` modules.
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core';
+import {
+    createLineSeries,
+    createCanvasLineSeries,
+    createWebglLineSeries
+} from '@keneth80/k-chart/series';
+import {
+    createSpecAreaOption,
+    createGuideLineOption,
+    createCursorLineOption,
+    createTooltipNoteOption
+} from '@keneth80/k-chart/options';
+```
+
+Series implementations depend on shared core contracts. The core runtime does
+not contain concrete line, point, candlestick, WebGL, or globe series
+implementations.
+
 ## Goal
 
 KChart의 새 public API는 class adapter가 아니라 class-free runtime입니다. UI에서는 `new BasicChart(...)` 같은 인스턴스를 직접 만들지 않고 `createKChart(...)`로 controller를 생성합니다.
@@ -19,6 +43,7 @@ import {
     createCanvasPointSeries,
     createSvgGlobeSeries,
     createSpecAreaOption,
+    createTooltipNoteOption,
     createWebglPointSeries,
     createCustomSeries,
     KChartController,
@@ -26,7 +51,9 @@ import {
 } from '@keneth80/k-chart';
 ```
 
-새 저장소 기준 public export는 `src/kchart.ts`입니다. 기존 class 기반 구현은 마이그레이션 참고용 source로 남아 있어도 패키지 API로는 내보내지 않습니다.
+새 저장소 기준 root public export는 `src/index.ts`이며 `src/kchart.ts`는 기존
+내부 import 호환성을 위한 barrel입니다. 기존 class 기반 구현은 패키지 API로
+내보내지 않습니다.
 
 ## Controller
 
@@ -230,6 +257,12 @@ const chart = createKChart<CityPoint>({
 
 실제 도로·건물 타일 지도가 필요한 경우 `mode: 'external-map'`을 사용합니다. 이 모드에서는 KChart가 내부 SVG 평면도를 그리지 않고 `onEnter` 콜백에 `{ data, lat, lon, exit }`를 전달합니다. `@keneth80/k-chart-maplibre` 어댑터는 이 컨텍스트를 받아 MapLibre 지도를 표시하며, 어댑터의 `G` 버튼은 `exit()`을 호출해 지구본으로 복귀합니다. MapLibre는 지도 렌더러이므로 주소 변환과 맛집 검색은 Kakao Local API, Naver Maps, MapTiler Geocoding 등 별도 공급자에서 받아 장소 좌표 데이터로 전달해야 합니다.
 
+외부 장소 API 응답은 `parseMapLibrePlaces()`로 `id`, `name`, `lat`, `lon`을
+검증·변환할 수 있습니다. `createMapLibrePlaceResolver()`는 변환된 장소를 도시별로
+한 번 인덱싱하고 `createMapLibreGlobeBridge()`에 바로 전달할 resolver를 반환합니다.
+완전히 실행 가능한 예제와 import 목록은
+[`packages/k-chart-maplibre/README.md`](../packages/k-chart-maplibre/README.md)에 있습니다.
+
 ## Built-In WebGL Series
 
 ```ts
@@ -373,6 +406,30 @@ createKChart({
 
 The default tooltip shows the active series name and nearest x/y values. Provide `tooltip.formatter` for custom HTML/text.
 
+### Pinned Tooltip Notes
+
+Tooltip notes are opt-in. `createTooltipNoteOption()` adds a pin action to the normal hover tooltip and renders each pinned snapshot as an editable annotation card over the chart. Drag a card header to move it without changing the original data coordinates. Pinned cards do not replace or block later hover tooltips.
+
+```ts
+createKChart<Point>({
+    selector: '#chart',
+    data,
+    axes,
+    tooltip: {visible: true},
+    options: [
+        createTooltipNoteOption<Point>({
+            maxNotes: 8,
+            pinButtonLabel: 'Pin',
+            notePlaceholder: 'Add context...',
+            onChange: (notes) => saveNotes(notes)
+        })
+    ],
+    series
+});
+```
+
+The `onChange` callback receives `KChartTooltipNote<T>[]` whenever a note is pinned, edited, or deleted. Note state is scoped to the chart controller and is cleared by `destroy()`.
+
 ## Option Factories
 
 Series는 `series: [...]`로 받고, chart 부가 기능은 `options: [...]`로 받습니다.
@@ -393,6 +450,10 @@ createKChart({
         }),
         createCursorLineOption({
             valueFormat: (value: number) => Number(value).toFixed(1)
+        }),
+        createTooltipNoteOption<Point>({
+            maxNotes: 8,
+            onChange: (notes) => console.info(notes)
         })
     ]
 });
@@ -413,6 +474,41 @@ Renderer context 주요 필드:
 - `color`: series 기본 색상
 - `getCanvas(name)`: Canvas 2D layer
 - `getWebglCanvas(name)`: WebGL canvas layer
+
+### Three.js renderer 연결
+
+Three.js 같은 외부 렌더링 엔진도 동일한 함수형 확장 지점을 사용합니다. KChart는
+plot 영역 크기와 WebGL canvas를 제공하고, custom series가 Three.js scene, camera,
+controls, raycaster를 소유합니다.
+
+```ts
+import * as THREE from 'three';
+import { createCustomSeries } from '@keneth80/k-chart';
+
+let renderer: THREE.WebGLRenderer | undefined;
+
+const series = createCustomSeries<Node>({
+    selector: 'three-network',
+    render({ getWebglCanvas, plotSize }) {
+        const canvas = getWebglCanvas('three-network');
+        renderer ??= new THREE.WebGLRenderer({
+            canvas,
+            antialias: true,
+            alpha: true
+        });
+        renderer.setSize(plotSize.width, plotSize.height, false);
+        // Build or update THREE.Scene objects from chart data.
+    },
+    destroy() {
+        renderer?.dispose();
+        renderer = undefined;
+    }
+});
+```
+
+렌더러를 매 render마다 새로 생성하지 않도록 factory closure에 상태를 보관해야 합니다.
+animation frame, controls, geometry, material도 `destroy()`에서 정리합니다. 전체 양자리
+별자리 예제는 `examples/three-constellation-series.ts`를 참고합니다.
 
 ```ts
 const circleSeries = createCustomSeries<CirclePoint>({

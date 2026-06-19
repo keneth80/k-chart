@@ -8,17 +8,30 @@
         ".": {
             "types": "./lib/index.d.ts",
             "default": "./lib/index.js"
+        },
+        "./core": {
+            "types": "./lib/core/index.d.ts",
+            "default": "./lib/core/index.js"
+        },
+        "./series": {
+            "types": "./lib/series/index.d.ts",
+            "default": "./lib/series/index.js"
+        },
+        "./options": {
+            "types": "./lib/options/index.d.ts",
+            "default": "./lib/options/index.js"
+        },
+        "./utils": {
+            "types": "./lib/utils/index.d.ts",
+            "default": "./lib/utils/index.js"
+        },
+        "./worker": {
+            "types": "./lib/worker/index.d.ts",
+            "default": "./lib/worker/index.js"
         }
     },
     "files": [
-        "lib/index.js",
-        "lib/index.js.map",
-        "lib/index.d.ts",
-        "lib/index.d.ts.map",
-        "lib/kchart.js",
-        "lib/kchart.js.map",
-        "lib/kchart.d.ts",
-        "lib/kchart.d.ts.map",
+        "lib/**/*",
         "README.md",
         "LICENSE",
         "CHANGELOG.md",
@@ -100,6 +113,7 @@
         "rxjs": "^6.5.5",
         "style-loader": "^4.0.0",
         "terser-webpack-plugin": "^5.6.1",
+        "three": "^0.184.0",
         "ts-loader": "^9.6.0",
         "typescript": "^6.0.3",
         "webpack": "^5.107.2",

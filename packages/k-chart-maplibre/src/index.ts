@@ -4,16 +4,17 @@ import maplibregl, {
     MapMouseEvent,
     StyleSpecification
 } from 'maplibre-gl';
+import type {KChartMapLibrePlace} from './place-data';
 
-export interface KChartMapLibrePlace {
-    id: string;
-    name: string;
-    lat: number;
-    lon: number;
-    category?: string;
-    address?: string;
-    description?: string;
-}
+export {
+    createMapLibrePlaceResolver,
+    parseMapLibrePlaces
+} from './place-data';
+export type {
+    KChartMapLibrePlace,
+    KChartMapLibrePlaceParserOptions,
+    KChartMapLibrePlaceResolverOptions
+} from './place-data';
 
 export interface KChartMapLibreShowOptions<T extends KChartMapLibrePlace> {
     lat: number;
