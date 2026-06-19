@@ -22,9 +22,13 @@ module.exports = merge(commonConfig, {
     },
 
     devServer: {
+        allowedHosts: ['localhost', '127.0.0.1'],
         historyApiFallback: true,
         devMiddleware: {
             stats: 'minimal'
+        },
+        client: {
+            webSocketURL: 'auto://0.0.0.0:0/ws'
         }
     }
 });
