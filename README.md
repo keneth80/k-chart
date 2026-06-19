@@ -702,7 +702,7 @@ Custom renderer가 한 series 안에서 여러 SVG/Canvas/WebGL 요소를 그리
 
 ### Pinned Tooltip Notes
 
-`createTooltipNoteOption()`을 추가하면 hover tooltip에 고정 버튼이 나타납니다. 버튼을 누르면 당시 tooltip 데이터가 차트 위의 독립적인 메모 카드로 남고, textarea에 메모를 작성하거나 삭제할 수 있습니다. 고정된 카드가 있어도 기존 hover tooltip은 계속 동작합니다.
+`createTooltipNoteOption()`을 추가하면 hover tooltip에 고정 버튼이 나타납니다. 버튼을 누르면 당시 tooltip 데이터가 차트 위의 독립적인 메모 카드로 남고, 헤더를 드래그해 위치를 옮기거나 textarea에 메모를 작성하고 삭제할 수 있습니다. 고정된 카드가 있어도 기존 hover tooltip은 계속 동작합니다.
 
 ```ts
 import {

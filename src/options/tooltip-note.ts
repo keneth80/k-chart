@@ -137,7 +137,10 @@ export const renderTooltipNotes = <T = any>(
                 .style('align-items', 'center')
                 .style('justify-content', 'space-between')
                 .style('gap', '8px')
-                .style('margin-bottom', '7px');
+                .style('margin-bottom', '7px')
+                .style('cursor', 'grab')
+                .style('touch-action', 'none')
+                .style('user-select', 'none');
             header
                 .append('strong')
                 .attr('class', 'kchart-tooltip-note-title')
@@ -187,6 +190,13 @@ export const renderTooltipNotes = <T = any>(
 
     cards
         .style('left', (note, index) => {
+            if (note.position) {
+                note.position.left = Math.max(
+                    8,
+                    Math.min(state.size.width - 248 - 8, note.position.left)
+                );
+                return `${note.position.left}px`;
+            }
             const cardWidth = 248;
             const offset = index * 14;
             return `${Math.max(
@@ -198,6 +208,13 @@ export const renderTooltipNotes = <T = any>(
             )}px`;
         })
         .style('top', (note, index) => {
+            if (note.position) {
+                note.position.top = Math.max(
+                    8,
+                    Math.min(state.size.height - 176 - 8, note.position.top)
+                );
+                return `${note.position.top}px`;
+            }
             const cardHeight = 176;
             const offset = index * 12;
             return `${Math.max(
@@ -209,6 +226,61 @@ export const renderTooltipNotes = <T = any>(
             )}px`;
         })
         .style('--kchart-note-color', (note) => note.color);
+
+    cards
+        .select<HTMLDivElement>('.kchart-tooltip-note-header')
+        .on('pointerdown', function (
+            event: PointerEvent,
+            note: KChartTooltipNote<T>
+        ) {
+            if ((event.target as Element).closest('button')) {
+                return;
+            }
+
+            const header = this;
+            const card = header.parentElement as HTMLDivElement | null;
+            const view = card?.ownerDocument.defaultView;
+            if (!card || !view) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            header.style.cursor = 'grabbing';
+
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const startLeft = Number.parseFloat(card.style.left) || 0;
+            const startTop = Number.parseFloat(card.style.top) || 0;
+
+            const move = (moveEvent: PointerEvent): void => {
+                const maxLeft = Math.max(8, state.size.width - card.offsetWidth - 8);
+                const maxTop = Math.max(8, state.size.height - card.offsetHeight - 8);
+                const left = Math.max(
+                    8,
+                    Math.min(maxLeft, startLeft + moveEvent.clientX - startX)
+                );
+                const top = Math.max(
+                    8,
+                    Math.min(maxTop, startTop + moveEvent.clientY - startY)
+                );
+
+                note.position = {left, top};
+                card.style.left = `${left}px`;
+                card.style.top = `${top}px`;
+            };
+            const stop = (): void => {
+                header.style.cursor = 'grab';
+                view.removeEventListener('pointermove', move);
+                view.removeEventListener('pointerup', stop);
+                view.removeEventListener('pointercancel', stop);
+                notifyChange(state);
+            };
+
+            view.addEventListener('pointermove', move);
+            view.addEventListener('pointerup', stop);
+            view.addEventListener('pointercancel', stop);
+        });
 
     cards
         .select<HTMLElement>('.kchart-tooltip-note-title')

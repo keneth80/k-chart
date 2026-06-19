@@ -415,6 +415,10 @@ export interface KChartTooltipNote<T = any> {
     seriesName: string;
     x: number;
     y: number;
+    position?: {
+        left: number;
+        top: number;
+    };
     color: string;
     html: string;
     note: string;

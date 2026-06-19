@@ -408,7 +408,7 @@ The default tooltip shows the active series name and nearest x/y values. Provide
 
 ### Pinned Tooltip Notes
 
-Tooltip notes are opt-in. `createTooltipNoteOption()` adds a pin action to the normal hover tooltip and renders each pinned snapshot as an editable annotation card over the chart. Pinned cards do not replace or block later hover tooltips.
+Tooltip notes are opt-in. `createTooltipNoteOption()` adds a pin action to the normal hover tooltip and renders each pinned snapshot as an editable annotation card over the chart. Drag a card header to move it without changing the original data coordinates. Pinned cards do not replace or block later hover tooltips.
 
 ```ts
 createKChart<Point>({
