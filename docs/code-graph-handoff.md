@@ -259,13 +259,13 @@ marker press
   -> release after movement: cancel activation
 ```
 
-## Release 1.7.0 Scope
+## Release 1.7.1 Scope
 
-- Modular public entry points for core, series, options, utilities, and workers.
-- Draggable pinned tooltip notes with editable memo text and change callbacks.
-- Three.js Aries constellation custom-series example.
-- Reusable MapLibre place parsing and city resolver utilities.
-- Backward-compatible root exports for existing consumers.
+- Automatic globe drilldown keeps the selected city label and map coordinate consistent.
+- Wheel and button zoom use registered marker coordinates when entering the flat map.
+- MapLibre initialization failures restore the globe instead of leaving an empty view.
+- Local demo HMR accepts both `localhost` and `127.0.0.1`.
+- Companion adapter release: `@keneth80/k-chart-maplibre@0.1.1`.
 
 ## Verification Commands
 
