@@ -14,7 +14,10 @@
 - MapLibre publication status:
   - `npm publish --access public` accepted `@keneth80/k-chart-maplibre@0.1.0`.
   - Registry lookup still returned `E404` immediately afterward; verify package visibility before depending on the public package.
-- Main source entry: `src/index.ts` -> `src/kchart.ts`
+- Main source entry: `src/index.ts`
+- Backward-compatible barrel: `src/kchart.ts`
+- Core runtime: `src/core/create-kchart.ts`
+- Shared contracts: `src/core/contracts.ts`
 - Worker entry: `src/kchart-render.worker.ts`
 - Public playground source link: intentionally removed because the playground repository may become private.
 - Local playground target: `http://127.0.0.1:9011`
@@ -26,7 +29,7 @@
 flowchart TD
     App["Consumer App / React Wrapper / Playground"]
     API["src/index.ts"]
-    Core["src/kchart.ts"]
+    Core["src/core/create-kchart.ts"]
     Config["KChartConfiguration<T>"]
     Controller["KChartController<T>"]
     State["KChartState<T>"]
@@ -68,6 +71,19 @@ flowchart TD
     Series --> Globe
     Globe --> MapAdapter
 ```
+
+## Module Ownership
+
+- `src/core/contracts.ts`: public types and renderer contracts.
+- `src/core/create-kchart.ts`: state, layers, scales, axes, legend, tooltip,
+  zoom, lifecycle, and renderer orchestration.
+- `src/series/`: concrete SVG, Canvas, WebGL, candlestick, and globe series.
+- `src/options/`: option factories and option rendering behavior.
+- `src/worker/`: OffscreenCanvas worker runtime.
+- `src/utils/`: renderer-independent algorithms.
+
+Dependency direction is `series/options -> core contracts`. The core receives
+concrete series through configuration and does not own their implementations.
 
 ## Runtime Render Pipeline
 

@@ -1,5 +1,28 @@
 # KChart Functional API
 
+## Package Boundaries
+
+The root package remains backward compatible. Internally, implementation is
+separated into `core`, `series`, `options`, `worker`, and `utils` modules.
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core';
+import {
+    createLineSeries,
+    createCanvasLineSeries,
+    createWebglLineSeries
+} from '@keneth80/k-chart/series';
+import {
+    createSpecAreaOption,
+    createGuideLineOption,
+    createCursorLineOption
+} from '@keneth80/k-chart/options';
+```
+
+Series implementations depend on shared core contracts. The core runtime does
+not contain concrete line, point, candlestick, WebGL, or globe series
+implementations.
+
 ## Goal
 
 KChart의 새 public API는 class adapter가 아니라 class-free runtime입니다. UI에서는 `new BasicChart(...)` 같은 인스턴스를 직접 만들지 않고 `createKChart(...)`로 controller를 생성합니다.
@@ -26,7 +49,9 @@ import {
 } from '@keneth80/k-chart';
 ```
 
-새 저장소 기준 public export는 `src/kchart.ts`입니다. 기존 class 기반 구현은 마이그레이션 참고용 source로 남아 있어도 패키지 API로는 내보내지 않습니다.
+새 저장소 기준 root public export는 `src/index.ts`이며 `src/kchart.ts`는 기존
+내부 import 호환성을 위한 barrel입니다. 기존 class 기반 구현은 패키지 API로
+내보내지 않습니다.
 
 ## Controller
 

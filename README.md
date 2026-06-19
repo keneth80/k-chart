@@ -100,6 +100,34 @@ Then open `http://127.0.0.1:9003/`.
 - [SVG Globe Map Example](examples/svg-globe-map-series.ts)
 - [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
 
+## Module Structure
+
+KChart keeps its public root API compatible while separating implementation by
+responsibility:
+
+```text
+src/
+├── core/       # contracts, state, layers, scales, and chart lifecycle
+├── series/     # SVG, Canvas, WebGL, candlestick, and globe renderers
+├── options/    # spec area, fixed guide line, and cursor line
+├── worker/     # OffscreenCanvas worker entry
+└── utils/      # renderer-independent algorithms such as LTTB
+```
+
+Existing root imports continue to work. Explicit subpath imports are also
+available:
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core';
+import {createCanvasLineSeries} from '@keneth80/k-chart/series';
+import {createGuideLineOption} from '@keneth80/k-chart/options';
+import {downsampleLTTB} from '@keneth80/k-chart/utils';
+import {startKChartRenderWorker} from '@keneth80/k-chart/worker';
+```
+
+The core calls concrete renderers only through the
+`KChartSeries.render(context)` contract.
+
 ## Quick Start
 
 ```ts

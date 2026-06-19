@@ -12,6 +12,7 @@
     },
     "include": [
         "src/index.ts",
+        "src/kchart.ts",
         "src/types/**/*.d.ts"
     ],
     "exclude": [
@@ -20,4 +21,3 @@
         "src/main copy.ts"
     ]
 }
-
