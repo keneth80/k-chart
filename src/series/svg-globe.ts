@@ -489,16 +489,11 @@ export const createSvgGlobeSeries = <T = any>(
                     drilldownConfiguration.globeZoomThreshold
                 );
                 if (viewMode === 'globe' && zoomLevel >= enterThreshold) {
-                    const target = preferredTarget ?? resolveAutoMapTarget(settledCenter);
+                    const viewportCenter = reference ?? settledCenter;
+                    const target = preferredTarget ?? resolveAutoMapTarget(viewportCenter);
                     if (target) {
-                        const automaticTarget = {
-                            ...target,
-                            lon: settledCenter[0],
-                            lat: settledCenter[1],
-                            projected: [centerX, centerY] as [number, number]
-                        };
                         enterDrilldown(
-                            automaticTarget,
+                            target,
                             drilldownConfiguration.mode,
                             Math.min(zoomLevel, exitThreshold),
                             false

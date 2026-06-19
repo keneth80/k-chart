@@ -281,10 +281,19 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             };
             map?.jumpTo(target);
             overlay.hidden = false;
-            await ensureMap();
-            updateSource();
-            map?.jumpTo(target);
-            map?.resize();
+            try {
+                await ensureMap();
+                updateSource();
+                map?.jumpTo(target);
+                map?.resize();
+            } catch (error) {
+                overlay.hidden = true;
+                exit = undefined;
+                map?.remove();
+                map = undefined;
+                readyPromise = undefined;
+                throw error;
+            }
         },
         hide() {
             overlay.hidden = true;
@@ -332,14 +341,20 @@ export const createMapLibreGlobeBridge = <TCity, TPlace extends KChartMapLibrePl
     } = {}
 ): KChartMapLibreGlobeBridge<TCity, TPlace> => ({
     async onEnter(context) {
-        await controller.show({
-            lat: context.lat,
-            lon: context.lon,
-            label: options.getLabel?.(context.data),
-            zoom: options.zoom,
-            places: await resolvePlaces(context.data),
-            exit: context.exit
-        });
+        try {
+            await controller.show({
+                lat: context.lat,
+                lon: context.lon,
+                label: options.getLabel?.(context.data),
+                zoom: options.zoom,
+                places: await resolvePlaces(context.data),
+                exit: context.exit
+            });
+        } catch (error) {
+            controller.hide();
+            context.exit();
+            console.error('[KChart MapLibre] Failed to show the drilldown map.', error);
+        }
     },
     onExit() {
         controller.hide();
