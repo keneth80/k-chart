@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.7.0 - 2026-06-19
+
+### Added
+
+- Added `createTooltipNoteOption()` for pinning hover tooltip snapshots as editable chart annotations.
+- Added draggable tooltip note headers, chart-bound position constraints, delete controls, memo textareas, and `onChange` synchronization.
+- Added a Three.js custom-series example that renders the Aries constellation with glowing stars and linked nodes.
+- Added reusable MapLibre place parsing and city-based place resolver utilities.
+- Added public package entry points for `core`, `series`, `options`, `utils`, and `worker`.
+
+### Changed
+
+- Split the chart runtime into dedicated core, series, option, worker, and utility modules while preserving the root package API.
+- Kept pinned annotations independent from normal hover tooltips so chart inspection continues while notes remain visible.
+- Updated the playground, README, functional API guide, and handoff documentation for the modular imports and tooltip note workflow.
+
+### Fixed
+
+- Constrained manually positioned tooltip notes to the chart bounds after dragging or resizing.
+- Prevented note delete and textarea interactions from being interpreted as header dragging.
+
 ## 1.6.0 - 2026-06-18
 
 ### Added

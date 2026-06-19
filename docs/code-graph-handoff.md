@@ -259,14 +259,13 @@ marker press
   -> release after movement: cancel activation
 ```
 
-## Release 1.6.0 Scope
+## Release 1.7.0 Scope
 
-- Globe zoom focus and internal Mercator drilldown examples.
-- Automatic zoom-threshold transition and safe return zoom.
-- Optional MapLibre flat-map adapter with real map tiles and place markers.
-- Smoothed warp/reveal transition.
-- Settled-center preservation for automatic drilldown.
-- Reliable low-zoom marker activation on stationary pointer release.
+- Modular public entry points for core, series, options, utilities, and workers.
+- Draggable pinned tooltip notes with editable memo text and change callbacks.
+- Three.js Aries constellation custom-series example.
+- Reusable MapLibre place parsing and city resolver utilities.
+- Backward-compatible root exports for existing consumers.
 
 ## Verification Commands
 
