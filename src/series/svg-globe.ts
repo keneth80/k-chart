@@ -544,7 +544,8 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
                     .style('stroke', configuration.sphereStroke ?? 'rgba(148, 163, 184, 0.62)')
                     .style('stroke-width', 1.2)
-                    .style('pointer-events', 'all');
+                    .style('pointer-events', 'all')
+                    .lower();
 
                 const defaultLandGeoJson = configuration.landMode === 'countries'
                     ? WORLD_COUNTRY_GEOJSON
