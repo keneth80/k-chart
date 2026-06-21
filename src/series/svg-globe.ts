@@ -135,14 +135,21 @@ const resolveGlobeTransitionConfiguration = (
         return {
             type: transition,
             duration,
+            coverDuration: duration * 0.62,
+            revealDuration: duration * 0.38,
+            respectReducedMotion: true,
             color: '#f5f7fa',
             density: 0.82,
             blur: 18
         };
     }
+    const transitionDuration = Math.max(240, transition?.duration ?? duration);
     return {
         type: transition?.type ?? 'warp',
-        duration: Math.max(240, transition?.duration ?? duration),
+        duration: transitionDuration,
+        coverDuration: Math.max(120, transition?.coverDuration ?? transitionDuration * 0.62),
+        revealDuration: Math.max(120, transition?.revealDuration ?? transitionDuration * 0.38),
+        respectReducedMotion: transition?.respectReducedMotion ?? true,
         color: transition?.color ?? '#f5f7fa',
         density: clampNumber(transition?.density ?? 0.82, 0.2, 1),
         blur: Math.max(0, transition?.blur ?? 18)
@@ -420,11 +427,14 @@ export const createSvgGlobeSeries = <T = any>(
                 }
                 const transitionToken = ++cloudTransitionToken;
                 const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-                const totalDuration = reducedMotion
-                    ? Math.min(1200, drilldownConfiguration.transition.duration)
-                    : drilldownConfiguration.transition.duration;
-                const coverDuration = Math.max(120, totalDuration * 0.62);
-                const revealDuration = Math.max(120, totalDuration - coverDuration);
+                const configuredDuration = drilldownConfiguration.transition.coverDuration
+                    + drilldownConfiguration.transition.revealDuration;
+                const reducedDuration = reducedMotion && drilldownConfiguration.transition.respectReducedMotion
+                    ? Math.min(1200, configuredDuration)
+                    : configuredDuration;
+                const durationScale = reducedDuration / configuredDuration;
+                const coverDuration = drilldownConfiguration.transition.coverDuration * durationScale;
+                const revealDuration = drilldownConfiguration.transition.revealDuration * durationScale;
                 const startedAt = globalThis.performance.now();
 
                 const reveal = (): void => {

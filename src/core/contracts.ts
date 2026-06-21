@@ -226,6 +226,9 @@ export type KChartGlobeTransitionType = 'warp' | 'cloud' | 'none';
 export interface KChartGlobeTransitionConfiguration {
     type?: KChartGlobeTransitionType;
     duration?: number;
+    coverDuration?: number;
+    revealDuration?: number;
+    respectReducedMotion?: boolean;
     color?: string;
     density?: number;
     blur?: number;

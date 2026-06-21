@@ -10,7 +10,8 @@
 
 ### Changed
 
-- Slowed the recommended cloud transition to 2.6 seconds and delayed the opaque cover until the clouds have visibly gathered.
+- Slowed the recommended cloud transition to five seconds and delayed the opaque cover until the clouds have visibly gathered.
+- Added separate `coverDuration` and `revealDuration` controls plus `respectReducedMotion` for preserving exact transition timing.
 
 ## 1.7.1 - 2026-06-19
 

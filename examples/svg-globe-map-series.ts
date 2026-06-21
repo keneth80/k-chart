@@ -54,7 +54,10 @@ createKChart<CityPoint>({
                 duration: 1200,
                 transition: {
                     type: 'cloud',
-                    duration: 2600,
+                    duration: 5000,
+                    coverDuration: 3200,
+                    revealDuration: 1800,
+                    respectReducedMotion: false,
                     density: 0.86,
                     blur: 20
                 },
