@@ -12,6 +12,7 @@ import worldLand110m from 'world-atlas/land-110m.json';
 import type {
     KChartGlobeDrilldownConfiguration,
     KChartGlobeDrilldownMode,
+    KChartGlobeTransitionConfiguration,
     KChartGlobeZoomConfiguration,
     KChartGlobeZoomControlsConfiguration,
     KChartSeries,
@@ -124,18 +125,45 @@ const resolveGlobeZoomControlsConfiguration = (
     };
 };
 
+type ResolvedGlobeTransitionConfiguration = Required<KChartGlobeTransitionConfiguration>;
+
+const resolveGlobeTransitionConfiguration = (
+    transition: KChartGlobeDrilldownConfiguration<any>['transition'],
+    duration: number
+): ResolvedGlobeTransitionConfiguration => {
+    if (typeof transition === 'string') {
+        return {
+            type: transition,
+            duration,
+            color: '#f5f7fa',
+            density: 0.82,
+            blur: 18
+        };
+    }
+    return {
+        type: transition?.type ?? 'warp',
+        duration: Math.max(240, transition?.duration ?? duration),
+        color: transition?.color ?? '#f5f7fa',
+        density: clampNumber(transition?.density ?? 0.82, 0.2, 1),
+        blur: Math.max(0, transition?.blur ?? 18)
+    };
+};
+
 const resolveGlobeDrilldownConfiguration = <T = any>(
     drilldown?: boolean | KChartGlobeDrilldownConfiguration<T>
 ): Required<
     Omit<
         KChartGlobeDrilldownConfiguration<T>,
-        'onEnter' | 'onExit' | 'landFill' | 'landStroke' | 'landOpacity'
+        'onEnter' | 'onExit' | 'landFill' | 'landStroke' | 'landOpacity' | 'transition'
     >
 > & Pick<
     KChartGlobeDrilldownConfiguration<T>,
     'onEnter' | 'onExit' | 'landFill' | 'landStroke' | 'landOpacity'
-> => {
+> & {
+    transition: ResolvedGlobeTransitionConfiguration;
+} => {
     if (typeof drilldown === 'boolean') {
+        const duration = 720;
         return {
             enabled: drilldown,
             mode: 'map',
@@ -144,10 +172,12 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
             globeZoomThreshold: 1.8,
             focusZoom: 2.6,
             zoomScale: 6,
-            duration: 720,
+            duration,
+            transition: resolveGlobeTransitionConfiguration(undefined, duration),
             resetControl: true
         };
     }
+    const duration = drilldown?.duration ?? 720;
     return {
         enabled: drilldown?.enabled ?? false,
         mode: drilldown?.mode ?? 'map',
@@ -156,7 +186,8 @@ const resolveGlobeDrilldownConfiguration = <T = any>(
         globeZoomThreshold: drilldown?.globeZoomThreshold ?? 1.8,
         focusZoom: drilldown?.focusZoom ?? 2.6,
         zoomScale: drilldown?.zoomScale ?? 6,
-        duration: drilldown?.duration ?? 720,
+        duration,
+        transition: resolveGlobeTransitionConfiguration(drilldown?.transition, duration),
         resetControl: drilldown?.resetControl ?? true,
         landFill: drilldown?.landFill,
         landStroke: drilldown?.landStroke,
@@ -191,6 +222,71 @@ const isGlobePointVisible = (
     return geoDistance([lon, lat], [-rotation[0], -rotation[1]]) <= Math.PI / 2;
 };
 
+const seededUnit = (index: number, salt: number): number => {
+    const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+    return value - Math.floor(value);
+};
+
+const drawCloudTransitionFrame = (
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    coverage: number,
+    configuration: ResolvedGlobeTransitionConfiguration
+): void => {
+    const pixelRatio = Math.max(1, globalThis.devicePixelRatio ?? 1);
+    const targetWidth = Math.max(1, Math.round(width * pixelRatio));
+    const targetHeight = Math.max(1, Math.round(height * pixelRatio));
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+    }
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+        return;
+    }
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    if (coverage <= 0) {
+        return;
+    }
+
+    const easedCoverage = 1 - Math.pow(1 - clampNumber(coverage, 0, 1), 2.2);
+    const diagonal = Math.hypot(width, height);
+    const cloudCount = Math.max(18, Math.round(52 * configuration.density));
+    context.save();
+    context.filter = configuration.blur > 0 ? `blur(${configuration.blur}px)` : 'none';
+    for (let index = 0; index < cloudCount; index += 1) {
+        const angle = seededUnit(index, 1) * Math.PI * 2;
+        const edgeDistance = diagonal * (0.6 - easedCoverage * 0.58);
+        const scatter = seededUnit(index, 2) * diagonal * 0.24;
+        const x = width / 2 + Math.cos(angle) * (edgeDistance + scatter);
+        const y = height / 2 + Math.sin(angle) * (edgeDistance + scatter) * 0.62;
+        const radius = diagonal * (0.08 + seededUnit(index, 3) * 0.11) * (0.38 + easedCoverage);
+        const gradient = context.createRadialGradient(x, y, radius * 0.08, x, y, radius);
+        gradient.addColorStop(0, configuration.color);
+        gradient.addColorStop(0.46, configuration.color);
+        gradient.addColorStop(1, 'rgba(245, 247, 250, 0)');
+        context.globalAlpha = clampNumber((0.25 + easedCoverage * 0.72) * configuration.density, 0, 1);
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+    }
+    context.restore();
+
+    if (easedCoverage > 0.54) {
+        context.save();
+        context.globalAlpha = Math.pow((easedCoverage - 0.54) / 0.46, 1.3) * 0.94;
+        context.fillStyle = configuration.color;
+        context.fillRect(0, 0, width, height);
+        context.restore();
+    }
+};
+
 export const createSvgGlobeSeries = <T = any>(
     configuration: KChartSvgGlobeSeriesConfiguration<T>
 ): KChartSeries<T> => {
@@ -208,6 +304,10 @@ export const createSvgGlobeSeries = <T = any>(
     let warpEffect: { x: number; y: number; startedAt: number; duration: number } | undefined;
     let warpTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let warpFrame: number | undefined;
+    let cloudFrame: number | undefined;
+    let cloudCanvas: HTMLCanvasElement | undefined;
+    let cloudHost: HTMLElement | undefined;
+    let cloudTransitionToken = 0;
     let wheelZoomReference: [number, number] | undefined;
     let wheelZoomReferenceTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let hoveredMarkerTarget: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
@@ -228,6 +328,7 @@ export const createSvgGlobeSeries = <T = any>(
         yField: configuration.latField,
         color: typeof configuration.markerColor === 'string' ? configuration.markerColor : undefined,
         render({ group, data, size, plotSize, margin, color }) {
+            cloudHost = group.node()?.ownerSVGElement?.parentElement ?? cloudHost;
             const width = plotSize.width;
             const height = plotSize.height;
             const centerX = width / 2;
@@ -271,6 +372,107 @@ export const createSvgGlobeSeries = <T = any>(
                     warpFrame = undefined;
                 }
             };
+            const removeCloudCanvas = (): void => {
+                if (cloudFrame !== undefined) {
+                    globalThis.cancelAnimationFrame(cloudFrame);
+                    cloudFrame = undefined;
+                }
+                cloudCanvas?.remove();
+                cloudCanvas = undefined;
+            };
+            const ensureCloudCanvas = (): HTMLCanvasElement | undefined => {
+                const host = cloudHost ?? group.node()?.ownerSVGElement?.parentElement;
+                if (!host) {
+                    return undefined;
+                }
+                if (!cloudCanvas || cloudCanvas.parentElement !== host) {
+                    cloudCanvas?.remove();
+                    cloudCanvas = document.createElement('canvas');
+                    cloudCanvas.className = 'kchart-globe-cloud-transition';
+                    cloudCanvas.setAttribute('aria-hidden', 'true');
+                    Object.assign(cloudCanvas.style, {
+                        position: 'absolute',
+                        inset: '0',
+                        zIndex: '20',
+                        pointerEvents: 'none'
+                    });
+                    host.appendChild(cloudCanvas);
+                }
+                return cloudCanvas;
+            };
+            const runCloudTransition = (
+                onCovered: () => void | Promise<void>,
+                onFinished?: () => void
+            ): void => {
+                const invokeCovered = (): Promise<void> =>
+                    Promise.resolve().then(onCovered);
+                const canvas = ensureCloudCanvas();
+                if (!canvas) {
+                    void invokeCovered().finally(onFinished);
+                    return;
+                }
+                if (cloudFrame !== undefined) {
+                    globalThis.cancelAnimationFrame(cloudFrame);
+                    cloudFrame = undefined;
+                }
+                const transitionToken = ++cloudTransitionToken;
+                const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+                const totalDuration = reducedMotion
+                    ? Math.min(320, drilldownConfiguration.transition.duration)
+                    : drilldownConfiguration.transition.duration;
+                const coverDuration = Math.max(120, totalDuration * 0.56);
+                const revealDuration = Math.max(120, totalDuration - coverDuration);
+                const startedAt = globalThis.performance.now();
+
+                const reveal = (): void => {
+                    const revealStartedAt = globalThis.performance.now();
+                    const animateReveal = (now: number): void => {
+                        if (transitionToken !== cloudTransitionToken || !cloudCanvas) {
+                            return;
+                        }
+                        const progress = clampNumber((now - revealStartedAt) / revealDuration, 0, 1);
+                        drawCloudTransitionFrame(
+                            cloudCanvas,
+                            size.width,
+                            size.height,
+                            1 - easeInOutCubic(progress),
+                            drilldownConfiguration.transition
+                        );
+                        if (progress < 1) {
+                            cloudFrame = globalThis.requestAnimationFrame(animateReveal);
+                            return;
+                        }
+                        cloudFrame = undefined;
+                        removeCloudCanvas();
+                        onFinished?.();
+                    };
+                    cloudFrame = globalThis.requestAnimationFrame(animateReveal);
+                };
+                const animateCover = (now: number): void => {
+                    if (transitionToken !== cloudTransitionToken || !cloudCanvas) {
+                        return;
+                    }
+                    const progress = clampNumber((now - startedAt) / coverDuration, 0, 1);
+                    drawCloudTransitionFrame(
+                        cloudCanvas,
+                        size.width,
+                        size.height,
+                        easeInOutCubic(progress),
+                        drilldownConfiguration.transition
+                    );
+                    if (progress < 1) {
+                        cloudFrame = globalThis.requestAnimationFrame(animateCover);
+                        return;
+                    }
+                    cloudFrame = undefined;
+                    invokeCovered()
+                        .catch((error) => {
+                            console.error('[KChart Globe] Cloud transition callback failed.', error);
+                        })
+                        .finally(reveal);
+                };
+                cloudFrame = globalThis.requestAnimationFrame(animateCover);
+            };
             const clearWheelZoomReference = (): void => {
                 wheelZoomReference = undefined;
                 if (wheelZoomReferenceTimer !== undefined) {
@@ -306,6 +508,91 @@ export const createSvgGlobeSeries = <T = any>(
                     };
                 }
                 focusedPoint = datum;
+                const notifyEnter = async (): Promise<void> => {
+                    await drilldownConfiguration.onEnter?.({
+                        data: datum.data,
+                        lat: datum.lat,
+                        lon: datum.lon,
+                        exit: () => exitDrilldown()
+                    });
+                };
+
+                if (drilldownConfiguration.transition.type === 'cloud') {
+                    externalMapTransitioning = true;
+                    viewMode = 'globe';
+                    const applyCoveredView = async (): Promise<void> => {
+                        if (mode === 'zoom') {
+                            rotation = [-datum.lon, -datum.lat, rotation[2]];
+                            zoomLevel = clampNumber(drilldownConfiguration.focusZoom, minZoom, maxZoom);
+                            viewMode = 'globe';
+                        } else if (mode === 'external-map') {
+                            viewMode = 'external-map';
+                        } else {
+                            viewMode = mode;
+                        }
+                        draw();
+                        await notifyEnter();
+                        externalMapTransitioning = false;
+                    };
+                    const startCloud = (): void => {
+                        runCloudTransition(applyCoveredView, draw);
+                    };
+
+                    if (mode === 'external-map' && moveCamera) {
+                        const cameraDuration = Math.min(
+                            460,
+                            Math.max(280, drilldownConfiguration.transition.duration * 0.28)
+                        );
+                        const startRotation: [number, number, number] = [...rotation];
+                        const targetRotation: [number, number, number] = [
+                            -datum.lon,
+                            -datum.lat,
+                            rotation[2]
+                        ];
+                        const longitudeDelta = shortestAngleDelta(startRotation[0], targetRotation[0]);
+                        const startedAt = globalThis.performance.now();
+                        const animateCamera = (now: number): void => {
+                            const progress = clampNumber((now - startedAt) / cameraDuration, 0, 1);
+                            const easedProgress = easeInOutCubic(progress);
+                            rotation = [
+                                startRotation[0] + longitudeDelta * easedProgress,
+                                startRotation[1] + (targetRotation[1] - startRotation[1]) * easedProgress,
+                                startRotation[2]
+                            ];
+                            draw();
+                            if (progress < 1) {
+                                warpFrame = globalThis.requestAnimationFrame(animateCamera);
+                                return;
+                            }
+                            warpFrame = undefined;
+                            rotation = targetRotation;
+                            startCloud();
+                        };
+                        draw();
+                        warpFrame = globalThis.requestAnimationFrame(animateCamera);
+                    } else {
+                        startCloud();
+                    }
+                    return;
+                }
+
+                if (drilldownConfiguration.transition.type === 'none') {
+                    if (mode === 'zoom') {
+                        rotation = [-datum.lon, -datum.lat, rotation[2]];
+                        zoomLevel = clampNumber(drilldownConfiguration.focusZoom, minZoom, maxZoom);
+                        viewMode = 'globe';
+                    } else {
+                        viewMode = mode;
+                    }
+                    externalMapTransitioning = mode === 'external-map';
+                    draw();
+                    void notifyEnter().finally(() => {
+                        externalMapTransitioning = false;
+                        draw();
+                    });
+                    return;
+                }
+
                 if (mode === 'zoom') {
                     viewMode = 'globe';
                     rotation = [
@@ -326,22 +613,14 @@ export const createSvgGlobeSeries = <T = any>(
                         x: datum.projected[0],
                         y: datum.projected[1],
                         startedAt: Date.now(),
-                        duration: drilldownConfiguration.duration
+                        duration: drilldownConfiguration.transition.duration
                     };
-                const notifyEnter = (): void => {
-                    drilldownConfiguration.onEnter?.({
-                        data: datum.data,
-                        lat: datum.lat,
-                        lon: datum.lon,
-                        exit: () => exitDrilldown()
-                    });
-                };
 
                 if (mode === 'external-map') {
                     const cameraDuration = moveCamera
-                        ? Math.min(460, Math.max(280, drilldownConfiguration.duration * 0.34))
+                        ? Math.min(460, Math.max(280, drilldownConfiguration.transition.duration * 0.34))
                         : 0;
-                    const warpDuration = Math.max(600, drilldownConfiguration.duration - cameraDuration);
+                    const warpDuration = Math.max(600, drilldownConfiguration.transition.duration - cameraDuration);
                     const startRotation: [number, number, number] = [...rotation];
                     const targetRotation: [number, number, number] = [
                         -datum.lon,
@@ -357,7 +636,7 @@ export const createSvgGlobeSeries = <T = any>(
                             externalMapTransitioning = false;
                             viewMode = 'external-map';
                             warpEffect = undefined;
-                            notifyEnter();
+                            void notifyEnter();
                             draw();
                         }, warpDuration);
                     };
@@ -403,12 +682,12 @@ export const createSvgGlobeSeries = <T = any>(
                     return;
                 }
 
-                notifyEnter();
+                void notifyEnter();
                 warpTimer = globalThis.setTimeout(() => {
                     warpTimer = undefined;
                     warpEffect = undefined;
                     draw();
-                }, drilldownConfiguration.duration);
+                }, drilldownConfiguration.transition.duration);
                 draw();
             };
             const exitDrilldown = (restoreState = true): void => {
@@ -421,17 +700,28 @@ export const createSvgGlobeSeries = <T = any>(
                 }
                 cancelWarpFrame();
                 hoveredMarkerTarget = undefined;
-                externalMapTransitioning = false;
-                viewMode = 'globe';
-                focusedPoint = undefined;
-                if (restoreState && drilldownRestoreState) {
-                    rotation = [...drilldownRestoreState.rotation];
-                    zoomLevel = clampNumber(drilldownRestoreState.zoomLevel, minZoom, maxZoom);
+                const completeExit = async (): Promise<void> => {
+                    viewMode = 'globe';
+                    focusedPoint = undefined;
+                    if (restoreState && drilldownRestoreState) {
+                        rotation = [...drilldownRestoreState.rotation];
+                        zoomLevel = clampNumber(drilldownRestoreState.zoomLevel, minZoom, maxZoom);
+                    }
+                    drilldownRestoreState = undefined;
+                    warpEffect = undefined;
+                    await drilldownConfiguration.onExit?.();
+                    draw();
+                };
+                if (drilldownConfiguration.transition.type === 'cloud') {
+                    externalMapTransitioning = true;
+                    runCloudTransition(completeExit, () => {
+                        externalMapTransitioning = false;
+                        draw();
+                    });
+                    return;
                 }
-                drilldownRestoreState = undefined;
-                warpEffect = undefined;
-                drilldownConfiguration.onExit?.();
-                draw();
+                externalMapTransitioning = false;
+                void completeExit();
             };
             const resolveAutoMapTarget = (reference?: [number, number]): {
                 data: T;
@@ -779,7 +1069,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .on('pointerup.kchart-globe-marker-press', handleMarkerPointerUp)
                     .on('pointercancel.kchart-globe-marker-press', handleMarkerPointerCancel);
 
-                const activeWarpDuration = Math.max(480, warpEffect?.duration ?? drilldownConfiguration.duration);
+                const activeWarpDuration = Math.max(480, warpEffect?.duration ?? drilldownConfiguration.transition.duration);
                 const warpData = warpEffect
                     ? [0, 1, 2].map((index) => ({...warpEffect, index}))
                     : [];
@@ -1090,6 +1380,14 @@ export const createSvgGlobeSeries = <T = any>(
                 globalThis.cancelAnimationFrame(warpFrame);
                 warpFrame = undefined;
             }
+            cloudTransitionToken += 1;
+            if (cloudFrame !== undefined) {
+                globalThis.cancelAnimationFrame(cloudFrame);
+                cloudFrame = undefined;
+            }
+            cloudCanvas?.remove();
+            cloudCanvas = undefined;
+            cloudHost = undefined;
             wheelZoomReference = undefined;
             hoveredMarkerTarget = undefined;
             markerPress = undefined;

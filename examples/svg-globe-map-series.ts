@@ -52,6 +52,12 @@ createKChart<CityPoint>({
                 focusZoom: 2.7,
                 zoomScale: 7,
                 duration: 1200,
+                transition: {
+                    type: 'cloud',
+                    duration: 1600,
+                    density: 0.86,
+                    blur: 20
+                },
                 resetControl: true
             },
             onMarkerClick: ({ data }) => {

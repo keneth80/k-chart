@@ -170,7 +170,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
 | WebGL series | `createWebglLineSeries`, `createWebglPointSeries` | Render WebGL line/point visuals. |
 | Worker rendering | `startKChartRenderWorker`, `src/kchart-render.worker.ts` | OffscreenCanvas worker bootstrap and async line drawing. |
-| Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp transition, and drilldown lifecycle. |
+| Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp/cloud transitions, and drilldown lifecycle. |
 | Flat map adapter | `packages/k-chart-maplibre` | Optional MapLibre tile-map overlay, place markers, address popups, and return-to-globe bridge. |
 
 ## Data And Interaction Flow
@@ -218,6 +218,7 @@ Important state fields:
 - Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
 - Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields. It renders a built-in World Atlas 110m land layer plus country border mesh by default, accepts external GeoJSON through `landGeoJson`, supports country feature styling through `landMode: 'countries'`, `landFill`, `landStroke`, and `landOpacity`, and can enable wheel/pinch scaling plus in-chart zoom buttons through the `zoom` option.
 - Globe drilldown supports `zoom`, internal `map`, and external `external-map` modes.
+- Globe drilldown transition supports `warp`, Canvas-based `cloud`, and `none`. Cloud cover remains above the chart and external MapLibre overlay until asynchronous `onEnter` or `onExit` work finishes.
 - Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
 - Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
 - `packages/k-chart-maplibre` provides `createMapLibreFlatMap`, `createMapLibreGlobeBridge`, `parseMapLibrePlaces`, and `createMapLibrePlaceResolver`. Provider-specific place records are normalized and validated before a city-indexed resolver supplies them to the globe bridge. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.

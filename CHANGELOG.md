@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added `drilldown.transition` with `warp`, `cloud`, and `none` modes.
+- Added a Canvas cloud-cover transition that waits for asynchronous external-map loading before revealing the destination.
+- Added reverse cloud cover when returning from a flat map to the globe.
+
 ## 1.7.1 - 2026-06-19
 
 ### Fixed
