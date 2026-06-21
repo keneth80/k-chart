@@ -8,6 +8,10 @@
 - Added a Canvas cloud-cover transition that waits for asynchronous external-map loading before revealing the destination.
 - Added reverse cloud cover when returning from a flat map to the globe.
 
+### Changed
+
+- Slowed the recommended cloud transition to 2.6 seconds and delayed the opaque cover until the clouds have visibly gathered.
+
 ## 1.7.1 - 2026-06-19
 
 ### Fixed

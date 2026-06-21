@@ -1039,7 +1039,7 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                     zoomScale: 7,
                     duration: 1200,
                     transition: kind === 'globe-map-drilldown'
-                        ? { type: 'cloud', duration: 1600, density: 0.86, blur: 20 }
+                        ? { type: 'cloud', duration: 2600, density: 0.86, blur: 20 }
                         : 'warp',
                     resetControl: true,
                     landFill: '#38bdf8',
@@ -1333,7 +1333,7 @@ const createSeriesSnippet = (kind: DemoKind): string => {
         zoomScale: 7,
         duration: 1200,
         transition: ${kind === 'globe-map-drilldown'
-            ? "{ type: 'cloud', duration: 1600, density: 0.86, blur: 20 }"
+            ? "{ type: 'cloud', duration: 2600, density: 0.86, blur: 20 }"
             : "'warp'"},
         resetControl: true,
         onEnter: mapBridge.onEnter,

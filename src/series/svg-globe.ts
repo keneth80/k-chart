@@ -254,7 +254,10 @@ const drawCloudTransitionFrame = (
         return;
     }
 
-    const easedCoverage = 1 - Math.pow(1 - clampNumber(coverage, 0, 1), 2.2);
+    const normalizedCoverage = clampNumber(coverage, 0, 1);
+    const easedCoverage = normalizedCoverage < 0.5
+        ? 2 * normalizedCoverage * normalizedCoverage
+        : 1 - Math.pow(-2 * normalizedCoverage + 2, 2) / 2;
     const diagonal = Math.hypot(width, height);
     const cloudCount = Math.max(18, Math.round(52 * configuration.density));
     context.save();
@@ -278,9 +281,9 @@ const drawCloudTransitionFrame = (
     }
     context.restore();
 
-    if (easedCoverage > 0.54) {
+    if (easedCoverage > 0.82) {
         context.save();
-        context.globalAlpha = Math.pow((easedCoverage - 0.54) / 0.46, 1.3) * 0.94;
+        context.globalAlpha = Math.pow((easedCoverage - 0.82) / 0.18, 1.45) * 0.96;
         context.fillStyle = configuration.color;
         context.fillRect(0, 0, width, height);
         context.restore();
@@ -418,9 +421,9 @@ export const createSvgGlobeSeries = <T = any>(
                 const transitionToken = ++cloudTransitionToken;
                 const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
                 const totalDuration = reducedMotion
-                    ? Math.min(320, drilldownConfiguration.transition.duration)
+                    ? Math.min(1200, drilldownConfiguration.transition.duration)
                     : drilldownConfiguration.transition.duration;
-                const coverDuration = Math.max(120, totalDuration * 0.56);
+                const coverDuration = Math.max(120, totalDuration * 0.62);
                 const revealDuration = Math.max(120, totalDuration - coverDuration);
                 const startedAt = globalThis.performance.now();
 
