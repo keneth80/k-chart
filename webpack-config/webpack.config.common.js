@@ -6,6 +6,7 @@ const webpack = require('webpack');
 // const htmlWebpackInjectStringPlugin = require('html-webpack-inject-string-plugin');
 
 const helpers = require('./helpers');
+const cesiumBuild = helpers.root('node_modules/cesium/Build/Cesium');
  
 module.exports = {
     entry: './src/main.ts',
@@ -64,8 +65,16 @@ module.exports = {
         new CopyWebpackPlugin({
             patterns: [
                 { from: helpers.root('src/assets/image'), to: 'assets/image', noErrorOnMissing: true },
-                { from: helpers.root('src/docs'), to: 'docs', noErrorOnMissing: true }
+                { from: helpers.root('src/docs'), to: 'docs', noErrorOnMissing: true },
+                { from: `${cesiumBuild}/Workers`, to: 'cesium/Workers', noErrorOnMissing: true },
+                { from: `${cesiumBuild}/ThirdParty`, to: 'cesium/ThirdParty', noErrorOnMissing: true },
+                { from: `${cesiumBuild}/Assets`, to: 'cesium/Assets', noErrorOnMissing: true },
+                { from: `${cesiumBuild}/Widgets`, to: 'cesium/Widgets', noErrorOnMissing: true }
             ]
+        }),
+
+        new webpack.DefinePlugin({
+            CESIUM_BASE_URL: JSON.stringify('/cesium/')
         }),
 
         new webpack.HotModuleReplacementPlugin(),

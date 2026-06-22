@@ -172,6 +172,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Worker rendering | `startKChartRenderWorker`, `src/kchart-render.worker.ts` | OffscreenCanvas worker bootstrap and async line drawing. |
 | Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp/cloud transitions, and drilldown lifecycle. |
 | Flat map adapter | `packages/k-chart-maplibre` | Optional MapLibre tile-map overlay, place markers, address popups, and return-to-globe bridge. |
+| Cesium adapter | `packages/k-chart-cesium` | Optional CesiumJS 3D globe with static paths, clock-driven movement routes, camera tracking, live samples, and GeoJSON `LineString` input. |
 
 ## Data And Interaction Flow
 
@@ -222,11 +223,13 @@ Important state fields:
 - Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
 - Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
 - `packages/k-chart-maplibre` provides `createMapLibreFlatMap`, `createMapLibreGlobeBridge`, `parseMapLibrePlaces`, and `createMapLibrePlaceResolver`. Provider-specific place records are normalized and validated before a city-indexed resolver supplies them to the globe bridge. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
+- `packages/k-chart-cesium` provides `createCesiumGlobe`. It remains outside the KChart core because CesiumJS has a large WebGL runtime and static worker/asset deployment requirements. The demo loads it through a dynamic import so ordinary chart examples do not download the Cesium runtime.
 
 ### External Packages Around This Library
 
 - `@keneth80/k-chart-react`: separate React wrapper package.
 - `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
+- `@keneth80/k-chart-cesium`: optional CesiumJS globe and movement-route adapter stored in this repository under `packages/k-chart-cesium`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
 - Three.js integration is currently an optional custom-series example on `feature/three-constellation-series`, not a core runtime dependency. The demo uses `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
 

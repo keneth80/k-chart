@@ -1,6 +1,8 @@
 import './style.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
 import '../packages/k-chart-maplibre/src/style.css';
+import '../packages/k-chart-cesium/src/style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
 import {
     createMapLibreFlatMap,
@@ -13,6 +15,10 @@ import type {
     KChartMapLibreGlobeBridge,
     KChartMapLibrePlace
 } from '../packages/k-chart-maplibre/src';
+import type {
+    KChartCesiumController,
+    KChartCesiumRoutePoint
+} from '../packages/k-chart-cesium/src';
 import {
     createThreeConstellationSeries,
     ariesLinks,
@@ -73,6 +79,7 @@ type DemoKind =
     | 'three-constellation'
     | 'globe-map'
     | 'globe-map-drilldown'
+    | 'cesium-route'
     | 'update-series'
     | 'update-data'
     | 'real-time'
@@ -101,6 +108,13 @@ const globeData: DemoPoint[] = [
     { label: 'London', x: -0.1276, value: 51.5072, volume: 1, extra: 1, radius: 5, category: 'Europe', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' },
     { label: 'Sydney', x: 151.2093, value: -33.8688, volume: 1, extra: 1, radius: 5, category: 'Oceania', lat: -33.8688, lon: 151.2093, url: 'https://en.wikipedia.org/wiki/Sydney' },
     { label: 'Sao Paulo', x: -46.6333, value: -23.5505, volume: 1, extra: 1, radius: 5, category: 'South America', lat: -23.5505, lon: -46.6333, url: 'https://en.wikipedia.org/wiki/S%C3%A3o_Paulo' }
+];
+
+const cesiumRouteData: KChartCesiumRoutePoint[] = [
+    { label: 'Seoul', time: '2026-06-22T00:00:00Z', lat: 37.5665, lon: 126.9780, altitude: 120000 },
+    { label: 'Tokyo', time: '2026-06-22T01:00:00Z', lat: 35.6762, lon: 139.6503, altitude: 240000 },
+    { label: 'Honolulu', time: '2026-06-22T04:00:00Z', lat: 21.3099, lon: -157.8581, altitude: 360000 },
+    { label: 'San Francisco', time: '2026-06-22T07:00:00Z', lat: 37.7749, lon: -122.4194, altitude: 120000 }
 ];
 
 interface DemoPlace extends KChartMapLibrePlace {
@@ -266,6 +280,7 @@ const examples: ExampleMeta[] = [
     { kind: 'multi-options', title: 'SVG multi series renderer' },
     { kind: 'globe-map', title: 'Globe marker zoom focus', dataLabel: 'same globe zoom' },
     { kind: 'globe-map-drilldown', title: 'Globe marker map drilldown', dataLabel: 'Mercator map focus' },
+    { kind: 'cesium-route', title: 'Cesium animated route', dataLabel: '3D movement path' },
     { kind: 'option-spec-area', title: 'Spec area option' },
     { kind: 'option-guide-line', title: 'Guide line option' },
     { kind: 'option-cursor-line', title: 'Cursor line option' },
@@ -290,6 +305,7 @@ const themeLabel = document.querySelector<HTMLElement>('#current-theme-label');
 const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart-example');
 let mapLibreController: KChartMapLibreController<DemoPlace> | undefined;
 let mapLibreBridge: KChartMapLibreGlobeBridge<DemoPoint, DemoPlace> | undefined;
+let cesiumController: KChartCesiumController | undefined;
 
 const setupMapLibreDemo = (): void => {
     if (!chartRoot) {
@@ -310,6 +326,42 @@ const setupMapLibreDemo = (): void => {
             zoom: 13
         }
     );
+};
+
+const setupCesiumDemo = async (): Promise<void> => {
+    if (!chartRoot) {
+        return;
+    }
+    const {createCesiumGlobe} = await import('../packages/k-chart-cesium/src');
+    if (activeKind !== 'cesium-route') {
+        return;
+    }
+    cesiumController = createCesiumGlobe({
+        container: chartRoot,
+        cesiumBaseUrl: '/cesium/',
+        timeline: true,
+        animation: true
+    });
+    cesiumController.addRoute({
+        id: 'pacific-route',
+        name: 'Seoul to San Francisco',
+        data: cesiumRouteData,
+        color: '#5db8ff',
+        width: 5,
+        glowPower: 0.24,
+        showSamples: true,
+        sampleColor: '#f8fbff',
+        movingPointColor: '#f3b45b',
+        animation: {
+            enabled: true,
+            speed: 2400,
+            trailSeconds: 10800,
+            leadSeconds: 0,
+            loop: true,
+            trackCamera: false,
+            autoPlay: true
+        }
+    });
 };
 
 const isGlobeMapExample = (kind: DemoKind): boolean =>
@@ -909,7 +961,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'cesium-route') {
         return [];
     }
     if (kind === 'column') {
@@ -1467,6 +1519,35 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'cesium-route') {
+        return `import "cesium/Build/Cesium/Widgets/widgets.css";
+import "@keneth80/k-chart-cesium/style.css";
+import { createCesiumGlobe } from "@keneth80/k-chart-cesium";
+
+const globe = createCesiumGlobe({
+    container: "#chart-div",
+    cesiumBaseUrl: "/cesium/"
+});
+
+globe.addRoute({
+    id: "pacific-route",
+    name: "Seoul to San Francisco",
+    data: [
+        { label: "Seoul", time: "2026-06-22T00:00:00Z", lat: 37.5665, lon: 126.978, altitude: 120000 },
+        { label: "Tokyo", time: "2026-06-22T01:00:00Z", lat: 35.6762, lon: 139.6503, altitude: 240000 },
+        { label: "Honolulu", time: "2026-06-22T04:00:00Z", lat: 21.3099, lon: -157.8581, altitude: 360000 },
+        { label: "San Francisco", time: "2026-06-22T07:00:00Z", lat: 37.7749, lon: -122.4194, altitude: 120000 }
+    ],
+    color: "#5db8ff",
+    showSamples: true,
+    animation: {
+        enabled: true,
+        speed: 2400,
+        trailSeconds: 10800,
+        loop: true
+    }
+});`;
+    }
     const selected = examples.find((example) => example.kind === kind);
     const isUsageGlobeMap = isGlobeMapExample(kind);
     const hasUsageSpecAreas = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'option-spec-area';
@@ -1836,6 +1917,8 @@ const renderExample = (kind: DemoKind): void => {
 
     activeKind = kind;
     chart?.destroy();
+    cesiumController?.destroy();
+    cesiumController = undefined;
     mapLibreController?.destroy();
     mapLibreController = undefined;
     mapLibreBridge = undefined;
@@ -1845,8 +1928,13 @@ const renderExample = (kind: DemoKind): void => {
     }
     chartRoot.classList.toggle('topology-chart', kind === 'topology');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
-    chart = createDemoChart(kind).render();
-    startExampleBehavior(kind);
+    if (kind === 'cesium-route') {
+        chart = null;
+        void setupCesiumDemo();
+    } else {
+        chart = createDemoChart(kind).render();
+        startExampleBehavior(kind);
+    }
 
     document.querySelectorAll<HTMLElement>('.example-card').forEach((button) => {
         button.classList.toggle('active', button.dataset.example === kind);

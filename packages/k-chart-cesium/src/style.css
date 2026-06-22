@@ -1,0 +1,18 @@
+.kchart-cesium {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: #050914;
+}
+
+.kchart-cesium .cesium-viewer,
+.kchart-cesium .cesium-viewer-cesiumWidgetContainer,
+.kchart-cesium .cesium-widget,
+.kchart-cesium canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.kchart-cesium .cesium-viewer-bottom {
+    font-size: 10px;
+}

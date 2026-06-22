@@ -94,6 +94,7 @@
         "@types/topojson-client": "^3.1.5",
         "babel-loader": "^10.1.1",
         "browser-sync-client": "^2.26.13",
+        "cesium": "^1.142.0",
         "clean-webpack-plugin": "^4.0.0",
         "copy-webpack-plugin": "^14.0.0",
         "core-js": "^3.49.0",

@@ -7,6 +7,8 @@
 - Added `drilldown.transition` with `warp`, `cloud`, and `none` modes.
 - Added a Canvas cloud-cover transition that waits for asynchronous external-map loading before revealing the destination.
 - Added reverse cloud cover when returning from a flat map to the globe.
+- Added the optional `@keneth80/k-chart-cesium` package for CesiumJS globes, static routes, timestamped movement playback, camera tracking, live route samples, and GeoJSON `LineString` input.
+- Added a lazy-loaded Cesium route demo and Webpack asset deployment for Cesium Workers, ThirdParty, Assets, and Widgets.
 
 ### Changed
 
