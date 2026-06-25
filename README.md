@@ -348,8 +348,15 @@ For a full WebGL globe with time-based movement paths, use the optional
 records, custom field mappings, or GeoJSON `LineString` routes. Timestamped
 records are converted to Cesium `SampledPositionProperty` samples and can be
 played through the Cesium clock with a moving marker, route trail, and optional
-camera tracking. The adapter uses OSM imagery without a token by default;
-Cesium ion credentials are only needed for ion terrain, buildings, or assets.
+camera tracking. The adapter is provider-neutral by default: applications pass their own
+`imageryProvider`, `terrainProvider`, optional `ionAccessToken`, and attribution.
+Cesium atmosphere and lighting correction is enabled by default through
+`realisticAtmosphere`, which adjusts only rendering settings and does not bundle
+map, terrain, satellite, or 3D Tiles data.
+CesiumJS is Apache-2.0 licensed, while Cesium ion and third-party map, terrain,
+satellite, place-search, or 3D Tiles services have separate terms. Do not
+hard-code private provider keys in reusable library code, and keep Cesium/provider
+credits and copyright notices visible.
 
 ```ts
 import {

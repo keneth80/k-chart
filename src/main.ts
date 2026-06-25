@@ -1,6 +1,7 @@
 import './style.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import { buildModuleUrl, TileMapServiceImageryProvider } from 'cesium';
 import '../packages/k-chart-maplibre/src/style.css';
 import '../packages/k-chart-cesium/src/style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
@@ -336,11 +337,22 @@ const setupCesiumDemo = async (): Promise<void> => {
     if (activeKind !== 'cesium-route') {
         return;
     }
+    const naturalEarthProvider = await TileMapServiceImageryProvider.fromUrl(
+        buildModuleUrl('Assets/Textures/NaturalEarthII')
+    );
     cesiumController = createCesiumGlobe({
         container: chartRoot,
         cesiumBaseUrl: '/cesium/',
+        imageryProvider: naturalEarthProvider,
+        attribution: 'Natural Earth II texture from CesiumJS assets',
         timeline: true,
-        animation: true
+        animation: true,
+        realisticAtmosphere: {
+            baseColor: '#0b2d59',
+            atmosphereLightIntensity: 14,
+            skyAtmosphereLightIntensity: 18,
+            skyAtmosphereSaturationShift: 0.08
+        }
     });
     cesiumController.addRoute({
         id: 'pacific-route',
@@ -1071,16 +1083,15 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 labelField: 'label',
                 initialRotate: [-120, -18, 0],
                 zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
-                sphereFill: 'rgba(14, 58, 91, 0.94)',
-                sphereStroke: 'rgba(148, 163, 184, 0.65)',
-                graticuleStroke: 'rgba(148, 163, 184, 0.24)',
-                landFill: '#22c55e',
-                landStroke: 'rgba(236, 253, 245, 0.72)',
-                landOpacity: 0.58,
-                countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
-                countryBordersStrokeWidth: 0.55,
+                landFill: '#6cab68',
+                landStroke: 'rgba(220, 252, 231, 0.48)',
+                landOpacity: 0.72,
+                countryBordersStroke: 'rgba(240, 253, 244, 0.18)',
+                countryBordersStrokeWidth: 0.5,
                 markerRadius: (point) => Number(point.radius) || 5,
-                markerColor: '#5db8ff',
+                markerColor: '#f8fbff',
+                markerStroke: '#38bdf8',
+                markerStrokeWidth: 1.8,
                 drilldown: {
                     enabled: true,
                     mode: drilldownMode,
@@ -1102,9 +1113,9 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                         }
                         : 'warp',
                     resetControl: true,
-                    landFill: '#38bdf8',
-                    landStroke: 'rgba(240, 249, 255, 0.78)',
-                    landOpacity: 0.5,
+                    landFill: '#7fb069',
+                    landStroke: 'rgba(240, 253, 244, 0.54)',
+                    landOpacity: 0.68,
                     onEnter: mapLibreBridge?.onEnter,
                     onExit: mapLibreBridge?.onExit
                 }
@@ -1377,11 +1388,13 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     labelField: 'label',
     initialRotate: [-120, -18, 0],
     zoom: { enabled: true, min: 0.65, max: 3, controls: { visible: true, x: 6, y: 6 } },
-    landFill: '#22c55e',
-    landStroke: 'rgba(236, 253, 245, 0.72)',
-    landOpacity: 0.58,
-    countryBordersStroke: 'rgba(236, 253, 245, 0.28)',
-    markerColor: '#5db8ff',
+    landFill: '#6cab68',
+    landStroke: 'rgba(220, 252, 231, 0.48)',
+    landOpacity: 0.72,
+    countryBordersStroke: 'rgba(240, 253, 244, 0.18)',
+    markerColor: '#f8fbff',
+    markerStroke: '#38bdf8',
+    markerStrokeWidth: 1.8,
     markerRadius: (point) => Number(point.radius) || 5,
     drilldown: {
         enabled: true,
@@ -1406,9 +1419,9 @@ const createSeriesSnippet = (kind: DemoKind): string => {
         resetControl: true,
         onEnter: mapBridge.onEnter,
         onExit: mapBridge.onExit,
-        landFill: '#38bdf8',
-        landStroke: 'rgba(240, 249, 255, 0.78)',
-        landOpacity: 0.5
+        landFill: '#7fb069',
+        landStroke: 'rgba(240, 253, 244, 0.54)',
+        landOpacity: 0.68
     }
 })`;
     }
@@ -1522,11 +1535,21 @@ const createUsageSnippet = (kind: DemoKind): string => {
     if (kind === 'cesium-route') {
         return `import "cesium/Build/Cesium/Widgets/widgets.css";
 import "@keneth80/k-chart-cesium/style.css";
+import * as Cesium from "cesium";
 import { createCesiumGlobe } from "@keneth80/k-chart-cesium";
 
 const globe = createCesiumGlobe({
     container: "#chart-div",
-    cesiumBaseUrl: "/cesium/"
+    cesiumBaseUrl: "/cesium/",
+    imageryProvider: await Cesium.TileMapServiceImageryProvider.fromUrl(
+        Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
+    ),
+    attribution: "Natural Earth II texture from CesiumJS assets",
+    realisticAtmosphere: {
+        baseColor: "#0b2d59",
+        atmosphereLightIntensity: 14,
+        skyAtmosphereLightIntensity: 18
+    }
 });
 
 globe.addRoute({

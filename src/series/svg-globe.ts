@@ -60,6 +60,9 @@ const resolveGlobeLandOpacity = (
     ? value(feature, index)
     : value ?? 0.88;
 
+const safeSvgId = (value: string): string =>
+    value.replace(/[^a-zA-Z0-9_-]/g, '-');
+
 const normalizeGlobeLandFeatures = (geoJson: any | any[]): any[] => {
     const values = Array.isArray(geoJson) ? geoJson : [geoJson];
     return values.flatMap((value) => {
@@ -361,6 +364,8 @@ export const createSvgGlobeSeries = <T = any>(
                 .center(focusedPoint ? [focusedPoint.lon, focusedPoint.lat] : [0, 0]);
             const path = geoPath(globeProjection);
             const mapPath = geoPath(mapProjection);
+            const gradientId = `kchart-globe-ocean-${safeSvgId(configuration.selector)}`;
+            const atmosphereId = `kchart-globe-atmosphere-${safeSvgId(configuration.selector)}`;
             const resolveGlobeCenter = (): [number, number] => {
                 const inverted = globeProjection.invert?.([centerX, centerY]) as [number, number] | null | undefined;
                 return inverted && Number.isFinite(inverted[0]) && Number.isFinite(inverted[1])
@@ -839,16 +844,72 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('cursor', configuration.draggable === false || viewMode === 'map' ? 'default' : dragging ? 'grabbing' : 'grab')
                     .style('touch-action', configuration.draggable === false && !zoomConfiguration.enabled ? null : 'none');
 
+                const defs = group.selectAll<SVGDefsElement, unknown>('defs.kchart-globe-defs')
+                    .data([undefined])
+                    .join('defs')
+                    .attr('class', 'kchart-globe-defs');
+
+                const oceanGradient = defs.selectAll<SVGRadialGradientElement, unknown>(`radialGradient#${gradientId}`)
+                    .data([undefined])
+                    .join('radialGradient')
+                    .attr('id', gradientId)
+                    .attr('cx', '35%')
+                    .attr('cy', '28%')
+                    .attr('r', '74%');
+
+                oceanGradient.selectAll<SVGStopElement, {offset: string; color: string}>('stop')
+                    .data([
+                        { offset: '0%', color: '#62c7f7' },
+                        { offset: '34%', color: '#2077b8' },
+                        { offset: '72%', color: '#0b3e73' },
+                        { offset: '100%', color: '#061a38' }
+                    ])
+                    .join('stop')
+                    .attr('offset', (datum) => datum.offset)
+                    .attr('stop-color', (datum) => datum.color);
+
+                const atmosphereGradient = defs.selectAll<SVGRadialGradientElement, unknown>(`radialGradient#${atmosphereId}`)
+                    .data([undefined])
+                    .join('radialGradient')
+                    .attr('id', atmosphereId)
+                    .attr('cx', '50%')
+                    .attr('cy', '50%')
+                    .attr('r', '54%');
+
+                atmosphereGradient.selectAll<SVGStopElement, {offset: string; color: string; opacity: number}>('stop')
+                    .data([
+                        { offset: '70%', color: '#ffffff', opacity: 0 },
+                        { offset: '88%', color: '#7dd3fc', opacity: 0.16 },
+                        { offset: '100%', color: '#dff6ff', opacity: 0.42 }
+                    ])
+                    .join('stop')
+                    .attr('offset', (datum) => datum.offset)
+                    .attr('stop-color', (datum) => datum.color)
+                    .attr('stop-opacity', (datum) => datum.opacity);
+
                 globeGroup.selectAll<SVGPathElement, unknown>('path.kchart-globe-sphere')
                     .data(viewMode === 'globe' ? [{ type: 'Sphere' }] : [])
                     .join('path')
                     .attr('class', 'kchart-globe-sphere')
                     .attr('d', (datum: any) => path(datum) ?? '')
-                    .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
-                    .style('stroke', configuration.sphereStroke ?? 'rgba(148, 163, 184, 0.62)')
+                    .style('fill', configuration.sphereFill ?? `url(#${gradientId})`)
+                    .style('stroke', configuration.sphereStroke ?? 'rgba(186, 230, 253, 0.72)')
                     .style('stroke-width', 1.2)
                     .style('pointer-events', 'all')
                     .lower();
+
+                globeGroup.selectAll<SVGCircleElement, unknown>('circle.kchart-globe-atmosphere')
+                    .data(viewMode === 'globe' ? [undefined] : [])
+                    .join('circle')
+                    .attr('class', 'kchart-globe-atmosphere')
+                    .attr('cx', centerX)
+                    .attr('cy', centerY)
+                    .attr('r', baseScale * zoomLevel)
+                    .style('fill', `url(#${atmosphereId})`)
+                    .style('stroke', 'rgba(186, 230, 253, 0.34)')
+                    .style('stroke-width', 3)
+                    .style('filter', 'drop-shadow(0 0 18px rgba(56, 189, 248, 0.2))')
+                    .style('pointer-events', 'none');
 
                 const defaultLandGeoJson = configuration.landMode === 'countries'
                     ? WORLD_COUNTRY_GEOJSON
@@ -877,7 +938,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .attr('y', 0)
                     .attr('width', width)
                     .attr('height', height)
-                    .style('fill', configuration.sphereFill ?? 'rgba(15, 23, 42, 0.92)')
+                    .style('fill', configuration.sphereFill ?? '#10233f')
                     .style('pointer-events', 'all')
                     .lower();
 
@@ -886,9 +947,9 @@ export const createSvgGlobeSeries = <T = any>(
                     .join('path')
                     .attr('class', 'kchart-globe-land')
                     .attr('d', (datum: any) => activePath(datum) ?? '')
-                    .style('fill', (datum, index) => resolveGlobeLandStyle(activeLandFill, datum, index, '#2dd4bf'))
+                    .style('fill', (datum, index) => resolveGlobeLandStyle(activeLandFill, datum, index, '#5fa96b'))
                     .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(activeLandOpacity, datum, index))
-                    .style('stroke', (datum, index) => resolveGlobeLandStyle(activeLandStroke, datum, index, 'rgba(236, 253, 245, 0.9)'))
+                    .style('stroke', (datum, index) => resolveGlobeLandStyle(activeLandStroke, datum, index, 'rgba(220, 252, 231, 0.54)'))
                     .style('stroke-width', 1)
                     .style('pointer-events', 'none');
 
@@ -898,7 +959,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .attr('class', 'kchart-globe-country-borders')
                     .attr('d', (datum: any) => activePath(datum) ?? '')
                     .style('fill', 'none')
-                    .style('stroke', configuration.countryBordersStroke ?? 'rgba(236, 253, 245, 0.26)')
+                    .style('stroke', configuration.countryBordersStroke ?? 'rgba(240, 253, 244, 0.2)')
                     .style('stroke-width', configuration.countryBordersStrokeWidth ?? 0.55)
                     .style('pointer-events', 'none');
 
@@ -908,9 +969,12 @@ export const createSvgGlobeSeries = <T = any>(
                     .attr('class', 'kchart-globe-graticule')
                     .attr('d', (datum: any) => activePath(datum) ?? '')
                     .style('fill', 'none')
-                    .style('stroke', configuration.graticuleStroke ?? 'rgba(148, 163, 184, 0.22)')
+                    .style('stroke', configuration.graticuleStroke ?? 'rgba(186, 230, 253, 0.14)')
                     .style('stroke-width', 0.8)
                     .style('pointer-events', 'none');
+
+                globeGroup.select<SVGCircleElement>('circle.kchart-globe-atmosphere')
+                    .raise();
 
                 const markerData = (viewMode === 'external-map' ? [] : data).map((point) => {
                     const lat = resolveGlobePointValue(point, configuration.latField);

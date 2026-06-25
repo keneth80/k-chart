@@ -2,13 +2,12 @@ import {
     Cartesian3,
     ClockRange,
     Color,
+    Credit,
     ColorMaterialProperty,
-    ConstantProperty,
     Entity,
     ImageryLayer,
     Ion,
     JulianDate,
-    OpenStreetMapImageryProvider,
     PathGraphics,
     PolylineGlowMaterialProperty,
     SampledPositionProperty,
@@ -17,7 +16,9 @@ import {
     TimeInterval,
     TimeIntervalCollection,
     VelocityOrientationProperty,
-    Viewer
+    Viewer,
+    type ImageryProvider,
+    type TerrainProvider
 } from 'cesium';
 
 export interface KChartCesiumRoutePoint {
@@ -82,15 +83,47 @@ export interface KChartCesiumRouteConfiguration<T = KChartCesiumRoutePoint> {
     }) => void;
 }
 
+export type KChartCesiumAttribution = string | Credit;
+
+export interface KChartCesiumAtmosphereConfiguration {
+    enabled?: boolean;
+    baseColor?: string;
+    enableLighting?: boolean;
+    lambertDiffuseMultiplier?: number;
+    showGroundAtmosphere?: boolean;
+    atmosphereLightIntensity?: number;
+    atmosphereRayleighCoefficient?: [number, number, number];
+    atmosphereMieCoefficient?: [number, number, number];
+    atmosphereRayleighScaleHeight?: number;
+    atmosphereMieScaleHeight?: number;
+    atmosphereMieAnisotropy?: number;
+    atmosphereHueShift?: number;
+    atmosphereSaturationShift?: number;
+    atmosphereBrightnessShift?: number;
+    skyAtmosphere?: boolean;
+    skyAtmosphereLightIntensity?: number;
+    skyAtmosphereRayleighCoefficient?: [number, number, number];
+    skyAtmosphereMieCoefficient?: [number, number, number];
+    skyAtmosphereSaturationShift?: number;
+    skyAtmosphereBrightnessShift?: number;
+}
+
 export interface KChartCesiumConfiguration {
     container: string | HTMLElement;
     cesiumBaseUrl?: string;
+    ionAccessToken?: string;
+    /** @deprecated Use ionAccessToken to make the Cesium ion service dependency explicit. */
     accessToken?: string;
+    imageryProvider?: ImageryProvider | ImageryLayer | false;
+    terrainProvider?: TerrainProvider;
+    attribution?: KChartCesiumAttribution | readonly KChartCesiumAttribution[];
+    /** @deprecated Create and pass OpenStreetMapImageryProvider through imageryProvider instead. */
     osmUrl?: string | false;
     viewerOptions?: Viewer.ConstructorOptions;
     requestRenderMode?: boolean;
     timeline?: boolean;
     animation?: boolean;
+    realisticAtmosphere?: boolean | KChartCesiumAtmosphereConfiguration;
 }
 
 export interface KChartCesiumRouteHandle<T = KChartCesiumRoutePoint> {
@@ -222,6 +255,69 @@ const resolveAnimation = (
 const toColor = (value: string | undefined, fallback: string): Color =>
     Color.fromCssColorString(value ?? fallback) ?? Color.WHITE;
 
+const toBaseLayer = (
+    provider: KChartCesiumConfiguration['imageryProvider']
+): ImageryLayer | false => {
+    if (!provider) return false;
+    return provider instanceof ImageryLayer ? provider : new ImageryLayer(provider);
+};
+
+const toCredit = (attribution: KChartCesiumAttribution): Credit =>
+    attribution instanceof Credit ? attribution : new Credit(attribution);
+
+const toCartesian3 = (
+    value: [number, number, number] | undefined,
+    fallback: [number, number, number]
+): Cartesian3 => new Cartesian3(...(value ?? fallback));
+
+const applyRealisticAtmosphere = (
+    viewer: Viewer,
+    configuration: KChartCesiumConfiguration['realisticAtmosphere']
+): void => {
+    const options = typeof configuration === 'object'
+        ? configuration
+        : {};
+    if (configuration === false || options.enabled === false) {
+        return;
+    }
+    const globe = viewer.scene.globe;
+    globe.baseColor = Color.fromCssColorString(options.baseColor ?? '#0b2d59') ?? Color.fromBytes(11, 45, 89);
+    globe.enableLighting = options.enableLighting ?? true;
+    globe.lambertDiffuseMultiplier = options.lambertDiffuseMultiplier ?? 0.92;
+    globe.showGroundAtmosphere = options.showGroundAtmosphere ?? true;
+    globe.atmosphereLightIntensity = options.atmosphereLightIntensity ?? 14;
+    globe.atmosphereRayleighCoefficient = toCartesian3(
+        options.atmosphereRayleighCoefficient,
+        [5.5e-6, 13.0e-6, 28.4e-6]
+    );
+    globe.atmosphereMieCoefficient = toCartesian3(
+        options.atmosphereMieCoefficient,
+        [21e-6, 21e-6, 21e-6]
+    );
+    globe.atmosphereRayleighScaleHeight = options.atmosphereRayleighScaleHeight ?? 10000;
+    globe.atmosphereMieScaleHeight = options.atmosphereMieScaleHeight ?? 3200;
+    globe.atmosphereMieAnisotropy = options.atmosphereMieAnisotropy ?? 0.9;
+    globe.atmosphereHueShift = options.atmosphereHueShift ?? 0;
+    globe.atmosphereSaturationShift = options.atmosphereSaturationShift ?? 0.04;
+    globe.atmosphereBrightnessShift = options.atmosphereBrightnessShift ?? 0.02;
+
+    if (viewer.scene.skyAtmosphere && options.skyAtmosphere !== false) {
+        viewer.scene.skyAtmosphere.show = true;
+        viewer.scene.skyAtmosphere.perFragmentAtmosphere = true;
+        viewer.scene.skyAtmosphere.atmosphereLightIntensity = options.skyAtmosphereLightIntensity ?? 18;
+        viewer.scene.skyAtmosphere.atmosphereRayleighCoefficient = toCartesian3(
+            options.skyAtmosphereRayleighCoefficient,
+            [5.8e-6, 13.5e-6, 33.1e-6]
+        );
+        viewer.scene.skyAtmosphere.atmosphereMieCoefficient = toCartesian3(
+            options.skyAtmosphereMieCoefficient,
+            [21e-6, 21e-6, 21e-6]
+        );
+        viewer.scene.skyAtmosphere.saturationShift = options.skyAtmosphereSaturationShift ?? 0.08;
+        viewer.scene.skyAtmosphere.brightnessShift = options.skyAtmosphereBrightnessShift ?? 0.03;
+    }
+};
+
 export const createCesiumGlobe = (
     configuration: KChartCesiumConfiguration
 ): KChartCesiumController => {
@@ -234,16 +330,12 @@ export const createCesiumGlobe = (
     if (configuration.cesiumBaseUrl) {
         (globalThis as any).CESIUM_BASE_URL = configuration.cesiumBaseUrl;
     }
-    if (configuration.accessToken) {
-        Ion.defaultAccessToken = configuration.accessToken;
+    const ionAccessToken = configuration.ionAccessToken ?? configuration.accessToken;
+    if (ionAccessToken) {
+        Ion.defaultAccessToken = ionAccessToken;
     }
 
-    const osmUrl = configuration.osmUrl === undefined
-        ? 'https://tile.openstreetmap.org/'
-        : configuration.osmUrl;
-    const baseLayer = osmUrl === false
-        ? false
-        : new ImageryLayer(new OpenStreetMapImageryProvider({url: osmUrl}));
+    const baseLayer = toBaseLayer(configuration.imageryProvider);
     const viewer = new Viewer(container, {
         animation: configuration.animation ?? true,
         timeline: configuration.timeline ?? true,
@@ -257,8 +349,18 @@ export const createCesiumGlobe = (
         infoBox: true,
         requestRenderMode: configuration.requestRenderMode ?? false,
         baseLayer,
+        terrainProvider: configuration.terrainProvider,
         ...configuration.viewerOptions
     });
+    const attributions = configuration.attribution === undefined
+        ? []
+        : Array.isArray(configuration.attribution)
+            ? configuration.attribution
+            : [configuration.attribution];
+    attributions.forEach((attribution) => {
+        viewer.creditDisplay.addStaticCredit(toCredit(attribution));
+    });
+    applyRealisticAtmosphere(viewer, configuration.realisticAtmosphere ?? true);
     const routes = new Map<string, RouteState>();
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 

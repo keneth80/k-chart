@@ -223,7 +223,7 @@ Important state fields:
 - Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
 - Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
 - `packages/k-chart-maplibre` provides `createMapLibreFlatMap`, `createMapLibreGlobeBridge`, `parseMapLibrePlaces`, and `createMapLibrePlaceResolver`. Provider-specific place records are normalized and validated before a city-indexed resolver supplies them to the globe bridge. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
-- `packages/k-chart-cesium` provides `createCesiumGlobe`. It remains outside the KChart core because CesiumJS has a large WebGL runtime and static worker/asset deployment requirements. The demo loads it through a dynamic import so ordinary chart examples do not download the Cesium runtime.
+- `packages/k-chart-cesium` provides `createCesiumGlobe`. It remains outside the KChart core because CesiumJS has a large WebGL runtime, static worker/asset deployment requirements, and separate provider licensing concerns. The adapter is provider-neutral: apps inject imagery/terrain providers, ion tokens, and attribution; its `realisticAtmosphere` option adjusts only Cesium lighting/base-color/scattering settings. The demo loads it through a dynamic import so ordinary chart examples do not download the Cesium runtime.
 
 ### External Packages Around This Library
 
