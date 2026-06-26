@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.8.2 - 2026-06-26
+
+### Added
+
+- Added `realisticAtmosphere.disableLightingInFlatModes` to `@keneth80/k-chart-cesium` so applications can choose whether Cesium lighting remains active in 2D and Columbus View flat-map modes.
+
+### Fixed
+
+- Disabled Cesium globe lighting, ground atmosphere, and sky atmosphere automatically in flat-map modes by default, preventing the 3D day/night shadow from covering flat maps.
+
+### Packages
+
+- Published `@keneth80/k-chart-cesium@0.1.5`.
+- Published `@keneth80/k-chart@1.8.2`.
+
 ## 1.8.1 - 2026-06-26
 
 ### Added

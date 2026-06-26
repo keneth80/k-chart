@@ -12,6 +12,7 @@ import {
     PathGraphics,
     PolylineGlowMaterialProperty,
     SampledPositionProperty,
+    SceneMode,
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
     TimeInterval,
@@ -108,6 +109,7 @@ export interface KChartCesiumAtmosphereConfiguration {
     skyAtmosphereMieCoefficient?: [number, number, number];
     skyAtmosphereSaturationShift?: number;
     skyAtmosphereBrightnessShift?: number;
+    disableLightingInFlatModes?: boolean;
 }
 
 export interface KChartCesiumInitialView {
@@ -285,18 +287,22 @@ const toCartesian3 = (
 const applyRealisticAtmosphere = (
     viewer: Viewer,
     configuration: KChartCesiumConfiguration['realisticAtmosphere']
-): void => {
+): (() => void) => {
     const options = typeof configuration === 'object'
         ? configuration
         : {};
     if (configuration === false || options.enabled === false) {
-        return;
+        return () => undefined;
     }
     const globe = viewer.scene.globe;
+    const enableLighting = options.enableLighting ?? true;
+    const showGroundAtmosphere = options.showGroundAtmosphere ?? true;
+    const showSkyAtmosphere = options.skyAtmosphere !== false;
+    const disableLightingInFlatModes = options.disableLightingInFlatModes ?? true;
     globe.baseColor = Color.fromCssColorString(options.baseColor ?? '#0b2d59') ?? Color.fromBytes(11, 45, 89);
-    globe.enableLighting = options.enableLighting ?? true;
+    globe.enableLighting = enableLighting;
     globe.lambertDiffuseMultiplier = options.lambertDiffuseMultiplier ?? 0.92;
-    globe.showGroundAtmosphere = options.showGroundAtmosphere ?? true;
+    globe.showGroundAtmosphere = showGroundAtmosphere;
     globe.atmosphereLightIntensity = options.atmosphereLightIntensity ?? 14;
     globe.atmosphereRayleighCoefficient = toCartesian3(
         options.atmosphereRayleighCoefficient,
@@ -313,8 +319,8 @@ const applyRealisticAtmosphere = (
     globe.atmosphereSaturationShift = options.atmosphereSaturationShift ?? 0.04;
     globe.atmosphereBrightnessShift = options.atmosphereBrightnessShift ?? 0.02;
 
-    if (viewer.scene.skyAtmosphere && options.skyAtmosphere !== false) {
-        viewer.scene.skyAtmosphere.show = true;
+    if (viewer.scene.skyAtmosphere && showSkyAtmosphere) {
+        viewer.scene.skyAtmosphere.show = showSkyAtmosphere;
         viewer.scene.skyAtmosphere.perFragmentAtmosphere = true;
         viewer.scene.skyAtmosphere.atmosphereLightIntensity = options.skyAtmosphereLightIntensity ?? 18;
         viewer.scene.skyAtmosphere.atmosphereRayleighCoefficient = toCartesian3(
@@ -328,6 +334,25 @@ const applyRealisticAtmosphere = (
         viewer.scene.skyAtmosphere.saturationShift = options.skyAtmosphereSaturationShift ?? 0.08;
         viewer.scene.skyAtmosphere.brightnessShift = options.skyAtmosphereBrightnessShift ?? 0.03;
     }
+
+    const syncSceneModeAtmosphere = (): void => {
+        const flatMode = viewer.scene.mode === SceneMode.SCENE2D
+            || viewer.scene.mode === SceneMode.COLUMBUS_VIEW;
+        const suppressLighting = disableLightingInFlatModes && flatMode;
+        globe.enableLighting = suppressLighting ? false : enableLighting;
+        globe.showGroundAtmosphere = suppressLighting ? false : showGroundAtmosphere;
+        if (viewer.scene.skyAtmosphere) {
+            viewer.scene.skyAtmosphere.show = suppressLighting ? false : showSkyAtmosphere;
+        }
+        viewer.scene.requestRender();
+    };
+
+    syncSceneModeAtmosphere();
+    viewer.scene.morphComplete.addEventListener(syncSceneModeAtmosphere);
+
+    return () => {
+        viewer.scene.morphComplete.removeEventListener(syncSceneModeAtmosphere);
+    };
 };
 
 const applyInitialView = (
@@ -394,7 +419,7 @@ export const createCesiumGlobe = (
     attributions.forEach((attribution) => {
         viewer.creditDisplay.addStaticCredit(toCredit(attribution));
     });
-    applyRealisticAtmosphere(viewer, configuration.realisticAtmosphere ?? true);
+    const cleanupAtmosphere = applyRealisticAtmosphere(viewer, configuration.realisticAtmosphere ?? true);
     applyInitialView(viewer, configuration.initialView);
     const routes = new Map<string, RouteState>();
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -616,6 +641,7 @@ export const createCesiumGlobe = (
             return viewer;
         },
         destroy() {
+            cleanupAtmosphere();
             clickHandler.destroy();
             routes.clear();
             if (!viewer.isDestroyed()) viewer.destroy();
