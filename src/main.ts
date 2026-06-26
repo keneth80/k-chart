@@ -364,6 +364,7 @@ const setupCesiumDemo = async (): Promise<void> => {
         showSamples: true,
         sampleColor: '#f8fbff',
         movingPointColor: '#f3b45b',
+        flyToOnAdd: false,
         animation: {
             enabled: true,
             speed: 2400,
@@ -1563,6 +1564,7 @@ globe.addRoute({
     ],
     color: "#5db8ff",
     showSamples: true,
+    flyToOnAdd: false,
     animation: {
         enabled: true,
         speed: 2400,
