@@ -74,6 +74,7 @@ export interface KChartCesiumRouteConfiguration<T = KChartCesiumRoutePoint> {
     sampleSize?: number;
     movingPointColor?: string;
     movingPointSize?: number;
+    flyToOnAdd?: boolean;
     animation?: boolean | KChartCesiumRouteAnimation;
     onClick?: (context: {
         id: string;
@@ -494,7 +495,9 @@ export const createCesiumGlobe = (
             sampleEntities
         };
         routes.set(routeConfiguration.id, state);
-        void viewer.flyTo([lineEntity, ...sampleEntities]);
+        if (routeConfiguration.flyToOnAdd !== false) {
+            void viewer.flyTo([lineEntity, ...sampleEntities]);
+        }
         return state;
     };
 

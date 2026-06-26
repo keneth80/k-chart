@@ -47,6 +47,8 @@ globe.addRoute({
   ],
   color: "#5db8ff",
   showSamples: true,
+  // Keep the initial Cesium home camera. Call handle.flyTo() later when needed.
+  flyToOnAdd: false,
   animation: {
     enabled: true,
     speed: 20,
@@ -90,6 +92,10 @@ globe.addRoute({
 
 Use `handle.addPoint(point)` for live samples and call `destroy()` when the
 view is removed.
+
+`flyToOnAdd` defaults to `true` for compatibility. Set it to `false` when the
+viewer uses Cesium timeline/animation controls and you want the first render to
+stay centered on the home camera instead of fitting the route immediately.
 
 ## Provider and license safety
 
