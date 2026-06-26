@@ -8,6 +8,7 @@ import {
     ImageryLayer,
     Ion,
     JulianDate,
+    Math as CesiumMath,
     PathGraphics,
     PolylineGlowMaterialProperty,
     SampledPositionProperty,
@@ -109,6 +110,15 @@ export interface KChartCesiumAtmosphereConfiguration {
     skyAtmosphereBrightnessShift?: number;
 }
 
+export interface KChartCesiumInitialView {
+    lon: number;
+    lat: number;
+    height?: number;
+    heading?: number;
+    pitch?: number;
+    roll?: number;
+}
+
 export interface KChartCesiumConfiguration {
     container: string | HTMLElement;
     cesiumBaseUrl?: string;
@@ -124,6 +134,7 @@ export interface KChartCesiumConfiguration {
     requestRenderMode?: boolean;
     timeline?: boolean;
     animation?: boolean;
+    initialView?: KChartCesiumInitialView;
     realisticAtmosphere?: boolean | KChartCesiumAtmosphereConfiguration;
 }
 
@@ -319,6 +330,28 @@ const applyRealisticAtmosphere = (
     }
 };
 
+const applyInitialView = (
+    viewer: Viewer,
+    initialView: KChartCesiumInitialView | undefined
+): void => {
+    if (!initialView) {
+        return;
+    }
+    viewer.camera.setView({
+        destination: Cartesian3.fromDegrees(
+            initialView.lon,
+            initialView.lat,
+            initialView.height ?? 22_000_000
+        ),
+        orientation: {
+            heading: CesiumMath.toRadians(initialView.heading ?? 0),
+            pitch: CesiumMath.toRadians(initialView.pitch ?? -90),
+            roll: CesiumMath.toRadians(initialView.roll ?? 0)
+        }
+    });
+    viewer.scene.requestRender();
+};
+
 export const createCesiumGlobe = (
     configuration: KChartCesiumConfiguration
 ): KChartCesiumController => {
@@ -362,6 +395,7 @@ export const createCesiumGlobe = (
         viewer.creditDisplay.addStaticCredit(toCredit(attribution));
     });
     applyRealisticAtmosphere(viewer, configuration.realisticAtmosphere ?? true);
+    applyInitialView(viewer, configuration.initialView);
     const routes = new Map<string, RouteState>();
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 

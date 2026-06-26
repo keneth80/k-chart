@@ -1,6 +1,6 @@
 {
   "name": "@keneth80/k-chart-cesium",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Optional CesiumJS 3D globe and animated route adapter for KChart.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

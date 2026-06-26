@@ -34,6 +34,11 @@ const globe = createCesiumGlobe({
     buildModuleUrl("Assets/Textures/NaturalEarthII")
   ),
   attribution: "Natural Earth II texture from CesiumJS assets",
+  initialView: {
+    lon: 165,
+    lat: 14,
+    height: 28000000
+  },
   realisticAtmosphere: true
 });
 
@@ -96,6 +101,11 @@ view is removed.
 `flyToOnAdd` defaults to `true` for compatibility. Set it to `false` when the
 viewer uses Cesium timeline/animation controls and you want the first render to
 stay centered on the home camera instead of fitting the route immediately.
+
+Use `initialView` to control the first camera position. Values are ordinary
+longitude/latitude degrees, plus an optional camera height in meters. This is
+useful when Cesium timeline or animation controls are visible and the default
+home camera feels too close to the lower UI.
 
 ## Provider and license safety
 

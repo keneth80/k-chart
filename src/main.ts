@@ -347,11 +347,16 @@ const setupCesiumDemo = async (): Promise<void> => {
         attribution: 'Natural Earth II texture from CesiumJS assets',
         timeline: true,
         animation: true,
+        initialView: {
+            lon: 165,
+            lat: 14,
+            height: 28_000_000
+        },
         realisticAtmosphere: {
             baseColor: '#0b2d59',
-            atmosphereLightIntensity: 14,
-            skyAtmosphereLightIntensity: 18,
-            skyAtmosphereSaturationShift: 0.08
+            atmosphereLightIntensity: 8,
+            skyAtmosphereLightIntensity: 10,
+            skyAtmosphereSaturationShift: 0.02
         }
     });
     cesiumController.addRoute({
@@ -1546,10 +1551,16 @@ const globe = createCesiumGlobe({
         Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
     ),
     attribution: "Natural Earth II texture from CesiumJS assets",
+    initialView: {
+        lon: 165,
+        lat: 14,
+        height: 28_000_000
+    },
     realisticAtmosphere: {
         baseColor: "#0b2d59",
-        atmosphereLightIntensity: 14,
-        skyAtmosphereLightIntensity: 18
+        atmosphereLightIntensity: 8,
+        skyAtmosphereLightIntensity: 10,
+        skyAtmosphereSaturationShift: 0.02
     }
 });
 
