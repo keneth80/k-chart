@@ -16,10 +16,10 @@ import {
     TimeInterval,
     TimeIntervalCollection,
     VelocityOrientationProperty,
-    Viewer,
     type ImageryProvider,
     type TerrainProvider
-} from 'cesium';
+} from '@cesium/engine';
+import { Viewer } from '@cesium/widgets';
 
 export interface KChartCesiumRoutePoint {
     lat: number;
