@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.8.1 - 2026-06-26
+
+### Added
+
+- Added `initialView` to `@keneth80/k-chart-cesium` so applications can set the first Cesium camera longitude, latitude, height, heading, pitch, and roll.
+- Documented practical Cesium route setup guidance for dashboard panels, including camera height recommendations, `flyToOnAdd`, Natural Earth imagery, and provider/license cautions.
+
+### Changed
+
+- Updated the Cesium route demo to start from a stable Asia-Pacific camera view instead of relying on Cesium's default home camera.
+- Reduced the demo atmosphere intensity so the Natural Earth texture remains visible instead of reading as a plain blue globe.
+
+### Fixed
+
+- Fixed the Cesium route demo appearing too low or too zoomed-in when timeline and animation controls were visible.
+
+### Packages
+
+- Published `@keneth80/k-chart-cesium@0.1.4`.
+- Published `@keneth80/k-chart@1.8.1`.
+
 ## 1.8.0 - 2026-06-25
 
 ### Added

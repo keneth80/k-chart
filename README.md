@@ -350,6 +350,11 @@ records are converted to Cesium `SampledPositionProperty` samples and can be
 played through the Cesium clock with a moving marker, route trail, and optional
 camera tracking. The adapter is provider-neutral by default: applications pass their own
 `imageryProvider`, `terrainProvider`, optional `ionAccessToken`, and attribution.
+Use `initialView` to set the first camera longitude, latitude, and height when
+the default Cesium home view is too close for a dashboard panel. When timeline
+or animation controls are visible, start farther out and set route
+`flyToOnAdd: false` so the first render stays centered; call `handle.flyTo()` or
+`controller.flyToRoute(id)` later when the user wants to focus the route.
 Cesium atmosphere and lighting correction is enabled by default through
 `realisticAtmosphere`, which adjusts only rendering settings and does not bundle
 map, terrain, satellite, or 3D Tiles data.
@@ -357,6 +362,10 @@ CesiumJS is Apache-2.0 licensed, while Cesium ion and third-party map, terrain,
 satellite, place-search, or 3D Tiles services have separate terms. Do not
 hard-code private provider keys in reusable library code, and keep Cesium/provider
 credits and copyright notices visible.
+
+Detailed Cesium usage, asset deployment, provider/license notes, and first-view
+camera tips are documented in
+[`packages/k-chart-cesium/README.md`](packages/k-chart-cesium/README.md).
 
 ```ts
 import {

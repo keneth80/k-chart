@@ -63,6 +63,62 @@ globe.addRoute({
 });
 ```
 
+## First-view camera
+
+Cesium's default home camera is intentionally generic. In a dashboard panel,
+especially when `timeline` and `animation` controls are visible, the default
+view can feel too close or visually low because the lower Cesium controls occupy
+part of the canvas. Prefer setting `initialView` for production examples:
+
+```ts
+const globe = createCesiumGlobe({
+  container: "#chart",
+  cesiumBaseUrl: "/cesium",
+  imageryProvider,
+  timeline: true,
+  animation: true,
+  initialView: {
+    // Ordinary longitude/latitude degrees.
+    lon: 165,
+    lat: 14,
+    // Camera height in meters. Use a larger value when timeline controls are shown.
+    height: 28000000
+  }
+});
+```
+
+Good starting points:
+
+- Global route preview: `height` around `24_000_000` to `32_000_000`.
+- City or regional preview: `height` around `2_000_000` to `8_000_000`.
+- With `timeline: true` and `animation: true`, start farther out so the globe
+  is not hidden behind the timeline and animation widget.
+
+`flyToOnAdd` controls whether a route immediately changes the camera after it
+is added. It defaults to `true` for compatibility. For curated demo screens,
+set `flyToOnAdd: false`, keep a stable `initialView`, and call
+`handle.flyTo()` or `controller.flyToRoute(id)` only when the user requests it:
+
+```ts
+const route = globe.addRoute({
+  id: "pacific-route",
+  data,
+  flyToOnAdd: false,
+  animation: true
+});
+
+// Later, for example from a button click:
+await route.flyTo();
+```
+
+If the globe looks like a plain blue sphere, check three things before tuning
+the shader values:
+
+- The selected `initialView` is not centered over open ocean only.
+- A real `imageryProvider` is passed and Cesium assets are being served.
+- `realisticAtmosphere` intensity values are not so high that they wash out the
+  Natural Earth or satellite texture.
+
 Custom records can map fields without reshaping the source data:
 
 ```ts
@@ -97,10 +153,6 @@ globe.addRoute({
 
 Use `handle.addPoint(point)` for live samples and call `destroy()` when the
 view is removed.
-
-`flyToOnAdd` defaults to `true` for compatibility. Set it to `false` when the
-viewer uses Cesium timeline/animation controls and you want the first render to
-stay centered on the home camera instead of fitting the route immediately.
 
 Use `initialView` to control the first camera position. Values are ordinary
 longitude/latitude degrees, plus an optional camera height in meters. This is
