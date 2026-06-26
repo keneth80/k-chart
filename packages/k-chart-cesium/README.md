@@ -187,7 +187,8 @@ const globe = createCesiumGlobe({
   realisticAtmosphere: {
     baseColor: "#0b2d59",
     atmosphereLightIntensity: 14,
-    skyAtmosphereLightIntensity: 18
+    skyAtmosphereLightIntensity: 18,
+    disableLightingInFlatModes: true
   }
 });
 ```
@@ -203,6 +204,13 @@ settings such as globe base color, sun lighting, ground atmosphere, and sky
 atmosphere scattering. It does not fetch or bundle satellite imagery, terrain,
 3D Tiles, or provider data. Set `realisticAtmosphere: false` to disable it, or
 pass an object to tune the atmosphere values.
+
+When the Cesium scene mode is switched to 2D or Columbus View, KChart disables
+globe lighting, ground atmosphere, and sky atmosphere by default. This avoids
+the 3D day/night terminator shadow being painted over flat maps. Set
+`realisticAtmosphere.disableLightingInFlatModes: false` only when your
+application intentionally wants Cesium lighting effects to remain in flat map
+modes.
 
 CesiumJS itself is Apache-2.0 licensed, but Cesium ion and third-party imagery,
 terrain, satellite, vector, geocoding, place-search, or 3D Tiles services have

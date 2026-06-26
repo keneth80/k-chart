@@ -357,7 +357,11 @@ or animation controls are visible, start farther out and set route
 `controller.flyToRoute(id)` later when the user wants to focus the route.
 Cesium atmosphere and lighting correction is enabled by default through
 `realisticAtmosphere`, which adjusts only rendering settings and does not bundle
-map, terrain, satellite, or 3D Tiles data.
+map, terrain, satellite, or 3D Tiles data. In 2D and Columbus View flat-map
+modes, KChart disables Cesium lighting and atmosphere by default so the
+day/night globe shadow does not cover the map; set
+`realisticAtmosphere.disableLightingInFlatModes: false` only if that lighting is
+intentional.
 CesiumJS is Apache-2.0 licensed, while Cesium ion and third-party map, terrain,
 satellite, place-search, or 3D Tiles services have separate terms. Do not
 hard-code private provider keys in reusable library code, and keep Cesium/provider
