@@ -99,6 +99,7 @@ Then open `http://127.0.0.1:9003/`.
 - [Canvas Candlestick Example](examples/canvas-candlestick-series.ts)
 - [SVG Globe Map Example](examples/svg-globe-map-series.ts)
 - [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
+- [CesiumJS 3D Route Adapter](packages/k-chart-cesium/README.md)
 
 ## Module Structure
 
@@ -338,9 +339,33 @@ createKChart<StockPoint>({
 
 ## Globe Map
 
-SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks focus a coordinate with a short warp overlay. `drilldown.mode: 'zoom'` keeps the orthographic globe and zooms into the marker, while `mode: 'map'` switches to a focused Mercator map. With `autoMapOnZoom: true`, zooming past `mapZoomThreshold` automatically selects the registered city nearest the center of the visible globe and switches to the flat map. Zooming back below `globeZoomThreshold` returns to the globe.
+SVG globe series renders latitude/longitude markers on a draggable orthographic globe. Marker coordinates use ordinary geographic values: `lat` for latitude and `lon` for longitude. Click handlers receive the original data item, projected screen position, and the original browser event. A World Atlas 110m land layer is rendered by default with country borders as a separate mesh; set `landVisible: false` to hide it, or pass `landGeoJson` to use your own GeoJSON land/country data. `landMode: 'countries'` switches the fill layer to country features so `landFill`, `landStroke`, and `landOpacity` callbacks can style countries per feature. Set `zoom: { enabled: true }` to enable wheel zoom on desktop and pinch zoom on touch devices. Add `controls: true` to show in-chart zoom controls when page scrolling makes wheel zoom awkward. Set `drilldown.enabled` to let marker clicks focus a coordinate with a transition overlay. `transition` accepts `'warp'`, `'cloud'`, or `'none'`; the cloud transition keeps the destination covered until an asynchronous `onEnter` callback has finished loading. `drilldown.mode: 'zoom'` keeps the orthographic globe and zooms into the marker, while `mode: 'map'` switches to a focused Mercator map. With `autoMapOnZoom: true`, zooming past `mapZoomThreshold` automatically selects the registered city nearest the center of the visible globe and switches to the flat map. Zooming back below `globeZoomThreshold` returns to the globe.
 
-Use `drilldown.mode: 'external-map'` with `@keneth80/k-chart-maplibre` when the destination needs real vector/raster map tiles, roads, interactive place markers, clustering, and popups. The `onEnter` context includes `exit()`, allowing the external map's back control to restore the globe. MapLibre renders the map but does not provide restaurant or address search data; connect a separate place/geocoding provider and pass the resulting coordinates to `setPlaces()` or `addPlaces()`.
+Use `drilldown.mode: 'external-map'` with `@keneth80/k-chart-maplibre` when the destination needs real vector/raster map tiles, roads, interactive place markers, clustering, and popups. The `onEnter` context includes `exit()`, allowing the external map's back control to restore the globe. Cloud timing can be controlled with `duration`, or separately with `coverDuration` and `revealDuration`. Set `respectReducedMotion: false` when those exact durations must be preserved even if the operating system requests reduced motion. MapLibre renders the map but does not provide restaurant or address search data; connect a separate place/geocoding provider and pass the resulting coordinates to `setPlaces()` or `addPlaces()`.
+
+For a full WebGL globe with time-based movement paths, use the optional
+`@keneth80/k-chart-cesium` package. It accepts ordinary latitude/longitude
+records, custom field mappings, or GeoJSON `LineString` routes. Timestamped
+records are converted to Cesium `SampledPositionProperty` samples and can be
+played through the Cesium clock with a moving marker, route trail, and optional
+camera tracking. The adapter is provider-neutral by default: applications pass their own
+`imageryProvider`, `terrainProvider`, optional `ionAccessToken`, and attribution.
+Use `initialView` to set the first camera longitude, latitude, and height when
+the default Cesium home view is too close for a dashboard panel. When timeline
+or animation controls are visible, start farther out and set route
+`flyToOnAdd: false` so the first render stays centered; call `handle.flyTo()` or
+`controller.flyToRoute(id)` later when the user wants to focus the route.
+Cesium atmosphere and lighting correction is enabled by default through
+`realisticAtmosphere`, which adjusts only rendering settings and does not bundle
+map, terrain, satellite, or 3D Tiles data.
+CesiumJS is Apache-2.0 licensed, while Cesium ion and third-party map, terrain,
+satellite, place-search, or 3D Tiles services have separate terms. Do not
+hard-code private provider keys in reusable library code, and keep Cesium/provider
+credits and copyright notices visible.
+
+Detailed Cesium usage, asset deployment, provider/license notes, and first-view
+camera tips are documented in
+[`packages/k-chart-cesium/README.md`](packages/k-chart-cesium/README.md).
 
 ```ts
 import {
@@ -388,6 +413,15 @@ createKChart<CityPoint>({
                 focusZoom: 2.7,
                 zoomScale: 7,
                 duration: 1200,
+                transition: {
+                    type: 'cloud',
+                    duration: 5000,
+                    coverDuration: 3200,
+                    revealDuration: 1800,
+                    respectReducedMotion: false,
+                    density: 0.86,
+                    blur: 20
+                },
                 resetControl: true
             },
             onMarkerClick: ({ data }) => {

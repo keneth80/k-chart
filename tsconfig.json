@@ -17,6 +17,7 @@
         "noImplicitAny": false,
         "strictNullChecks": false,
         "strictPropertyInitialization": false,
+        "skipLibCheck": true,
         // produce a source map
         "sourceMap": true,
         "rootDir": ".",

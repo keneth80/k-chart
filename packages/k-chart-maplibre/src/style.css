@@ -11,9 +11,11 @@
     display: none;
 }
 
-.kchart-maplibre-canvas {
+.kchart-maplibre-overlay > .kchart-maplibre-canvas {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
 .kchart-maplibre-toolbar {

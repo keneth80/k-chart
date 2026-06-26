@@ -1,0 +1,44 @@
+{
+  "name": "@keneth80/k-chart-cesium",
+  "version": "0.1.4",
+  "description": "Optional CesiumJS 3D globe and animated route adapter for KChart.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./style.css": "./src/style.css"
+  },
+  "files": [
+    "lib",
+    "src/style.css",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "k-chart",
+    "cesium",
+    "globe",
+    "route",
+    "geospatial"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@cesium/engine": ">=26.0.0",
+    "@cesium/widgets": ">=16.0.0",
+    "cesium": ">=1.120.0"
+  },
+  "devDependencies": {
+    "@cesium/engine": "^26.0.0",
+    "@cesium/widgets": "^16.0.0",
+    "cesium": "^1.142.0",
+    "typescript": "^6.0.3"
+  }
+}

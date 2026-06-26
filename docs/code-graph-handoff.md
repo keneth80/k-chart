@@ -170,8 +170,9 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
 | WebGL series | `createWebglLineSeries`, `createWebglPointSeries` | Render WebGL line/point visuals. |
 | Worker rendering | `startKChartRenderWorker`, `src/kchart-render.worker.ts` | OffscreenCanvas worker bootstrap and async line drawing. |
-| Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp transition, and drilldown lifecycle. |
+| Globe rendering | `createSvgGlobeSeries` | Orthographic globe, drag rotation, zoom controls, marker interaction, warp/cloud transitions, and drilldown lifecycle. |
 | Flat map adapter | `packages/k-chart-maplibre` | Optional MapLibre tile-map overlay, place markers, address popups, and return-to-globe bridge. |
+| Cesium adapter | `packages/k-chart-cesium` | Optional CesiumJS 3D globe with static paths, clock-driven movement routes, camera tracking, live samples, and GeoJSON `LineString` input. |
 
 ## Data And Interaction Flow
 
@@ -218,14 +219,17 @@ Important state fields:
 - Candlestick color modes support both `open-close` and `previous-close`; `previousCloseField` can point to an explicit previous close value.
 - Globe map series uses `d3-geo` and expects ordinary `lat`/`lon` fields. It renders a built-in World Atlas 110m land layer plus country border mesh by default, accepts external GeoJSON through `landGeoJson`, supports country feature styling through `landMode: 'countries'`, `landFill`, `landStroke`, and `landOpacity`, and can enable wheel/pinch scaling plus in-chart zoom buttons through the `zoom` option.
 - Globe drilldown supports `zoom`, internal `map`, and external `external-map` modes.
+- Globe drilldown transition supports `warp`, Canvas-based `cloud`, and `none`. Cloud cover remains above the chart and external MapLibre overlay until asynchronous `onEnter` or `onExit` work finishes.
 - Automatic external-map drilldown stores the globe center when dragging stops and warps from that settled coordinate without recentering the globe.
 - Direct marker activation remains a city-focused transition. It fires on pointer release only when movement stays within 5px, preventing marker drags from being treated as clicks.
 - `packages/k-chart-maplibre` provides `createMapLibreFlatMap`, `createMapLibreGlobeBridge`, `parseMapLibrePlaces`, and `createMapLibrePlaceResolver`. Provider-specific place records are normalized and validated before a city-indexed resolver supplies them to the globe bridge. A reused map is positioned at the next destination before its overlay is revealed, preventing the previous city from flashing.
+- `packages/k-chart-cesium` provides `createCesiumGlobe`. It remains outside the KChart core because CesiumJS has a large WebGL runtime, static worker/asset deployment requirements, and separate provider licensing concerns. The adapter is provider-neutral: apps inject imagery/terrain providers, ion tokens, and attribution; its `realisticAtmosphere` option adjusts only Cesium lighting/base-color/scattering settings. The demo loads it through a dynamic import so ordinary chart examples do not download the Cesium runtime.
 
 ### External Packages Around This Library
 
 - `@keneth80/k-chart-react`: separate React wrapper package.
 - `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
+- `@keneth80/k-chart-cesium`: optional CesiumJS globe and movement-route adapter stored in this repository under `packages/k-chart-cesium`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
 - Three.js integration is currently an optional custom-series example on `feature/three-constellation-series`, not a core runtime dependency. The demo uses `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
 

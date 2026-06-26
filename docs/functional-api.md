@@ -199,7 +199,7 @@ const chart = createKChart<StockPoint>({
 
 ## Built-In SVG Globe Series
 
-지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다. 기본값으로 World Atlas 110m land layer와 국가 경계 mesh가 표시되며, `landVisible: false`로 끄거나 `landGeoJson`으로 더 정교한 GeoJSON을 교체할 수 있습니다. 나라별 색상 지정이 필요하면 `landMode: 'countries'`를 사용하고 `landFill`, `landStroke`, `landOpacity` callback을 feature 기준으로 지정합니다. `zoom: { enabled: true }`를 지정하면 데스크톱에서는 wheel zoom, 터치 장치에서는 pinch zoom을 사용할 수 있습니다. 페이지 스크롤 때문에 wheel zoom을 쓰기 어려우면 `controls: true`로 차트 오른쪽 상단의 zoom control을 표시할 수 있습니다. `drilldown.enabled`를 켜면 마커 클릭 시 워프 효과와 함께 해당 좌표를 포커싱합니다. `mode: 'zoom'`은 기존 지구본을 유지한 채 좌표로 줌인하고, `mode: 'map'`은 해당 좌표 중심의 Mercator 평면 지도 모드로 전환합니다. `autoMapOnZoom: true`를 사용하면 `mapZoomThreshold` 이상의 확대에서 현재 지구본 정면 중심과 가장 가까운 등록 도시를 선택해 평면 지도로 자동 전환하고, `globeZoomThreshold` 이하로 축소하면 지구본으로 돌아옵니다.
+지도/지구본 데이터는 `createSvgGlobeSeries`로 렌더링합니다. 좌표는 일반 위도/경도 값을 그대로 사용하며, 내부에서는 `projection([lon, lat])`로 변환합니다. 마커 클릭 시 원본 데이터, 위도/경도, 화면 좌표, 브라우저 이벤트를 callback으로 받을 수 있습니다. 기본값으로 World Atlas 110m land layer와 국가 경계 mesh가 표시되며, `landVisible: false`로 끄거나 `landGeoJson`으로 더 정교한 GeoJSON을 교체할 수 있습니다. 나라별 색상 지정이 필요하면 `landMode: 'countries'`를 사용하고 `landFill`, `landStroke`, `landOpacity` callback을 feature 기준으로 지정합니다. `zoom: { enabled: true }`를 지정하면 데스크톱에서는 wheel zoom, 터치 장치에서는 pinch zoom을 사용할 수 있습니다. 페이지 스크롤 때문에 wheel zoom을 쓰기 어려우면 `controls: true`로 차트 오른쪽 상단의 zoom control을 표시할 수 있습니다. `drilldown.enabled`를 켜면 마커 클릭 시 전환 효과와 함께 해당 좌표를 포커싱합니다. `transition`은 `'warp'`, `'cloud'`, `'none'`을 지원합니다. `cloud`는 Canvas 구름이 화면을 덮은 뒤 목적 화면으로 교체하고, 비동기 `onEnter`가 완료될 때까지 덮인 상태를 유지한 다음 구름을 걷어냅니다. `mode: 'zoom'`은 기존 지구본을 유지한 채 좌표로 줌인하고, `mode: 'map'`은 해당 좌표 중심의 Mercator 평면 지도 모드로 전환합니다. `autoMapOnZoom: true`를 사용하면 `mapZoomThreshold` 이상의 확대에서 현재 지구본 정면 중심과 가장 가까운 등록 도시를 선택해 평면 지도로 자동 전환하고, `globeZoomThreshold` 이하로 축소하면 지구본으로 돌아옵니다.
 
 ```ts
 interface CityPoint {
@@ -242,6 +242,16 @@ const chart = createKChart<CityPoint>({
                 focusZoom: 2.7,
                 zoomScale: 7,
                 duration: 1200,
+                transition: {
+                    type: 'cloud',
+                    duration: 5000,
+                    coverDuration: 3200,
+                    revealDuration: 1800,
+                    respectReducedMotion: false,
+                    color: '#f5f7fa',
+                    density: 0.86,
+                    blur: 20
+                },
                 resetControl: true
             },
             markerColor: '#5db8ff',
@@ -253,7 +263,7 @@ const chart = createKChart<CityPoint>({
 });
 ```
 
-`draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `controls: true`를 지정하면 `+`, 현재 배율, `-` 버튼이 표시되고 현재 배율 버튼은 1x로 리셋합니다. `controls: { visible: true, x, y }`의 `x`, `y`는 차트 전체 SVG의 오른쪽/위쪽 edge 기준 offset입니다. `drilldown` 기본값은 비활성화이며, `drilldown: { enabled: true, mode: 'zoom', focusZoom: 2.7 }`로 켜면 선택 좌표가 중앙에 오도록 지구본을 회전하고 확대합니다. 기존 평면 지도 전환이 필요하면 `mode: 'map'`과 `zoomScale`을 사용합니다. 자동 전환은 `autoMapOnZoom`, `mapZoomThreshold`, `globeZoomThreshold`로 제어합니다. 두 임계값을 다르게 두는 이유는 경계 배율에서 지구본과 지도가 반복 전환되는 현상을 막기 위한 hysteresis입니다. `resetControl`이 true이면 포커스 상태에서 `G` 버튼으로 이전 지구본 상태로 돌아갑니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
+`draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `controls: true`를 지정하면 `+`, 현재 배율, `-` 버튼이 표시되고 현재 배율 버튼은 1x로 리셋합니다. `controls: { visible: true, x, y }`의 `x`, `y`는 차트 전체 SVG의 오른쪽/위쪽 edge 기준 offset입니다. `drilldown` 기본값은 비활성화이며, `drilldown: { enabled: true, mode: 'zoom', focusZoom: 2.7 }`로 켜면 선택 좌표가 중앙에 오도록 지구본을 회전하고 확대합니다. `transition` 기본값은 `'warp'`입니다. 구름 전환은 `duration`으로 총 시간을 지정하거나 `coverDuration`과 `revealDuration`으로 덮이는 시간과 걷히는 시간을 각각 지정할 수 있습니다. `respectReducedMotion`의 기본값은 `true`이며 운영체제의 동작 줄이기 설정에서 최대 1.2초로 단축합니다. 지정한 시간을 항상 그대로 사용하려면 `respectReducedMotion: false`를 설정합니다. `color`, `density`, `blur`로 구름의 색상과 밀도를 조절할 수 있습니다. 기존 평면 지도 전환이 필요하면 `mode: 'map'`과 `zoomScale`을 사용합니다. 자동 전환은 `autoMapOnZoom`, `mapZoomThreshold`, `globeZoomThreshold`로 제어합니다. 두 임계값을 다르게 두는 이유는 경계 배율에서 지구본과 지도가 반복 전환되는 현상을 막기 위한 hysteresis입니다. `resetControl`이 true이면 포커스 상태에서 `G` 버튼으로 이전 지구본 상태로 돌아갑니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
 
 실제 도로·건물 타일 지도가 필요한 경우 `mode: 'external-map'`을 사용합니다. 이 모드에서는 KChart가 내부 SVG 평면도를 그리지 않고 `onEnter` 콜백에 `{ data, lat, lon, exit }`를 전달합니다. `@keneth80/k-chart-maplibre` 어댑터는 이 컨텍스트를 받아 MapLibre 지도를 표시하며, 어댑터의 `G` 버튼은 `exit()`을 호출해 지구본으로 복귀합니다. MapLibre는 지도 렌더러이므로 주소 변환과 맛집 검색은 Kakao Local API, Naver Maps, MapTiler Geocoding 등 별도 공급자에서 받아 장소 좌표 데이터로 전달해야 합니다.
 

@@ -221,6 +221,19 @@ export interface KChartGlobeDrilldownContext<T = any> {
 
 export type KChartGlobeDrilldownMode = 'map' | 'zoom' | 'external-map';
 
+export type KChartGlobeTransitionType = 'warp' | 'cloud' | 'none';
+
+export interface KChartGlobeTransitionConfiguration {
+    type?: KChartGlobeTransitionType;
+    duration?: number;
+    coverDuration?: number;
+    revealDuration?: number;
+    respectReducedMotion?: boolean;
+    color?: string;
+    density?: number;
+    blur?: number;
+}
+
 export interface KChartGlobeDrilldownConfiguration<T = any> {
     enabled?: boolean;
     mode?: KChartGlobeDrilldownMode;
@@ -230,12 +243,13 @@ export interface KChartGlobeDrilldownConfiguration<T = any> {
     focusZoom?: number;
     zoomScale?: number;
     duration?: number;
+    transition?: KChartGlobeTransitionType | KChartGlobeTransitionConfiguration;
     resetControl?: boolean;
     landFill?: string | ((feature: any, index: number) => string);
     landStroke?: string | ((feature: any, index: number) => string);
     landOpacity?: number | ((feature: any, index: number) => number);
-    onEnter?: (context: KChartGlobeDrilldownContext<T>) => void;
-    onExit?: () => void;
+    onEnter?: (context: KChartGlobeDrilldownContext<T>) => void | Promise<void>;
+    onExit?: () => void | Promise<void>;
 }
 
 export interface KChartSvgGlobeSeriesConfiguration<T = any> {

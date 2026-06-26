@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.7.1",
+    "version": "1.8.1",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -94,6 +94,7 @@
         "@types/topojson-client": "^3.1.5",
         "babel-loader": "^10.1.1",
         "browser-sync-client": "^2.26.13",
+        "cesium": "^1.142.0",
         "clean-webpack-plugin": "^4.0.0",
         "copy-webpack-plugin": "^14.0.0",
         "core-js": "^3.49.0",

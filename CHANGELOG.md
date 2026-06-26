@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.8.1 - 2026-06-26
+
+### Added
+
+- Added `initialView` to `@keneth80/k-chart-cesium` so applications can set the first Cesium camera longitude, latitude, height, heading, pitch, and roll.
+- Documented practical Cesium route setup guidance for dashboard panels, including camera height recommendations, `flyToOnAdd`, Natural Earth imagery, and provider/license cautions.
+
+### Changed
+
+- Updated the Cesium route demo to start from a stable Asia-Pacific camera view instead of relying on Cesium's default home camera.
+- Reduced the demo atmosphere intensity so the Natural Earth texture remains visible instead of reading as a plain blue globe.
+
+### Fixed
+
+- Fixed the Cesium route demo appearing too low or too zoomed-in when timeline and animation controls were visible.
+
+### Packages
+
+- Published `@keneth80/k-chart-cesium@0.1.4`.
+- Published `@keneth80/k-chart@1.8.1`.
+
+## 1.8.0 - 2026-06-25
+
+### Added
+
+- Added `drilldown.transition` with `warp`, `cloud`, and `none` modes.
+- Added a Canvas cloud-cover transition that waits for asynchronous external-map loading before revealing the destination.
+- Added reverse cloud cover when returning from a flat map to the globe.
+- Added the optional `@keneth80/k-chart-cesium` package for CesiumJS globes, static routes, timestamped movement playback, camera tracking, live route samples, and GeoJSON `LineString` input.
+- Added a lazy-loaded Cesium route demo and Webpack asset deployment for Cesium Workers, ThirdParty, Assets, and Widgets.
+- Added provider-neutral Cesium imagery, terrain, ion token, and attribution injection so applications own their map-data licensing choices.
+- Added `realisticAtmosphere` for Cesium globe base color, sun lighting, ground atmosphere, and sky atmosphere tuning.
+- Added a more natural SVG globe ocean gradient, atmosphere glow, land palette, and marker styling.
+
+### Changed
+
+- Slowed the recommended cloud transition to five seconds and delayed the opaque cover until the clouds have visibly gathered.
+- Added separate `coverDuration` and `revealDuration` controls plus `respectReducedMotion` for preserving exact transition timing.
+- Updated the Cesium demo to use the bundled Natural Earth II texture provider instead of road-map tiles, making the globe read more like Earth while keeping provider selection explicit.
+- Documented CesiumJS, Cesium ion, and third-party provider licensing boundaries and clarified that KChart does not bundle map, terrain, satellite, or 3D Tiles data.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.8.0`.
+- Published `@keneth80/k-chart-cesium@0.1.0`.
+
 ## 1.7.1 - 2026-06-19
 
 ### Fixed
