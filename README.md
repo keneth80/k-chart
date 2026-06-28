@@ -32,11 +32,45 @@ createKChart(config)
 
 ### Three.js Custom Series
 
-Three.js는 KChart 코어 의존성이 아닙니다. 애플리케이션에서 `three`를 설치한 뒤
-`createCustomSeries(...)`와 `getWebglCanvas()`를 사용해 선택적으로 결합할 수 있습니다.
+Three.js는 KChart 코어 의존성이 아닙니다. 가벼운 3D scene wrapper와
+반도체 웨이퍼 모니터링 객체가 필요하면 optional package인
+`@keneth80/k-chart-three`를 설치합니다. 직접 renderer를 만들고 싶다면
+`createCustomSeries(...)`와 `getWebglCanvas()`를 사용해 선택적으로 결합할 수도 있습니다.
 
 ```bash
-npm install three
+npm install @keneth80/k-chart-three three
+```
+
+[`packages/k-chart-three`](packages/k-chart-three/README.md)는 renderer, camera,
+OrbitControls, resize, pointer event, dispose 생명주기를 처리하는
+`createKThreeScene(...)` wrapper를 제공합니다. `createThreeWaferSeries(...)`는
+KChart series contract에 맞춘 웨이퍼 모니터링 예제이며, die cell은
+`InstancedMesh`로 렌더링합니다.
+
+```ts
+import { createThreeWaferSeries, createWaferDies } from '@keneth80/k-chart-three';
+import '@keneth80/k-chart-three/style.css';
+
+const chart = createKChart({
+    selector: '#chart',
+    data: createWaferDies({ rows: 29, cols: 29 }),
+    axes: [],
+    grid: { visible: false },
+    legend: { visible: false },
+    series: [
+        createThreeWaferSeries({
+            selector: 'wafer-a17',
+            fields: {
+                id: 'id',
+                row: 'row',
+                col: 'col',
+                status: 'status',
+                value: 'value',
+                label: 'label'
+            }
+        })
+    ]
+});
 ```
 
 양자리의 실제 주요 별 배치를 기반으로 별 노드와 연결선을 3D로 표현하는 전체 예제는
@@ -100,6 +134,7 @@ Then open `http://127.0.0.1:9003/`.
 - [SVG Globe Map Example](examples/svg-globe-map-series.ts)
 - [MapLibre Globe Drilldown Adapter](packages/k-chart-maplibre/README.md)
 - [CesiumJS 3D Route Adapter](packages/k-chart-cesium/README.md)
+- [Three.js Scene And Wafer Adapter](packages/k-chart-three/README.md)
 
 ## Module Structure
 
