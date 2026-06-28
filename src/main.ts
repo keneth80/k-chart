@@ -4,6 +4,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { buildModuleUrl, TileMapServiceImageryProvider } from 'cesium';
 import '../packages/k-chart-maplibre/src/style.css';
 import '../packages/k-chart-cesium/src/style.css';
+import '../packages/k-chart-three/src/style.css';
 import { area as d3Area, linkVertical } from 'd3-shape';
 import {
     createMapLibreFlatMap,
@@ -20,6 +21,10 @@ import type {
     KChartCesiumController,
     KChartCesiumRoutePoint
 } from '../packages/k-chart-cesium/src';
+import {
+    createThreeWaferSeries,
+    createWaferDies
+} from '../packages/k-chart-three/src';
 import {
     createThreeConstellationSeries,
     ariesLinks,
@@ -78,6 +83,7 @@ type DemoKind =
     | 'tooltip-note'
     | 'topology'
     | 'three-constellation'
+    | 'three-wafer'
     | 'globe-map'
     | 'globe-map-drilldown'
     | 'cesium-route'
@@ -198,6 +204,19 @@ const createStockData = (length: number): DemoPoint[] => {
 };
 
 const stockData = createStockData(520);
+const waferData: DemoPoint[] = createWaferDies({
+    rows: 29,
+    cols: 29,
+    seed: 20260628
+}).map((die) => ({
+    ...die,
+    x: die.col,
+    value: die.value ?? 0,
+    volume: die.row,
+    extra: die.value ?? 0,
+    radius: 1,
+    category: die.status
+})) as DemoPoint[];
 
 const stockDomain = (): [string, string] => {
     const first = new Date(String(stockData[0].label));
@@ -291,6 +310,7 @@ const examples: ExampleMeta[] = [
     { kind: 'tooltip-note', title: 'Pinned tooltip notes', dataLabel: 'hover + memo' },
     { kind: 'topology', title: 'Topology renderer' },
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
+    { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Real time series API' },
@@ -975,11 +995,14 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
             category: 'Aries'
         })) as DemoPoint[];
     }
+    if (kind === 'three-wafer') {
+        return waferData;
+    }
     return baseData;
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'cesium-route') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route') {
         return [];
     }
     if (kind === 'column') {
@@ -1163,6 +1186,40 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             })
         ];
     }
+    if (kind === 'three-wafer') {
+        return [
+            createThreeWaferSeries<DemoPoint>({
+                selector: 'demo-three-wafer',
+                displayName: 'Wafer A-17',
+                fields: {
+                    id: 'id',
+                    row: 'row',
+                    col: 'col',
+                    status: 'status',
+                    value: 'value',
+                    label: 'label'
+                },
+                wafer: {
+                    radius: 5.4,
+                    color: '#263346',
+                    edgeColor: '#8bd3ff',
+                    notch: true
+                },
+                die: {
+                    width: 0.34,
+                    height: 0.34,
+                    gap: 0.055,
+                    maxExtrude: 0.74
+                },
+                label: {
+                    title: 'Wafer A-17 · hover a die'
+                },
+                onDieClick: ({die}) => {
+                    console.info(`[KChart Three] selected ${die.label}: ${die.category}`);
+                }
+            })
+        ];
+    }
     if (kind === 'circle') {
         return [circleSeries];
     }
@@ -1252,6 +1309,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
     const isThreeConstellation = kind === 'three-constellation';
+    const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
 
     return createKChart<DemoPoint>({
@@ -1262,14 +1320,14 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             : chartRoot?.clientWidth || 760,
         height: kind === 'topology'
             ? 620
-            : isThreeConstellation
+            : isThreeScene
                 ? 520
             : chartRoot?.clientHeight || 420,
         margin: kind === 'axis-custom-margin'
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
                 ? { top: 10, right: 10, bottom: 10, left: 10 }
-                : isThreeConstellation
+                : isThreeScene
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
@@ -1282,7 +1340,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGlobeMap && !isThreeConstellation,
+            visible: !isTopology && !isGlobeMap && !isThreeScene,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1290,11 +1348,11 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGlobeMap && !isThreeConstellation,
+            visible: kind !== 'topology' && !isGlobeMap && !isThreeScene,
             placement: 'top'
         },
         tooltip: {
-            visible: !isBigData && !isTopology && !isGlobeMap && !isThreeConstellation,
+            visible: !isBigData && !isTopology && !isGlobeMap && !isThreeScene,
             formatter: kind === 'tooltip-template'
                 ? ({ data: item }) => `<strong>${item.label}</strong><br/>Revenue ${item.value}<br/>Volume ${item.volume}`
                 : kind === 'tooltip-custom'
@@ -1310,7 +1368,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
-        axes: isTopology || isThreeConstellation ? [] : createAxes(kind),
+        axes: isTopology || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
     });
 };
@@ -1382,6 +1440,31 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     links: ariesLinks,
     autoRotate: true,
     onNodeClick: (node) => console.log(node.label)
+})`;
+    }
+    if (kind === 'three-wafer') {
+        return `createThreeWaferSeries({
+    selector: 'demo-three-wafer',
+    displayName: 'Wafer A-17',
+    fields: {
+        id: 'id',
+        row: 'row',
+        col: 'col',
+        status: 'status',
+        value: 'value',
+        label: 'label'
+    },
+    wafer: {
+        radius: 5.4,
+        notch: true
+    },
+    die: {
+        width: 0.34,
+        height: 0.34,
+        gap: 0.055,
+        maxExtrude: 0.74
+    },
+    onDieClick: ({ die }) => console.log(die)
 })`;
     }
     if (isGlobeMapExample(kind)) {
@@ -1602,6 +1685,8 @@ globe.addRoute({
                 ? 'stockData'
                 : kind === 'three-constellation'
                     ? 'ariesNodes'
+                    : kind === 'three-wafer'
+                        ? 'waferData'
                 : isUsageGlobeMap
                     ? 'globeData'
                     : 'baseData';
@@ -1631,6 +1716,23 @@ const ariesLinks = [
     { source: 'hamal', target: 'botein' },
     { source: 'hamal', target: 'bharani' }
 ];
+`
+        : kind === 'three-wafer'
+        ? `
+type WaferDie = {
+    id: string;
+    label: string;
+    row: number;
+    col: number;
+    status: 'pass' | 'warn' | 'fail';
+    value: number;
+};
+
+const waferData: WaferDie[] = createWaferDies({
+    rows: 29,
+    cols: 29,
+    seed: 20260628
+});
 `
         : kind === 'canvas-candlestick'
         ? `
@@ -1809,6 +1911,11 @@ const baseData = [
 ${kind === 'three-constellation' ? `import {
     createThreeConstellationSeries
 } from './three-constellation-series';
+` : ''}${kind === 'three-wafer' ? `import {
+    createThreeWaferSeries,
+    createWaferDies
+} from '@keneth80/k-chart-three';
+import '@keneth80/k-chart-three/style.css';
 ` : ''}${kind === 'globe-map-drilldown' ? `import {
     createMapLibreFlatMap,
     createMapLibreGlobeBridge,
@@ -1822,13 +1929,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : kind === 'three-wafer' ? 'WaferDie' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
+    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -1859,7 +1966,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'three-constellation' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
@@ -1872,7 +1979,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || kind === 'three-constellation' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

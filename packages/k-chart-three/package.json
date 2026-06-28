@@ -1,0 +1,44 @@
+{
+  "name": "@keneth80/k-chart-three",
+  "version": "0.1.0",
+  "description": "Optional Three.js scene wrapper and 3D monitoring objects for KChart.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./style.css": "./src/style.css"
+  },
+  "files": [
+    "lib",
+    "src/style.css",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "k-chart",
+    "three",
+    "threejs",
+    "wafer",
+    "semiconductor",
+    "monitoring"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@keneth80/k-chart": ">=1.8.0",
+    "three": ">=0.160.0"
+  },
+  "devDependencies": {
+    "@keneth80/k-chart": "file:../..",
+    "@types/three": "^0.185.0",
+    "three": "^0.184.0",
+    "typescript": "^6.0.3"
+  }
+}
