@@ -11,7 +11,15 @@ const cesiumBuild = helpers.root('node_modules/cesium/Build/Cesium');
 module.exports = {
     entry: './src/main.ts',
     resolve: {
-        extensions: ['.js', '.ts', '.json']
+        extensions: ['.js', '.ts', '.json'],
+        alias: {
+            '@keneth80/k-chart$': helpers.root('src/index.ts'),
+            '@keneth80/k-chart/core$': helpers.root('src/core/index.ts'),
+            '@keneth80/k-chart/options$': helpers.root('src/options/index.ts'),
+            '@keneth80/k-chart/series$': helpers.root('src/series/index.ts'),
+            '@keneth80/k-chart/utils$': helpers.root('src/utils/index.ts'),
+            '@keneth80/k-chart/worker$': helpers.root('src/worker/index.ts')
+        }
     },
     devtool: 'inline-source-map',
     devServer: {
