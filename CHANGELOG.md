@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.9.0 - 2026-06-28
+
+### Added
+
+- Added the optional `@keneth80/k-chart-three` package for integrating Three.js scenes as KChart custom series.
+- Added `createKThreeScene()` for reusable Three.js renderer, camera, lights, resize, pointer, and OrbitControls lifecycle management.
+- Added `createThreeWaferSeries()` and `createWaferMonitorObject()` for semiconductor wafer monitoring with instanced die rendering, status colors, hover highlighting, and die click callbacks.
+- Added `createWaferDies()` mock data generation for wafer demos and examples.
+- Added a Three.js Wafer Monitor demo and usage snippet to the KChart playground.
+
+### Fixed
+
+- Ensured Three.js wafer canvases receive drag and wheel events by restoring canvas `pointer-events`, `touch-action`, cursor, and interaction z-index after KChart canvas layer updates.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.9.0`.
+- Published `@keneth80/k-chart-three@0.1.0`.
+
 ## 1.8.2 - 2026-06-26
 
 ### Added
