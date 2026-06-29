@@ -1,4 +1,45 @@
-# KChart
+<p align="center">
+  <img src="docs/assets/kchart-hero.svg" alt="KChart hybrid chart runtime preview" width="100%" />
+</p>
+
+<h1 align="center">KChart</h1>
+
+<p align="center">
+  TypeScript 기반 class-free 하이브리드 차트 엔진입니다.<br />
+  축, scale, layout은 코어가 계산하고 시각 표현은 SVG, Canvas, WebGL, Three.js renderer 함수가 담당합니다.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&color=38bdf8"></a>
+  <a href="https://github.com/keneth80/k-chart/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/keneth80/k-chart/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+  <a href="https://github.com/keneth80/k-chart/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/keneth80/k-chart?style=for-the-badge&color=22c55e"></a>
+  <a href="https://k-chart-playground.vercel.app/"><img alt="Playground" src="https://img.shields.io/badge/Live_Playground-open-8b5cf6?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <code>SVG</code>
+  <code>Canvas 2D</code>
+  <code>WebGL</code>
+  <code>Three.js</code>
+  <code>CesiumJS</code>
+  <code>MapLibre</code>
+  <code>Candlestick</code>
+  <code>LTTB</code>
+  <code>OffscreenCanvas</code>
+  <code>Tooltip Notes</code>
+</p>
+
+<p align="center">
+  <a href="https://k-chart-playground.vercel.app/"><strong>Open Playground</strong></a>
+  ·
+  <a href="#quick-start"><strong>Quick Start</strong></a>
+  ·
+  <a href="docs/functional-api.md"><strong>API Guide</strong></a>
+  ·
+  <a href="packages/k-chart-three/README.md"><strong>Three.js Adapter</strong></a>
+</p>
+
+## Overview
 
 KChart는 TypeScript 기반 D3 하이브리드 차트 엔진입니다.
 
@@ -104,6 +145,7 @@ npm install @keneth80/k-chart
 
 ## Playground
 
+- Live playground: [https://k-chart-playground.vercel.app/](https://k-chart-playground.vercel.app/)
 - Local playground URL: `http://127.0.0.1:9011`
 
 The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.

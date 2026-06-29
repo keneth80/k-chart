@@ -36,6 +36,7 @@
         "LICENSE",
         "CHANGELOG.md",
         "docs/*.md",
+        "docs/assets/*",
         "examples/*"
     ],
     "publishConfig": {
