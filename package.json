@@ -37,7 +37,12 @@
         "CHANGELOG.md",
         "docs/*.md",
         "docs/assets/*",
-        "examples/*"
+        "examples/*.ts",
+        "examples/*.tsx",
+        "examples/stackblitz-line-basic/index.html",
+        "examples/stackblitz-line-basic/package.json",
+        "examples/stackblitz-line-basic/package-lock.json",
+        "examples/stackblitz-line-basic/src/**/*"
     ],
     "publishConfig": {
         "access": "public"

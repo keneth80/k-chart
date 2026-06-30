@@ -39,6 +39,12 @@
   <a href="packages/k-chart-three/README.md"><strong>Three.js Adapter</strong></a>
 </p>
 
+<p align="center">
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-line-basic?title=KChart%20Line%20Basic&file=src/main.ts">
+    <img alt="Open Line Basic in StackBlitz" src="https://developer.stackblitz.com/img/open_in_stackblitz.svg">
+  </a>
+</p>
+
 ## Overview
 
 KChart는 TypeScript 기반 D3 하이브리드 차트 엔진입니다.
