@@ -39,10 +39,10 @@
         "docs/assets/*",
         "examples/*.ts",
         "examples/*.tsx",
-        "examples/stackblitz-line-basic/index.html",
-        "examples/stackblitz-line-basic/package.json",
-        "examples/stackblitz-line-basic/package-lock.json",
-        "examples/stackblitz-line-basic/src/**/*"
+        "examples/stackblitz-*/index.html",
+        "examples/stackblitz-*/package.json",
+        "examples/stackblitz-*/package-lock.json",
+        "examples/stackblitz-*/src/**/*"
     ],
     "publishConfig": {
         "access": "public"

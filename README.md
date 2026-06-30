@@ -41,8 +41,12 @@
 
 <p align="center">
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-line-basic?title=KChart%20Line%20Basic&file=src/main.ts">
-    <img alt="Open Line Basic in StackBlitz" src="https://developer.stackblitz.com/img/open_in_stackblitz.svg">
+    <img alt="Open SVG Line in StackBlitz" src="https://developer.stackblitz.com/img/open_in_stackblitz.svg">
   </a>
+  <br />
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-canvas-line-basic?title=KChart%20Canvas%20Line&file=src/main.ts"><strong>Canvas Line</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-webgl-line-basic?title=KChart%20WebGL%20Line&file=src/main.ts"><strong>WebGL Line</strong></a>
 </p>
 
 ## Overview
