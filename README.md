@@ -47,6 +47,12 @@
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-canvas-line-basic?title=KChart%20Canvas%20Line&file=src/main.ts"><strong>Canvas Line</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-webgl-line-basic?title=KChart%20WebGL%20Line&file=src/main.ts"><strong>WebGL Line</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-column-basic?title=KChart%20Column&file=src/main.ts"><strong>Column</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-stacked-column-basic?title=KChart%20Stacked%20Column&file=src/main.ts"><strong>Stacked Column</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-candlestick-basic?title=KChart%20Candlestick&file=src/main.ts"><strong>Candlestick</strong></a>
 </p>
 
 ## Overview
