@@ -1,0 +1,9 @@
+{
+  "name": "kchart-stackblitz-three-wafer-basic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite --host 0.0.0.0", "build": "tsc && vite build", "preview": "vite preview --host 0.0.0.0" },
+  "dependencies": { "@keneth80/k-chart": "^1.9.0", "@keneth80/k-chart-three": "^0.1.0", "three": "^0.184.0" },
+  "devDependencies": { "typescript": "^6.0.3", "vite": "^7.2.7" }
+}
