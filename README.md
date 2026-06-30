@@ -1,4 +1,6 @@
 <p align="center">
+  <img src="docs/assets/kchart-icon.svg" alt="KChart icon" width="96" height="96" />
+  <br />
   <img src="docs/assets/kchart-hero.svg" alt="KChart hybrid chart runtime preview" width="100%" />
 </p>
 
