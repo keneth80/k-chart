@@ -74,14 +74,6 @@ const chart = createKChart<RevenuePoint>({
       <div>${point.month}: ${Number(y).toLocaleString()}k USD</div>
     `
   },
-  zoom: {
-    enabled: true,
-    mode: 'wheel',
-    direction: 'x',
-    scaleExtent: [1, 6],
-    wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.9 },
-    resetOnDoubleClick: true
-  },
   series: [
     createLineSeries({
       selector: 'revenue-line',
