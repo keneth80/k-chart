@@ -739,6 +739,10 @@ createWebglLineSeries<Point>({
 
 같은 옵션은 `createCanvasLineSeries`에서도 사용할 수 있습니다.
 
+JSON 데이터를 `fetch()`로 읽고 worker 생성 여부를 화면에서 확인하는 전체 예제는
+[Worker JSON Line StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-worker-json-line?title=KChart%20Worker%20JSON%20Line&file=src/main.ts)를 참고하세요.
+이 예제는 API/data URL과 worker module URL이 서로 다른 역할이라는 점을 보여줍니다.
+
 직접 제어가 필요하면 `render(context)` 안에서 Canvas/WebGL layer를 받을 수도 있습니다.
 
 ```ts
