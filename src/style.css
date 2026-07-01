@@ -475,6 +475,22 @@ svg {
     border-radius: 50%;
 }
 
+.pie-a:before,
+.doughnut-a:before {
+    inset: 3px 28%;
+    border-radius: 50%;
+    background:
+        conic-gradient(var(--accent-blue) 0 28%, var(--accent-green) 28% 50%, var(--accent-amber) 50% 68%, var(--danger) 68% 82%, #d876ff 82% 100%);
+    box-shadow: 0 0 14px rgba(93, 184, 255, 0.14);
+}
+
+.doughnut-a:after {
+    inset: 12px 41%;
+    border-radius: 50%;
+    background: #111821;
+    border: 1px solid rgba(248, 251, 255, 0.2);
+}
+
 .container-chart-example {
     display: grid;
     grid-template-columns: 360px minmax(0, 1fr);

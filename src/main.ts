@@ -92,6 +92,8 @@ type DemoKind =
     | 'real-time'
     | 'circle'
     | 'radial'
+    | 'pie'
+    | 'doughnut'
     | 'canvas-point'
     | 'webgl-point';
 
@@ -317,6 +319,8 @@ const examples: ExampleMeta[] = [
     { kind: 'real-time', title: 'Real time series API' },
     { kind: 'circle', title: 'Custom SVG circle renderer' },
     { kind: 'radial', title: 'Custom SVG radial renderer' },
+    { kind: 'pie', title: 'Custom SVG pie renderer' },
+    { kind: 'doughnut', title: 'Custom SVG doughnut renderer' },
     { kind: 'canvas-point', title: 'Canvas point renderer' },
     { kind: 'webgl-point', title: 'WebGL point renderer' }
 ];
@@ -686,6 +690,180 @@ const createRadialMetricSeries = (
             seriesGroup.selectAll<SVGCircleElement, DemoPoint>(`circle.${selector}`)
                 .attr('r', pointRadius)
                 .style('stroke-width', 1.2);
+        }
+    });
+};
+
+const piePalette = ['#5db8ff', '#56d08f', '#f3b45b', '#d876ff', '#ff6b8a', '#72e4ff'];
+
+const createPieSeries = (selector: string, displayName: string, innerRadiusRatio = 0): KChartSeries<DemoPoint> => {
+    type PieSegment = {
+        point: DemoPoint;
+        value: number;
+        startAngle: number;
+        endAngle: number;
+        color: string;
+    };
+
+    const pointOnCircle = (centerX: number, centerY: number, radius: number, angle: number): [number, number] => [
+        centerX + Math.cos(angle) * radius,
+        centerY + Math.sin(angle) * radius
+    ];
+
+    const createSegments = (data: DemoPoint[]): PieSegment[] => {
+        const total = data.reduce((sum, point) => sum + Math.max(0, Number(point.value)), 0) || 1;
+        let cursor = -Math.PI / 2;
+
+        return data.map((point, index) => {
+            const value = Math.max(0, Number(point.value));
+            const angle = (value / total) * Math.PI * 2;
+            const segment = {
+                point,
+                value,
+                startAngle: cursor,
+                endAngle: cursor + angle,
+                color: piePalette[index % piePalette.length]
+            };
+            cursor += angle;
+            return segment;
+        });
+    };
+
+    const describeSegment = (segment: PieSegment, centerX: number, centerY: number, outerRadius: number, innerRadius: number): string => {
+        const [outerStartX, outerStartY] = pointOnCircle(centerX, centerY, outerRadius, segment.startAngle);
+        const [outerEndX, outerEndY] = pointOnCircle(centerX, centerY, outerRadius, segment.endAngle);
+        const largeArcFlag = segment.endAngle - segment.startAngle > Math.PI ? 1 : 0;
+
+        if (innerRadius <= 0) {
+            return `M${centerX},${centerY} L${outerStartX},${outerStartY} A${outerRadius},${outerRadius} 0 ${largeArcFlag} 1 ${outerEndX},${outerEndY} Z`;
+        }
+
+        const [innerEndX, innerEndY] = pointOnCircle(centerX, centerY, innerRadius, segment.endAngle);
+        const [innerStartX, innerStartY] = pointOnCircle(centerX, centerY, innerRadius, segment.startAngle);
+        return `M${outerStartX},${outerStartY} A${outerRadius},${outerRadius} 0 ${largeArcFlag} 1 ${outerEndX},${outerEndY} L${innerEndX},${innerEndY} A${innerRadius},${innerRadius} 0 ${largeArcFlag} 0 ${innerStartX},${innerStartY} Z`;
+    };
+
+    const normalizeAngle = (angle: number): number => {
+        let normalized = angle;
+        while (normalized < -Math.PI / 2) {
+            normalized += Math.PI * 2;
+        }
+        while (normalized >= Math.PI * 1.5) {
+            normalized -= Math.PI * 2;
+        }
+        return normalized;
+    };
+
+    return createCustomSeries<DemoPoint>({
+        selector,
+        displayName,
+        xField: 'label',
+        yField: 'value',
+        render({ group, data, plotSize }) {
+            const centerX = plotSize.width / 2;
+            const centerY = plotSize.height / 2 + 8;
+            const outerRadius = Math.max(92, Math.min(plotSize.width, plotSize.height) * 0.34);
+            const innerRadius = outerRadius * innerRadiusRatio;
+            const segments = createSegments(data);
+            const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+
+            group.selectAll<SVGPathElement, PieSegment>(`path.${selector}`)
+                .data(segments)
+                .join('path')
+                .attr('class', selector)
+                .attr('d', (segment) => describeSegment(segment, centerX, centerY, outerRadius, innerRadius))
+                .style('fill', (segment) => segment.color)
+                .style('fill-opacity', 0.82)
+                .style('stroke', '#101720')
+                .style('stroke-width', 2)
+                .style('filter', 'drop-shadow(0 0 10px rgba(93, 184, 255, 0.12))');
+
+            group.selectAll<SVGTextElement, PieSegment>(`text.${selector}-label`)
+                .data(segments)
+                .join('text')
+                .attr('class', `${selector}-label`)
+                .attr('x', (segment) => {
+                    const angle = (segment.startAngle + segment.endAngle) / 2;
+                    return pointOnCircle(centerX, centerY, outerRadius + 28, angle)[0];
+                })
+                .attr('y', (segment) => {
+                    const angle = (segment.startAngle + segment.endAngle) / 2;
+                    return pointOnCircle(centerX, centerY, outerRadius + 28, angle)[1];
+                })
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .style('fill', 'rgba(231, 244, 255, 0.86)')
+                .style('font-size', '11px')
+                .style('font-weight', 700)
+                .text((segment) => `${segment.point.label} ${Math.round((segment.value / total) * 100)}%`);
+
+            if (innerRadius > 0) {
+                const centerLabel = group.selectAll<SVGTextElement, string>('text.demo-doughnut-center').data(['Total']);
+                centerLabel.join('text')
+                    .attr('class', 'demo-doughnut-center')
+                    .attr('x', centerX)
+                    .attr('y', centerY - 6)
+                    .attr('text-anchor', 'middle')
+                    .style('fill', '#f8fbff')
+                    .style('font-size', '13px')
+                    .style('font-weight', 800)
+                    .text('Total');
+                group.selectAll<SVGTextElement, number>('text.demo-doughnut-total')
+                    .data([total])
+                    .join('text')
+                    .attr('class', 'demo-doughnut-total')
+                    .attr('x', centerX)
+                    .attr('y', centerY + 14)
+                    .attr('text-anchor', 'middle')
+                    .style('fill', 'rgba(231, 244, 255, 0.72)')
+                    .style('font-size', '12px')
+                    .text((value) => value.toFixed(0));
+            }
+        },
+        tooltip({ data, plotSize, seriesGroup, mouseX, mouseY }) {
+            const centerX = plotSize.width / 2;
+            const centerY = plotSize.height / 2 + 8;
+            const outerRadius = Math.max(92, Math.min(plotSize.width, plotSize.height) * 0.34);
+            const innerRadius = outerRadius * innerRadiusRatio;
+            const distance = Math.hypot(mouseX - centerX, mouseY - centerY);
+            const angle = normalizeAngle(Math.atan2(mouseY - centerY, mouseX - centerX));
+            const total = data.reduce((sum, point) => sum + Math.max(0, Number(point.value)), 0) || 1;
+
+            seriesGroup.selectAll<SVGPathElement, PieSegment>(`path.${selector}`)
+                .style('fill-opacity', 0.82)
+                .style('stroke', '#101720');
+
+            if (distance > outerRadius || distance < innerRadius) {
+                return undefined;
+            }
+
+            const segment = createSegments(data).find((item) => angle >= item.startAngle && angle <= item.endAngle);
+            if (!segment) {
+                return undefined;
+            }
+
+            seriesGroup.selectAll<SVGPathElement, PieSegment>(`path.${selector}`)
+                .filter((item) => item.point === segment.point)
+                .style('fill-opacity', 1)
+                .style('stroke', '#f8fbff');
+
+            const midAngle = (segment.startAngle + segment.endAngle) / 2;
+            const tooltipRadius = innerRadius > 0 ? (innerRadius + outerRadius) / 2 : outerRadius * 0.62;
+            const [x, y] = pointOnCircle(centerX, centerY, tooltipRadius, midAngle);
+
+            return {
+                data: segment.point,
+                x,
+                y,
+                distance: 0,
+                color: segment.color,
+                html: `<strong style="color:${segment.color}">${segment.point.label}</strong><br/>value: ${segment.value.toFixed(1)}<br/>share: ${Math.round((segment.value / total) * 100)}%`
+            };
+        },
+        clearTooltip({ seriesGroup }) {
+            seriesGroup.selectAll<SVGPathElement, PieSegment>(`path.${selector}`)
+                .style('fill-opacity', 0.82)
+                .style('stroke', '#101720');
         }
     });
 };
@@ -1166,7 +1344,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut') {
         return [];
     }
     if (kind === 'column') {
@@ -1328,6 +1506,12 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             createRadialMetricSeries('demo-radial-extra', 'Extra', 'extra', '#f3b45b')
         ];
     }
+    if (kind === 'pie') {
+        return [createPieSeries('demo-pie', 'Pie', 0)];
+    }
+    if (kind === 'doughnut') {
+        return [createPieSeries('demo-doughnut', 'Doughnut', 0.56)];
+    }
     if (kind === 'multi-options' || kind === 'update-series') {
         return [
             createLineSeries({ selector: 'demo-line', displayName: 'Value', xField: 'x', yField: 'value', color: '#5db8ff', strokeWidth: 3, curve: true, dot: true }),
@@ -1482,7 +1666,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isThreeConstellation = kind === 'three-constellation';
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
-    const isRadial = kind === 'radial';
+    const isRadial = kind === 'radial' || kind === 'pie' || kind === 'doughnut';
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1791,6 +1975,24 @@ createCustomSeries({
     color: '#56d08f',
     render({ group, data, plotSize, color }) {
         // draw a second radial metric on the same polar frame
+    }
+})`;
+    }
+    if (kind === 'pie' || kind === 'doughnut') {
+        return `createCustomSeries({
+    selector: 'demo-${kind}',
+    displayName: '${kind === 'pie' ? 'Pie' : 'Doughnut'}',
+    xField: 'label',
+    yField: 'value',
+    render({ group, data, plotSize }) {
+        const centerX = plotSize.width / 2;
+        const centerY = plotSize.height / 2;
+        const outerRadius = Math.min(plotSize.width, plotSize.height) * 0.34;
+        const innerRadius = outerRadius * ${kind === 'pie' ? '0' : '0.56'};
+        // calculate arc segments from data.value and draw SVG paths
+    },
+    tooltip({ data, plotSize, mouseX, mouseY }) {
+        // hit-test by distance and angle, then return the active segment
     }
 })`;
     }
@@ -2134,7 +2336,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' ? 'false' : 'true'}, y: true, x: false },
+    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' ? 'false' : 'true'}, y: true, x: false },
     legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
@@ -2179,7 +2381,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

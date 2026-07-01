@@ -64,6 +64,10 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-radial-basic?title=KChart%20Radial&file=src/main.ts"><strong>Radial</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-pie-basic?title=KChart%20Pie&file=src/main.ts"><strong>Pie</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-doughnut-basic?title=KChart%20Doughnut&file=src/main.ts"><strong>Doughnut</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-multi-series-basic?title=KChart%20Multi%20Series&file=src/main.ts"><strong>Multi Series</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-options-basic?title=KChart%20Options&file=src/main.ts"><strong>Options</strong></a>
