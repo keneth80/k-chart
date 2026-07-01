@@ -291,6 +291,11 @@ createWebglLineSeries<Point>({
 
 현재 demo에서는 `Canvas BigData` 50k line과 `WebGL BigData` 120k line examples에 `asyncRender`가 적용되어 있습니다. 브라우저 콘솔에서 `[KChart Demo] creating render worker #...` 로그가 보이면 worker가 생성된 것입니다.
 
+StackBlitz에서 data fetch와 worker 실행 여부를 같이 확인하려면
+[`examples/stackblitz-worker-json-line`](../examples/stackblitz-worker-json-line)를 참고합니다.
+이 예제는 `/data/large-line.json`을 `fetch()`로 읽고, `workerFactory` 호출 횟수와
+OffscreenCanvas 지원 여부를 화면에 표시합니다.
+
 ## Option Factories
 
 새 코드에서는 chart root field보다 option factory 사용을 권장합니다.

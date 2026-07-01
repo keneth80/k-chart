@@ -42,6 +42,7 @@
         "examples/stackblitz-*/index.html",
         "examples/stackblitz-*/package.json",
         "examples/stackblitz-*/package-lock.json",
+        "examples/stackblitz-*/public/**/*",
         "examples/stackblitz-*/src/**/*"
     ],
     "publishConfig": {
