@@ -1,0 +1,18 @@
+{
+  "name": "kchart-stackblitz-radial-basic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@keneth80/k-chart": "^1.9.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^7.2.7"
+  }
+}

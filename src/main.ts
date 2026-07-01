@@ -91,6 +91,7 @@ type DemoKind =
     | 'update-data'
     | 'real-time'
     | 'circle'
+    | 'radial'
     | 'canvas-point'
     | 'webgl-point';
 
@@ -315,6 +316,7 @@ const examples: ExampleMeta[] = [
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Real time series API' },
     { kind: 'circle', title: 'Custom SVG circle renderer' },
+    { kind: 'radial', title: 'Custom SVG radial renderer' },
     { kind: 'canvas-point', title: 'Canvas point renderer' },
     { kind: 'webgl-point', title: 'WebGL point renderer' }
 ];
@@ -525,6 +527,168 @@ const circleSeries = createCustomSeries<DemoPoint>({
             .style('stroke-width', 1.4);
     }
 });
+
+const createRadialMetricSeries = (
+    selector: string,
+    displayName: string,
+    yField: 'value' | 'volume' | 'extra',
+    color: string,
+    drawFrame = false
+): KChartSeries<DemoPoint> => {
+    const maxValue = 72;
+    const pointRadius = 4;
+
+    const polarPoint = (
+        index: number,
+        count: number,
+        value: number,
+        centerX: number,
+        centerY: number,
+        radius: number
+    ): [number, number] => {
+        const angle = (Math.PI * 2 * index) / Math.max(count, 1) - Math.PI / 2;
+        const distance = radius * Math.max(0, Math.min(value / maxValue, 1));
+        return [
+            centerX + Math.cos(angle) * distance,
+            centerY + Math.sin(angle) * distance
+        ];
+    };
+
+    const labelPoint = (
+        index: number,
+        count: number,
+        centerX: number,
+        centerY: number,
+        radius: number
+    ): [number, number] => {
+        const angle = (Math.PI * 2 * index) / Math.max(count, 1) - Math.PI / 2;
+        return [
+            centerX + Math.cos(angle) * (radius + 24),
+            centerY + Math.sin(angle) * (radius + 24)
+        ];
+    };
+
+    return createCustomSeries<DemoPoint>({
+        selector,
+        displayName,
+        xField: 'label',
+        yField,
+        color,
+        render({ group, data, plotSize }) {
+            const centerX = plotSize.width / 2;
+            const centerY = plotSize.height / 2 + 10;
+            const radius = Math.max(90, Math.min(plotSize.width, plotSize.height) * 0.34);
+
+            if (drawFrame) {
+                const ringValues = [0.2, 0.4, 0.6, 0.8, 1];
+                group.selectAll<SVGCircleElement, number>('.demo-radial-ring')
+                    .data(ringValues)
+                    .join('circle')
+                    .attr('class', 'demo-radial-ring')
+                    .attr('cx', centerX)
+                    .attr('cy', centerY)
+                    .attr('r', (value) => radius * value)
+                    .style('fill', 'none')
+                    .style('stroke', 'rgba(188, 206, 218, 0.18)')
+                    .style('stroke-dasharray', '2 6');
+
+                group.selectAll<SVGLineElement, DemoPoint>('.demo-radial-spoke')
+                    .data(data)
+                    .join('line')
+                    .attr('class', 'demo-radial-spoke')
+                    .attr('x1', centerX)
+                    .attr('y1', centerY)
+                    .attr('x2', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius - 4)[0])
+                    .attr('y2', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius - 4)[1])
+                    .style('stroke', 'rgba(188, 206, 218, 0.16)');
+
+                group.selectAll<SVGTextElement, DemoPoint>('.demo-radial-label')
+                    .data(data)
+                    .join('text')
+                    .attr('class', 'demo-radial-label')
+                    .attr('x', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius)[0])
+                    .attr('y', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius)[1])
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'middle')
+                    .style('fill', 'rgba(231, 244, 255, 0.82)')
+                    .style('font-size', '11px')
+                    .style('font-weight', 700)
+                    .text((point) => point.label);
+            }
+
+            const path = data
+                .map((point, index) => {
+                    const [x, y] = polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius);
+                    return `${index === 0 ? 'M' : 'L'}${x},${y}`;
+                })
+                .join(' ');
+
+            group.selectAll<SVGPathElement, DemoPoint[]>('path.demo-radial-area')
+                .data([data])
+                .join('path')
+                .attr('class', `demo-radial-area ${selector}`)
+                .attr('d', `${path} Z`)
+                .style('fill', color)
+                .style('fill-opacity', 0.16)
+                .style('stroke', color)
+                .style('stroke-width', 2.4)
+                .style('filter', 'drop-shadow(0 0 8px rgba(93, 184, 255, 0.14))');
+
+            group.selectAll<SVGCircleElement, DemoPoint>('circle.demo-radial-point')
+                .data(data)
+                .join('circle')
+                .attr('class', `demo-radial-point ${selector}`)
+                .attr('cx', (point, index) => polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius)[0])
+                .attr('cy', (point, index) => polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius)[1])
+                .attr('r', pointRadius)
+                .style('fill', color)
+                .style('stroke', '#f8fbff')
+                .style('stroke-width', 1.2);
+        },
+        tooltip({ data, plotSize, seriesGroup, mouseX, mouseY }) {
+            const centerX = plotSize.width / 2;
+            const centerY = plotSize.height / 2 + 10;
+            const radius = Math.max(90, Math.min(plotSize.width, plotSize.height) * 0.34);
+
+            seriesGroup.selectAll<SVGCircleElement, DemoPoint>(`circle.${selector}`)
+                .attr('r', pointRadius)
+                .style('stroke-width', 1.2);
+
+            let closest: {point: DemoPoint; x: number; y: number; distance: number} | undefined;
+            data.forEach((point, index) => {
+                const [x, y] = polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius);
+                const distance = Math.hypot(mouseX - x, mouseY - y);
+                if (!closest || distance < closest.distance) {
+                    closest = { point, x, y, distance };
+                }
+            });
+
+            if (!closest || closest.distance > 18) {
+                return undefined;
+            }
+
+            const activePoint = closest.point;
+            seriesGroup.selectAll<SVGCircleElement, DemoPoint>(`circle.${selector}`)
+                .filter((point) => point === activePoint)
+                .attr('r', 6)
+                .style('stroke-width', 2);
+
+            return {
+                data: activePoint,
+                x: closest.x,
+                y: closest.y,
+                distance: closest.distance,
+                color,
+                html: `<strong style="color:${color}">${displayName}</strong><br/>${activePoint.label}: ${Number(activePoint[yField]).toFixed(1)}`
+            };
+        },
+        clearTooltip({ seriesGroup }) {
+            seriesGroup.selectAll<SVGCircleElement, DemoPoint>(`circle.${selector}`)
+                .attr('r', pointRadius)
+                .style('stroke-width', 1.2);
+        }
+    });
+};
 
 const topologySeries = createCustomSeries<DemoPoint>({
     selector: 'demo-topology',
@@ -1002,7 +1166,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial') {
         return [];
     }
     if (kind === 'column') {
@@ -1156,6 +1320,13 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'area') {
         return [areaSeries, createLineSeries({ selector: 'demo-area-line', displayName: 'Area Outline', xField: 'x', yField: 'value', color: '#5db8ff', strokeWidth: 2, curve: true })];
+    }
+    if (kind === 'radial') {
+        return [
+            createRadialMetricSeries('demo-radial-value', 'Value', 'value', '#5db8ff', true),
+            createRadialMetricSeries('demo-radial-volume', 'Volume', 'volume', '#56d08f'),
+            createRadialMetricSeries('demo-radial-extra', 'Extra', 'extra', '#f3b45b')
+        ];
     }
     if (kind === 'multi-options' || kind === 'update-series') {
         return [
@@ -1311,6 +1482,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isThreeConstellation = kind === 'three-constellation';
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
+    const isRadial = kind === 'radial';
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1340,7 +1512,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGlobeMap && !isThreeScene,
+            visible: !isTopology && !isGlobeMap && !isThreeScene && !isRadial,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1591,6 +1763,34 @@ createCanvasPointSeries({ selector: 'demo-canvas-point', xField: 'x', yField: 'v
     selector: 'demo-circle',
     render({ group, data, xScale, yScale, color }) {
         // draw SVG circles with injected scales
+    }
+})`;
+    }
+    if (kind === 'radial') {
+        return `createCustomSeries({
+    selector: 'demo-radial-value',
+    displayName: 'Value',
+    xField: 'label',
+    yField: 'value',
+    color: '#5db8ff',
+    render({ group, data, plotSize, color }) {
+        const centerX = plotSize.width / 2;
+        const centerY = plotSize.height / 2;
+        const radius = Math.min(plotSize.width, plotSize.height) * 0.34;
+        // draw polar grid, labels, closed polygon, and points
+    },
+    tooltip({ data, plotSize, mouseX, mouseY }) {
+        // hit-test nearest radial point and return tooltip data
+    }
+}),
+createCustomSeries({
+    selector: 'demo-radial-volume',
+    displayName: 'Volume',
+    xField: 'label',
+    yField: 'volume',
+    color: '#56d08f',
+    render({ group, data, plotSize, color }) {
+        // draw a second radial metric on the same polar frame
     }
 })`;
     }
@@ -1934,7 +2134,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, y: true, x: false },
+    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' ? 'false' : 'true'}, y: true, x: false },
     legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
@@ -1979,7 +2179,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : 'createAxesForExample()'},

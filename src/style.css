@@ -458,6 +458,23 @@ svg {
         linear-gradient(90deg, transparent 48%, rgba(148, 163, 184, 0.28) 49% 51%, transparent 52%);
 }
 
+.radial-a:before {
+    inset: 3px 20%;
+    border: 1px solid rgba(148, 163, 184, 0.36);
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(148, 163, 184, 0.22) 35% 36%, transparent 37%),
+        conic-gradient(from -90deg, rgba(93, 184, 255, 0.66), rgba(86, 208, 143, 0.56), rgba(243, 180, 91, 0.52), rgba(93, 184, 255, 0.66));
+    clip-path: polygon(50% 5%, 82% 30%, 78% 72%, 50% 95%, 18% 74%, 20% 28%);
+    opacity: 0.88;
+}
+
+.radial-a:after {
+    inset: 10px 35%;
+    border: 1px solid rgba(248, 251, 255, 0.36);
+    border-radius: 50%;
+}
+
 .container-chart-example {
     display: grid;
     grid-template-columns: 360px minmax(0, 1fr);
