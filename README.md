@@ -73,6 +73,50 @@ KChart는 TypeScript 기반 D3 하이브리드 차트 엔진입니다.
 
 축, scale, layout은 차트 코어가 계산하고, 실제 시각 표현은 series renderer 함수가 담당합니다. Renderer는 같은 scale 정보를 받아 SVG, Canvas, WebGL 레이어 중 원하는 방식으로 그릴 수 있습니다. 새 저장소 기준 public API는 class-free 함수형 런타임입니다.
 
+## Why KChart
+
+KChart는 완성형 대시보드 차트만 제공하는 라이브러리라기보다, 업무 화면에서 필요한 시각화를 가볍게 조립하기 위한 rendering runtime입니다. 축과 scale은 코어가 책임지고, series와 option은 함수형 renderer로 분리되어 SVG, Canvas, WebGL, Three.js, CesiumJS, MapLibre 같은 표현 계층을 필요할 때만 붙일 수 있습니다.
+
+| Focus | KChart approach |
+| --- | --- |
+| Hybrid rendering | 하나의 chart runtime에서 SVG, Canvas 2D, WebGL series를 함께 사용할 수 있습니다. |
+| Large data | WebGL line/point, interleaved buffer, LTTB downsampling, OffscreenCanvas worker hook을 제공합니다. |
+| Custom visualization | `createCustomSeries(...)`로 scale, layer, plot size를 받은 뒤 원하는 renderer를 직접 구현할 수 있습니다. |
+| Optional adapters | Three.js, CesiumJS, MapLibre는 별도 package로 분리해 기본 chart bundle에 3D/map 비용을 섞지 않습니다. |
+| Business UI fit | tooltip note, fixed guide line, spec area, topology, candlestick처럼 운영 화면에서 바로 쓰는 옵션을 포함합니다. |
+
+### Size And Capability Snapshot
+
+아래 수치는 2026-07-01 기준 package footprint입니다. KChart는 현재 저장소에서 `npm pack --dry-run`으로 측정했고, 다른 패키지는 npm registry의 `dist.unpackedSize`를 사용했습니다. 실제 app bundle size는 bundler, tree-shaking, import 방식, CSS/asset 포함 여부에 따라 달라지므로, 절대 성능 순위가 아니라 package footprint를 비교하기 위한 참고값입니다.
+
+| Package | Version | npm unpacked size | Primary renderer model | WebGL path |
+| --- | ---: | ---: | --- | --- |
+| `@keneth80/k-chart` | `1.9.0` | `1.1 MB` | SVG + Canvas + WebGL functional series | Built-in line/point WebGL series |
+| `chart.js` | `4.5.1` | `5.89 MiB` | Canvas chart components | Not a core renderer target |
+| `plotly.js-dist-min` | `3.6.0` | `4.62 MiB` | Prebuilt Plotly distribution | WebGL trace families |
+| `echarts` | `6.1.0` | `57.50 MiB` | Canvas/SVG chart platform | Extension-oriented GL use cases |
+| `highcharts` | `13.0.0` | `68.12 MiB` | SVG chart platform | Boost/module-oriented large data path |
+
+Reproduce the package size numbers:
+
+```bash
+npm pack --dry-run
+npm view chart.js@latest version dist.unpackedSize
+npm view plotly.js-dist-min@latest version dist.unpackedSize
+npm view echarts@latest version dist.unpackedSize
+npm view highcharts@latest version dist.unpackedSize
+```
+
+### Performance Positioning
+
+KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object에 넣기”가 아니라, 데이터 양과 표현 방식에 맞춰 renderer를 선택하는 것입니다.
+
+- 작은 데이터와 선명한 DOM interaction이 필요하면 SVG series를 사용합니다.
+- 수천에서 수만 개의 point를 빠르게 그려야 하면 Canvas series를 사용합니다.
+- 더 큰 line/point 데이터나 잦은 viewport 변경이 있으면 WebGL series와 LTTB downsampling을 조합합니다.
+- 3D, 지도, 지구본은 optional adapter package로 분리해 필요한 화면에서만 로드합니다.
+- 수치 비교가 필요한 경우 playground example 기준으로 같은 dataset, 같은 viewport, 같은 browser에서 FPS, first render time, memory를 측정하는 benchmark를 추가할 수 있습니다.
+
 ## Core Concept
 
 ```txt
