@@ -4,6 +4,8 @@
 
 The root package remains backward compatible. Internally, implementation is
 separated into `core`, `series`, `options`, `worker`, and `utils` modules.
+If you need a field-by-field option dictionary, see
+[Configuration Reference](configuration-reference.md).
 
 ```ts
 import {createKChart} from '@keneth80/k-chart/core';

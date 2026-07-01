@@ -240,6 +240,7 @@ Then open `http://127.0.0.1:9003/`.
 ## Guides
 
 - [Functional API Guide](docs/functional-api.md)
+- [Configuration Reference](docs/configuration-reference.md)
 - [Code Graph Handoff](docs/code-graph-handoff.md)
 - [React And Next.js Guide](docs/react-nextjs.md)
 - [Release Guide](docs/release.md)
