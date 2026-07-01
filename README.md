@@ -12,8 +12,10 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&color=38bdf8"></a>
-  <a href="https://github.com/keneth80/k-chart/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/keneth80/k-chart/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+  <a href="https://github.com/keneth80/k-chart/releases"><img alt="Release" src="https://img.shields.io/github/v/release/keneth80/k-chart?include_prereleases&style=for-the-badge&label=Release&color=38bdf8"></a>
+  <a href="https://github.com/keneth80/k-chart/actions/workflows/ci.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/keneth80/k-chart/ci.yml?branch=main&style=for-the-badge&label=Build"></a>
+  <img alt="Coverage" src="https://img.shields.io/badge/Coverage-not_configured-64748b?style=for-the-badge">
+  <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&label=npm&color=0ea5e9"></a>
   <a href="https://github.com/keneth80/k-chart/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/keneth80/k-chart?style=for-the-badge&color=22c55e"></a>
   <a href="https://k-chart-playground.vercel.app/"><img alt="Playground" src="https://img.shields.io/badge/Live_Playground-open-8b5cf6?style=for-the-badge"></a>
 </p>
