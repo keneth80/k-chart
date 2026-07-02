@@ -48,6 +48,8 @@
     <img alt="Open SVG Line in StackBlitz" src="https://developer.stackblitz.com/img/open_in_stackblitz.svg">
   </a>
   <br />
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-simple-api-basic?title=KChart%20Simple%20API&file=src/main.ts"><strong>Simple API</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-canvas-line-basic?title=KChart%20Canvas%20Line&file=src/main.ts"><strong>Canvas Line</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-webgl-line-basic?title=KChart%20WebGL%20Line&file=src/main.ts"><strong>WebGL Line</strong></a>
@@ -280,6 +282,7 @@ available:
 
 ```ts
 import {createKChart} from '@keneth80/k-chart/core';
+import {createLineChart, chartConfig} from '@keneth80/k-chart/presets';
 import {createCanvasLineSeries} from '@keneth80/k-chart/series';
 import {createGuideLineOption} from '@keneth80/k-chart/options';
 import {downsampleLTTB} from '@keneth80/k-chart/utils';
@@ -290,6 +293,47 @@ The core calls concrete renderers only through the
 `KChartSeries.render(context)` contract.
 
 ## Quick Start
+
+처음 시작할 때는 preset API를 사용하면 축과 series boilerplate를 줄일 수 있습니다.
+
+```ts
+import {createLineChart, chartConfig} from '@keneth80/k-chart';
+
+type SalesPoint = {
+    month: string;
+    revenue: number;
+    orders: number;
+};
+
+const data: SalesPoint[] = [
+    {month: 'Jan', revenue: 42, orders: 320},
+    {month: 'Feb', revenue: 48, orders: 360},
+    {month: 'Mar', revenue: 45, orders: 340}
+];
+
+createLineChart<SalesPoint>({
+    selector: '#line-chart',
+    data,
+    x: {field: 'month', type: 'point', title: 'Month'},
+    y: {field: 'revenue', type: 'number', title: 'Revenue'},
+    title: 'Revenue Trend',
+    animation: true
+});
+
+chartConfig<SalesPoint>(data)
+    .selector('#column-chart')
+    .title('Orders By Month')
+    .x('month', 'point', {title: 'Month'})
+    .y('orders', 'number', {title: 'Orders'})
+    .column({color: '#56d08f'})
+    .tooltip()
+    .animation()
+    .render();
+```
+
+Preset API는 내부적으로 `KChartConfiguration`을 생성합니다. 더 세밀한 제어가 필요하면 아래 advanced API처럼 `createKChart(...)`, `axes`, `series`를 직접 구성하면 됩니다.
+
+## Advanced Quick Start
 
 ```ts
 import {
@@ -821,6 +865,11 @@ createKChart({
     tooltip: {
         visible: true
     },
+    animation: {
+        enabled: true,
+        duration: 820,
+        easing: 'easeOutCubic'
+    },
     axes: [
         { field: 'x', type: 'number', placement: 'bottom', title: 'Month Index' },
         { field: 'value', type: 'number', placement: 'left', title: 'Value' },
@@ -842,6 +891,31 @@ series: [
     createLineSeries({ selector: 'extra-line', displayName: 'Extra', xField: 'x', yField: 'extra' })
 ]
 ```
+
+## Animation
+
+`animation` 옵션을 켜면 supported series가 enter animation으로 렌더링됩니다. 현재 기본 지원 renderer는 SVG line, Canvas line, WebGL line입니다. Demo의 SVG column, stacked column, plot point, radial, pie, doughnut 같은 custom series도 `context.animation.progress`를 사용해 scale, opacity, arc sweep 효과를 적용합니다.
+
+```ts
+createKChart({
+    selector: '#chart',
+    data,
+    axes,
+    series: [
+        createLineSeries({ selector: 'value', xField: 'x', yField: 'value' }),
+        createCanvasLineSeries({ selector: 'volume', xField: 'x', yField: 'volume' })
+    ],
+    animation: {
+        enabled: true,
+        duration: 820,
+        easing: 'easeOutCubic',
+        mode: 'enter',
+        respectReducedMotion: true
+    }
+}).render();
+```
+
+대용량 WebGL 차트에서는 animation이 매 프레임 재렌더링을 발생시키므로 필요한 예제나 화면에서만 opt-in으로 켜는 것을 권장합니다.
 
 ## Spec Areas, Fixed Guide Lines, And Cursor Guide
 

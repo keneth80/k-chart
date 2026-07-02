@@ -28,6 +28,7 @@
           "@keneth80/k-chart": ["./src/index.ts"],
           "@keneth80/k-chart/core": ["./src/core/index.ts"],
           "@keneth80/k-chart/options": ["./src/options/index.ts"],
+          "@keneth80/k-chart/presets": ["./src/presets/index.ts"],
           "@keneth80/k-chart/series": ["./src/series/index.ts"],
           "@keneth80/k-chart/utils": ["./src/utils/index.ts"],
           "@keneth80/k-chart/worker": ["./src/worker/index.ts"],

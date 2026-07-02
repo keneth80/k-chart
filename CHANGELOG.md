@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.10.0 - 2026-07-02
+
+### Added
+
+- Added a beginner-friendly preset API with `createLineChart()`, `createColumnChart()`, `createPieChart()`, and `createDoughnutChart()`.
+- Added the chainable `chartConfig(data)` builder for composing common charts before dropping down to the full functional API.
+- Added a `@keneth80/k-chart/presets` export path for lightweight beginner imports.
+- Added a Simple API StackBlitz example for quick browser-based experimentation.
+- Added chart animation configuration for series enter/update rendering, including SVG line, Canvas line, WebGL line, column, stacked column, plot, pie, doughnut, and radial examples.
+
+### Changed
+
+- Updated README and functional API docs with beginner quick starts, builder examples, and animation usage.
+
+### Fixed
+
+- Added segment-level hover and tooltip behavior for preset pie and doughnut charts.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.10.0`.
+
 ## 1.9.0 - 2026-06-28
 
 ### Added

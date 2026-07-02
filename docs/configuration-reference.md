@@ -39,6 +39,7 @@ createKChart({
 | `legend` | `KChartLegendConfiguration` | no | visible top legend | series 표시/숨김 범례 설정입니다. |
 | `tooltip` | `KChartTooltipConfiguration<T>` | no | basic tooltip | nearest point tooltip 설정입니다. |
 | `zoom` | `KChartZoomConfiguration<T>` | no | disabled | number/time 축 zoom, pan, 영역 선택 zoom 설정입니다. |
+| `animation` | `boolean \| KChartAnimationConfiguration` | no | disabled | series enter animation 설정입니다. 현재 SVG/Canvas/WebGL line 계열 renderer가 기본 지원합니다. |
 | `specAreas` | `KChartSpecAreaConfiguration[]` | no | `[]` | 기존 호환 필드입니다. 새 코드는 `createSpecAreaOption(...)` 사용을 권장합니다. |
 | `guideLines` | `KChartGuideLinesConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createGuideLineOption(...)` 사용을 권장합니다. |
 | `cursorGuide` | `KChartCursorGuideConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createCursorLineOption(...)` 사용을 권장합니다. |
@@ -97,6 +98,33 @@ createKChart({
 | --- | --- | --- |
 | `visible` | `boolean` | tooltip 표시 여부입니다. |
 | `formatter` | `(context) => string` | tooltip HTML/text를 직접 생성합니다. `context`에는 `data`, `series`, `x`, `y`, `color`가 들어옵니다. |
+
+## Animation Configuration
+
+차트 레벨 `animation`은 series renderer에 `animation.progress`를 전달합니다. `animation: true`로 기본 enter animation을 켤 수 있고, 세부 옵션으로 duration과 easing을 조절할 수 있습니다. 현재 1차 지원 대상은 `createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`입니다. Custom series에서는 `render(context)`의 `context.animation.progress`를 사용해 직접 애니메이션을 구현할 수 있습니다.
+
+```ts
+createKChart({
+    selector: '#chart',
+    data,
+    axes,
+    series,
+    animation: {
+        enabled: true,
+        duration: 820,
+        easing: 'easeOutCubic',
+        mode: 'enter'
+    }
+});
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | animation을 켭니다. `animation: true`와 동일하게 사용할 수 있습니다. |
+| `duration` | `number` | `720` | enter animation 지속 시간(ms)입니다. |
+| `easing` | `'linear' \| 'easeOutCubic' \| 'easeInOutCubic'` | `easeOutCubic` | progress easing 함수입니다. |
+| `mode` | `'enter' \| 'update' \| 'both'` | `enter` | 현재는 `enter` animation을 지원합니다. `update`/`both`는 향후 data transition 확장을 위한 public contract입니다. |
+| `respectReducedMotion` | `boolean` | `true` | OS의 reduced motion 설정이 켜져 있으면 animation을 생략합니다. |
 
 ## Zoom Configuration
 

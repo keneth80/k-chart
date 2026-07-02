@@ -9,7 +9,6 @@ import {
     resolveCanvasPixelSize,
     resolveLinePoints
 } from './support/canvas';
-import {resolveScalePosition} from './support/scale';
 
 export const createCanvasLineSeries = <T = any>(
     configuration: KChartCanvasLineSeriesConfiguration<T>
@@ -20,7 +19,7 @@ export const createCanvasLineSeries = <T = any>(
     yField: configuration.yField,
     color: configuration.color,
     downsample: configuration.downsample,
-    render({getCanvas, data, xScale, yScale, color}) {
+    render({getCanvas, data, xScale, yScale, color, animation}) {
         if (!xScale || !yScale) {
             return;
         }
@@ -34,12 +33,19 @@ export const createCanvasLineSeries = <T = any>(
             configuration.xField,
             configuration.yField
         );
+        const pointCount = points.length / 2;
+        const visiblePointCount = animation.enabled
+            ? Math.min(pointCount, Math.ceil(pointCount * animation.progress))
+            : pointCount;
+        const renderPoints = visiblePointCount < pointCount
+            ? points.slice(0, Math.max(0, visiblePointCount * 2))
+            : points;
         if (renderLineWithWorker(canvas, '2d', configuration.asyncRender, {
             width: canvasSize.width,
             height: canvasSize.height,
             color: configuration.color ?? color,
             lineWidth: configuration.lineWidth ?? 2,
-            points
+            points: renderPoints
         })) {
             return;
         }
@@ -51,29 +57,26 @@ export const createCanvasLineSeries = <T = any>(
 
         let hasPoint = false;
         context.clearRect(0, 0, canvas.width, canvas.height);
+        if (renderPoints.length < 4) {
+            return;
+        }
+
         context.beginPath();
         context.lineCap = 'round';
         context.lineJoin = 'round';
         context.lineWidth = configuration.lineWidth ?? 2;
         context.strokeStyle = configuration.color ?? color;
 
-        data.forEach((point: T) => {
-            if (
-                point[configuration.xField] === undefined ||
-                point[configuration.yField] === undefined
-            ) {
-                return;
-            }
-
-            const x = resolveScalePosition(xScale, point[configuration.xField]);
-            const y = resolveScalePosition(yScale, point[configuration.yField]);
+        for (let index = 0; index < renderPoints.length; index += 2) {
+            const x = renderPoints[index];
+            const y = renderPoints[index + 1];
             if (!hasPoint) {
                 context.moveTo(x, y);
                 hasPoint = true;
             } else {
                 context.lineTo(x, y);
             }
-        });
+        }
 
         context.stroke();
     },

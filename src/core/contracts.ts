@@ -10,6 +10,8 @@ export type KChartZoomMode = 'wheel' | 'select' | 'both';
 export type KChartZoomInputDevice = 'pc' | 'mobile' | 'all';
 export type KChartCandlestickColorMode = 'open-close' | 'previous-close';
 export type KChartGlobeLandMode = 'land' | 'countries';
+export type KChartAnimationEasing = 'linear' | 'easeOutCubic' | 'easeInOutCubic';
+export type KChartAnimationMode = 'enter' | 'update' | 'both';
 
 export interface KChartAxis<T = any> {
     field: keyof T & string;
@@ -62,6 +64,24 @@ export interface KChartAsyncRenderConfiguration {
     workerFactory?: () => Worker;
 }
 
+export interface KChartAnimationConfiguration {
+    enabled?: boolean;
+    duration?: number;
+    easing?: KChartAnimationEasing;
+    mode?: KChartAnimationMode;
+    respectReducedMotion?: boolean;
+}
+
+export interface KChartAnimationContext {
+    enabled: boolean;
+    progress: number;
+    elapsed: number;
+    duration: number;
+    easing: KChartAnimationEasing;
+    mode: KChartAnimationMode;
+    phase: 'enter' | 'update';
+}
+
 export interface KChartLayerContext {
     svg: Selection<SVGSVGElement, unknown, any, any>;
     rootGroup: Selection<SVGGElement, unknown, any, any>;
@@ -83,6 +103,7 @@ export interface KChartRenderContext<T = any> extends KChartLayerContext {
     margin: KChartMargin;
     color: string;
     seriesIndex: number;
+    animation: KChartAnimationContext;
 }
 
 export interface KChartSeriesTooltipContext<T = any> extends KChartLayerContext {
@@ -479,6 +500,7 @@ export interface KChartConfiguration<T = any> {
     guideLine?: KChartCursorGuideConfiguration;
     guideLines?: KChartGuideLinesConfiguration;
     options?: KChartOption<T>[];
+    animation?: boolean | KChartAnimationConfiguration;
 }
 
 export interface KChartState<T = any> {
@@ -497,6 +519,8 @@ export interface KChartState<T = any> {
     layers: KChartLayerContext;
     hiddenSeries: Set<string>;
     zoomTransform: ZoomTransform;
+    animationFrame?: number;
+    animationRenderId: number;
     zoomSelection?: {
         active: boolean;
         startX: number;

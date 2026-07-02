@@ -6,6 +6,7 @@
 export * from './core/contracts';
 export * from './core/create-kchart';
 export * from './options';
+export * from './presets';
 export * from './series';
 export * from './utils/downsample-lttb';
 export * from './worker/render-worker';

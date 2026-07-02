@@ -430,23 +430,28 @@ const svgColumnSeries = (selector: string, yField: 'value' | 'volume' | 'extra',
     xField: 'category',
     yField,
     color,
-    render({ group, data, xScale, yScale }) {
+    render({ group, data, xScale, yScale, animation }) {
         if (!xScale || !yScale) {
             return;
         }
 
         const width = bandWidth(xScale, 28);
+        const progress = animation.enabled ? animation.progress : 1;
+        const baseline = yScale.scale(0);
         group.selectAll<SVGRectElement, DemoPoint>(`.${selector}`)
             .data(data)
             .join('rect')
             .attr('class', selector)
             .attr('x', (point) => bandStart(xScale, point.category))
-            .attr('y', (point) => yScale.scale(point[yField]))
+            .attr('y', (point) => {
+                const target = yScale.scale(point[yField]);
+                return Math.min(baseline, baseline + (target - baseline) * progress);
+            })
             .attr('width', width)
-            .attr('height', (point) => yScale.scale(0) - yScale.scale(point[yField]))
+            .attr('height', (point) => Math.abs((baseline - yScale.scale(point[yField])) * progress))
             .attr('rx', 4)
             .style('fill', color)
-            .style('opacity', 0.88);
+            .style('opacity', 0.88 * progress);
     }
 });
 
@@ -456,12 +461,13 @@ const stackedColumnSeries = createCustomSeries<DemoPoint>({
     xField: 'category',
     yField: 'value',
     color: '#5db8ff',
-    render({ group, data, xScale, yScale }) {
+    render({ group, data, xScale, yScale, animation }) {
         if (!xScale || !yScale) {
             return;
         }
 
         const width = bandWidth(xScale, 28);
+        const progress = animation.enabled ? animation.progress : 1;
         const segments = data.flatMap((point) => [
             { category: point.category, y0: 0, y1: point.value, color: '#5db8ff' },
             { category: point.category, y0: point.value, y1: point.value + point.volume, color: '#f3b45b' }
@@ -474,10 +480,13 @@ const stackedColumnSeries = createCustomSeries<DemoPoint>({
             .attr('x', (segment) => bandStart(xScale, segment.category))
             .attr('width', width)
             .attr('rx', 4)
-            .attr('y', (segment) => yScale.scale(segment.y1))
-            .attr('height', (segment) => yScale.scale(segment.y0) - yScale.scale(segment.y1))
+            .attr('y', (segment) => {
+                const visibleY = segment.y0 + (segment.y1 - segment.y0) * progress;
+                return yScale.scale(visibleY);
+            })
+            .attr('height', (segment) => Math.abs(yScale.scale(segment.y0) - yScale.scale(segment.y0 + (segment.y1 - segment.y0) * progress)))
             .style('fill', (segment) => segment.color)
-            .style('opacity', 0.88);
+            .style('opacity', 0.88 * progress);
     }
 });
 
@@ -513,20 +522,21 @@ const circleSeries = createCustomSeries<DemoPoint>({
     xField: 'x',
     yField: 'value',
     color: '#f3b45b',
-    render({ group, data, xScale, yScale, color }) {
+    render({ group, data, xScale, yScale, color, animation }) {
         if (!xScale || !yScale) {
             return;
         }
 
+        const progress = animation.enabled ? animation.progress : 1;
         group.selectAll<SVGCircleElement, DemoPoint>('.demo-circle')
             .data(data)
             .join('circle')
             .attr('class', 'demo-circle')
             .attr('cx', (point) => scaledX(xScale, point.x))
             .attr('cy', (point) => yScale.scale(point.value))
-            .attr('r', (point) => point.radius)
+            .attr('r', (point) => point.radius * progress)
             .style('fill', color)
-            .style('fill-opacity', 0.68)
+            .style('fill-opacity', 0.68 * progress)
             .style('stroke', '#f8fbff')
             .style('stroke-width', 1.4);
     }
@@ -578,10 +588,11 @@ const createRadialMetricSeries = (
         xField: 'label',
         yField,
         color,
-        render({ group, data, plotSize }) {
+        render({ group, data, plotSize, animation }) {
             const centerX = plotSize.width / 2;
             const centerY = plotSize.height / 2 + 10;
             const radius = Math.max(90, Math.min(plotSize.width, plotSize.height) * 0.34);
+            const progress = animation.enabled ? animation.progress : 1;
 
             if (drawFrame) {
                 const ringValues = [0.2, 0.4, 0.6, 0.8, 1];
@@ -594,7 +605,8 @@ const createRadialMetricSeries = (
                     .attr('r', (value) => radius * value)
                     .style('fill', 'none')
                     .style('stroke', 'rgba(188, 206, 218, 0.18)')
-                    .style('stroke-dasharray', '2 6');
+                    .style('stroke-dasharray', '2 6')
+                    .style('opacity', 0.35 + progress * 0.65);
 
                 group.selectAll<SVGLineElement, DemoPoint>('.demo-radial-spoke')
                     .data(data)
@@ -604,7 +616,8 @@ const createRadialMetricSeries = (
                     .attr('y1', centerY)
                     .attr('x2', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius - 4)[0])
                     .attr('y2', (_point, index) => labelPoint(index, data.length, centerX, centerY, radius - 4)[1])
-                    .style('stroke', 'rgba(188, 206, 218, 0.16)');
+                    .style('stroke', 'rgba(188, 206, 218, 0.16)')
+                    .style('opacity', 0.35 + progress * 0.65);
 
                 group.selectAll<SVGTextElement, DemoPoint>('.demo-radial-label')
                     .data(data)
@@ -617,12 +630,13 @@ const createRadialMetricSeries = (
                     .style('fill', 'rgba(231, 244, 255, 0.82)')
                     .style('font-size', '11px')
                     .style('font-weight', 700)
+                    .style('opacity', progress)
                     .text((point) => point.label);
             }
 
             const path = data
                 .map((point, index) => {
-                    const [x, y] = polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius);
+                    const [x, y] = polarPoint(index, data.length, Number(point[yField]) * progress, centerX, centerY, radius);
                     return `${index === 0 ? 'M' : 'L'}${x},${y}`;
                 })
                 .join(' ');
@@ -633,21 +647,23 @@ const createRadialMetricSeries = (
                 .attr('class', `demo-radial-area ${selector}`)
                 .attr('d', `${path} Z`)
                 .style('fill', color)
-                .style('fill-opacity', 0.16)
+                .style('fill-opacity', 0.16 * progress)
                 .style('stroke', color)
                 .style('stroke-width', 2.4)
+                .style('stroke-opacity', progress)
                 .style('filter', 'drop-shadow(0 0 8px rgba(93, 184, 255, 0.14))');
 
             group.selectAll<SVGCircleElement, DemoPoint>('circle.demo-radial-point')
                 .data(data)
                 .join('circle')
                 .attr('class', `demo-radial-point ${selector}`)
-                .attr('cx', (point, index) => polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius)[0])
-                .attr('cy', (point, index) => polarPoint(index, data.length, Number(point[yField]), centerX, centerY, radius)[1])
-                .attr('r', pointRadius)
+                .attr('cx', (point, index) => polarPoint(index, data.length, Number(point[yField]) * progress, centerX, centerY, radius)[0])
+                .attr('cy', (point, index) => polarPoint(index, data.length, Number(point[yField]) * progress, centerX, centerY, radius)[1])
+                .attr('r', pointRadius * progress)
                 .style('fill', color)
                 .style('stroke', '#f8fbff')
-                .style('stroke-width', 1.2);
+                .style('stroke-width', 1.2)
+                .style('opacity', progress);
         },
         tooltip({ data, plotSize, seriesGroup, mouseX, mouseY }) {
             const centerX = plotSize.width / 2;
@@ -759,23 +775,29 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
         displayName,
         xField: 'label',
         yField: 'value',
-        render({ group, data, plotSize }) {
+        render({ group, data, plotSize, animation }) {
             const centerX = plotSize.width / 2;
             const centerY = plotSize.height / 2 + 8;
             const outerRadius = Math.max(92, Math.min(plotSize.width, plotSize.height) * 0.34);
             const innerRadius = outerRadius * innerRadiusRatio;
             const segments = createSegments(data);
             const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+            const progress = animation.enabled ? animation.progress : 1;
+            const visibleSegments = segments.map((segment) => ({
+                ...segment,
+                endAngle: segment.startAngle + (segment.endAngle - segment.startAngle) * progress
+            }));
 
             group.selectAll<SVGPathElement, PieSegment>(`path.${selector}`)
-                .data(segments)
+                .data(visibleSegments)
                 .join('path')
                 .attr('class', selector)
                 .attr('d', (segment) => describeSegment(segment, centerX, centerY, outerRadius, innerRadius))
                 .style('fill', (segment) => segment.color)
-                .style('fill-opacity', 0.82)
+                .style('fill-opacity', 0.82 * progress)
                 .style('stroke', '#101720')
                 .style('stroke-width', 2)
+                .style('stroke-opacity', progress)
                 .style('filter', 'drop-shadow(0 0 10px rgba(93, 184, 255, 0.12))');
 
             group.selectAll<SVGTextElement, PieSegment>(`text.${selector}-label`)
@@ -795,6 +817,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                 .style('fill', 'rgba(231, 244, 255, 0.86)')
                 .style('font-size', '11px')
                 .style('font-weight', 700)
+                .style('opacity', progress)
                 .text((segment) => `${segment.point.label} ${Math.round((segment.value / total) * 100)}%`);
 
             if (innerRadius > 0) {
@@ -807,6 +830,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                     .style('fill', '#f8fbff')
                     .style('font-size', '13px')
                     .style('font-weight', 800)
+                    .style('opacity', progress)
                     .text('Total');
                 group.selectAll<SVGTextElement, number>('text.demo-doughnut-total')
                     .data([total])
@@ -817,6 +841,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                     .attr('text-anchor', 'middle')
                     .style('fill', 'rgba(231, 244, 255, 0.72)')
                     .style('font-size', '12px')
+                    .style('opacity', progress)
                     .text((value) => value.toFixed(0));
             }
         },
@@ -1667,6 +1692,17 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
     const isRadial = kind === 'radial' || kind === 'pie' || kind === 'doughnut';
+    const hasSeriesAnimation = kind === 'line'
+        || kind === 'canvas-line'
+        || kind === 'webgl-line'
+        || kind === 'multi-options'
+        || kind === 'plot'
+        || kind === 'column'
+        || kind === 'stacked-column'
+        || kind === 'circle'
+        || kind === 'radial'
+        || kind === 'pie'
+        || kind === 'doughnut';
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1723,6 +1759,12 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
+        } : undefined,
+        animation: hasSeriesAnimation ? {
+            enabled: true,
+            duration: 820,
+            easing: 'easeOutCubic',
+            mode: 'enter'
         } : undefined,
         axes: isTopology || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
@@ -2079,6 +2121,17 @@ globe.addRoute({
         || kind === 'line'
         || kind === 'option-cursor-line';
     const hasUsageTooltipNotes = kind === 'tooltip-note';
+    const hasUsageAnimation = kind === 'line'
+        || kind === 'canvas-line'
+        || kind === 'webgl-line'
+        || kind === 'multi-options'
+        || kind === 'plot'
+        || kind === 'column'
+        || kind === 'stacked-column'
+        || kind === 'circle'
+        || kind === 'radial'
+        || kind === 'pie'
+        || kind === 'doughnut';
     const dataExpression = kind === 'webgl-large-line'
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
@@ -2371,7 +2424,13 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
-    },${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
+    },${hasUsageAnimation ? `
+    animation: {
+        enabled: true,
+        duration: 820,
+        easing: 'easeOutCubic',
+        mode: 'enter'
+    },` : ''}${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'canvas-candlestick' ? `
     zoom: {
         enabled: true,
         mode: '${kind === 'canvas-candlestick' ? 'wheel' : 'both'}',

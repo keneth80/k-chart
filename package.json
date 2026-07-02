@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -20,6 +20,10 @@
         "./options": {
             "types": "./lib/options/index.d.ts",
             "default": "./lib/options/index.js"
+        },
+        "./presets": {
+            "types": "./lib/presets/index.d.ts",
+            "default": "./lib/presets/index.js"
         },
         "./utils": {
             "types": "./lib/utils/index.d.ts",

@@ -34,6 +34,9 @@ import type {
     KChartResolvedScale,
     KChartDownsampleContext,
     KChartDownsampleConfiguration,
+    KChartAnimationConfiguration,
+    KChartAnimationContext,
+    KChartAnimationEasing,
     KChartLayerContext,
     KChartSeries,
     KChartTitleConfiguration,
@@ -130,6 +133,62 @@ const getZoomGestureMinTouches = <T = any>(config?: KChartZoomConfiguration<T>):
     return typeof option === 'object' && typeof option.minTouches === 'number'
         ? Math.max(1, option.minTouches)
         : 1;
+};
+
+const defaultAnimationContext: KChartAnimationContext = {
+    enabled: false,
+    progress: 1,
+    elapsed: 0,
+    duration: 0,
+    easing: 'easeOutCubic',
+    mode: 'enter',
+    phase: 'enter'
+};
+
+const resolveAnimationConfiguration = <T = any>(
+    config: KChartConfiguration<T>
+): Required<KChartAnimationConfiguration> => {
+    const option = config.animation;
+    const configuration = typeof option === 'object' && option !== null
+        ? option
+        : {};
+
+    return {
+        enabled: option === true || configuration.enabled === true,
+        duration: Math.max(0, configuration.duration ?? 720),
+        easing: configuration.easing ?? 'easeOutCubic',
+        mode: configuration.mode ?? 'enter',
+        respectReducedMotion: configuration.respectReducedMotion ?? true
+    };
+};
+
+const shouldReduceMotion = (): boolean => typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const applyAnimationEasing = (
+    progress: number,
+    easing: KChartAnimationEasing
+): number => {
+    const value = Math.max(0, Math.min(progress, 1));
+
+    if (easing === 'linear') {
+        return value;
+    }
+    if (easing === 'easeInOutCubic') {
+        return value < 0.5
+            ? 4 * value * value * value
+            : 1 - Math.pow(-2 * value + 2, 3) / 2;
+    }
+    return 1 - Math.pow(1 - value, 3);
+};
+
+const cancelSeriesAnimation = <T = any>(state: KChartState<T>): void => {
+    state.animationRenderId += 1;
+    if (state.animationFrame !== undefined && typeof globalThis.cancelAnimationFrame === 'function') {
+        globalThis.cancelAnimationFrame(state.animationFrame);
+    }
+    state.animationFrame = undefined;
 };
 
 const hasZoomInputOptions = <T = any>(config?: KChartZoomConfiguration<T>): boolean => config?.wheelZoom !== undefined
@@ -1488,7 +1547,10 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
     });
 };
 
-const renderSeries = <T = any>(state: KChartState<T>): void => {
+const renderSeries = <T = any>(
+    state: KChartState<T>,
+    animation: KChartAnimationContext = defaultAnimationContext
+): void => {
     state.layers.svg
         .attr('width', state.size.width)
         .attr('height', state.size.height);
@@ -1528,9 +1590,59 @@ const renderSeries = <T = any>(state: KChartState<T>): void => {
             plotSize: state.plotSize,
             margin: state.margin,
             color: series.color ?? state.colors[index % state.colors.length],
-            seriesIndex: index
+            seriesIndex: index,
+            animation
         });
     });
+};
+
+const renderSeriesWithAnimation = <T = any>(state: KChartState<T>): void => {
+    const animation = resolveAnimationConfiguration(state.config);
+    const canAnimate = animation.enabled
+        && animation.mode !== 'update'
+        && animation.duration > 0
+        && typeof globalThis.requestAnimationFrame === 'function'
+        && !(animation.respectReducedMotion && shouldReduceMotion());
+
+    cancelSeriesAnimation(state);
+
+    if (!canAnimate) {
+        renderSeries(state, defaultAnimationContext);
+        return;
+    }
+
+    const startedAt = typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    const renderId = state.animationRenderId;
+
+    const tick = (now: number): void => {
+        if (state.animationRenderId !== renderId) {
+            return;
+        }
+
+        const elapsed = Math.max(0, now - startedAt);
+        const rawProgress = Math.min(elapsed / animation.duration, 1);
+        const context: KChartAnimationContext = {
+            enabled: true,
+            progress: applyAnimationEasing(rawProgress, animation.easing),
+            elapsed,
+            duration: animation.duration,
+            easing: animation.easing,
+            mode: animation.mode,
+            phase: 'enter'
+        };
+
+        renderSeries(state, context);
+
+        if (rawProgress < 1) {
+            state.animationFrame = globalThis.requestAnimationFrame(tick);
+        } else {
+            state.animationFrame = undefined;
+        }
+    };
+
+    tick(startedAt);
 };
 
 const render = <T = any>(state: KChartState<T>): void => {
@@ -1548,7 +1660,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderGrid(state);
     renderSpecAreas(state);
     renderGuideLines(state);
-    renderSeries(state);
+    renderSeriesWithAnimation(state);
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
@@ -1578,7 +1690,8 @@ export const createKChart = <T = any>(
         scales: [],
         layers: undefined as any,
         hiddenSeries: new Set<string>(),
-        zoomTransform: zoomIdentity
+        zoomTransform: zoomIdentity,
+        animationRenderId: 0
     };
     state.layers = createLayers(container, config, () => state.size, () => state.margin);
 
@@ -1627,6 +1740,7 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         destroy() {
+            cancelSeriesAnimation(state);
             state.series.forEach((series: KChartSeries<T>) => {
                 if (series.destroy) {
                     series.destroy(state.layers);
