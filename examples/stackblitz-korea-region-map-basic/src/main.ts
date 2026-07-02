@@ -30,21 +30,21 @@ const koreaRegions = {
 };
 
 const data: RegionDatum[] = [
-  { name: "서울특별시", value: 92, color: "#2f73b8", note: "Capital area" },
-  { name: "경기도", value: 85, color: "#35995a", note: "Largest population" },
-  { name: "강원도", value: 48, color: "#e0005c", note: "Mountain tourism" },
-  { name: "충청북도", value: 52, color: "#65b946", note: "Inland region" },
-  { name: "충청남도", value: 58, color: "#41b434", note: "West coast" },
-  { name: "대전광역시", value: 66, color: "#2e9f68", note: "Science city" },
-  { name: "경상북도", value: 69, color: "#f05a1a", note: "Heritage route" },
-  { name: "대구광역시", value: 74, color: "#f36b21", note: "Metro city" },
-  { name: "전라북도", value: 57, color: "#8a1194", note: "Food route" },
-  { name: "전라남도", value: 63, color: "#38a6e8", note: "Island route" },
-  { name: "광주광역시", value: 61, color: "#36a8ee", note: "Culture city" },
-  { name: "경상남도", value: 71, color: "#55c2d6", note: "South coast" },
-  { name: "부산광역시", value: 82, color: "#202b84", note: "Harbor city" },
-  { name: "울산광역시", value: 67, color: "#5ecce0", note: "Industrial city" },
-  { name: "제주특별자치도", value: 79, color: "#72e4ff", note: "Island destination" }
+  { name: "서울특별시", value: 112, color: "#9f1239", note: "Capital area" },
+  { name: "경기도", value: 111, color: "#be123c", note: "Largest population" },
+  { name: "강원도", value: 104, color: "#fb7185", note: "Mountain tourism" },
+  { name: "충청북도", value: 107, color: "#f43f5e", note: "Inland region" },
+  { name: "충청남도", value: 109, color: "#e11d48", note: "West coast" },
+  { name: "대전광역시", value: 106, color: "#fb7185", note: "Science city" },
+  { name: "경상북도", value: 106, color: "#fb7185", note: "Heritage route" },
+  { name: "대구광역시", value: 103, color: "#fda4af", note: "Metro city" },
+  { name: "전라북도", value: 107, color: "#f43f5e", note: "Food route" },
+  { name: "전라남도", value: 107, color: "#f43f5e", note: "Island route" },
+  { name: "광주광역시", value: 104, color: "#fb7185", note: "Culture city" },
+  { name: "경상남도", value: 105, color: "#fb7185", note: "South coast" },
+  { name: "부산광역시", value: 105, color: "#fb7185", note: "Harbor city" },
+  { name: "울산광역시", value: 110, color: "#e11d48", note: "Industrial city" },
+  { name: "제주특별자치도", value: 103, color: "#fda4af", note: "Island destination" }
 ];
 
 createKChart<RegionDatum>({
@@ -73,13 +73,22 @@ createKChart<RegionDatum>({
       stroke: "rgba(248, 251, 255, 0.92)",
       strokeWidth: 1.4,
       hoverStrokeWidth: 2.4,
+      zoom: {
+        enabled: true,
+        wheel: true,
+        pan: true,
+        scaleExtent: [1, 7],
+        controls: { visible: true, x: 10, y: 10, step: 0.3 }
+      },
       labels: {
         visible: true,
-        mode: "callout",
+        mode: "centroid",
         fill: "#edf3f8",
-        fontSize: 11,
-        offset: 18,
-        formatter: ({ label }) => label.replace("광역시", "").replace("특별시", "")
+        fontSize: 10,
+        fontWeight: 900,
+        stroke: "rgba(15, 23, 42, 0.68)",
+        strokeWidth: 2,
+        formatter: ({ label, value }) => `${label.replace("광역시", "").replace("특별시", "")} ${value}`
       },
       tooltip: {
         formatter: ({ label, data: item, value }) =>

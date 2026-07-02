@@ -2,11 +2,17 @@ import {
     geoMercator,
     geoPath
 } from 'd3-geo';
+import {
+    zoom,
+    zoomIdentity,
+    ZoomTransform
+} from 'd3-zoom';
 import {feature as topojsonFeature} from 'topojson-client';
 import worldCountries110m from 'world-atlas/countries-110m.json';
 import type {
     KChartGeoRegionMapContext,
     KChartGeoRegionMapLabelConfiguration,
+    KChartGeoRegionMapZoomControlsConfiguration,
     KChartGeoRegionMapSeriesConfiguration,
     KChartSeries
 } from '../core/contracts';
@@ -32,6 +38,21 @@ const defaultRegionPalette = [
 
 type RegionRenderDatum<T> = KChartGeoRegionMapContext<T> & {
     centroid: [number, number];
+};
+
+type ResolvedRegionZoomControls = {
+    visible: boolean;
+    x: number;
+    y: number;
+    step: number;
+};
+
+type ResolvedRegionZoom = {
+    enabled: boolean;
+    wheel: boolean;
+    pan: boolean;
+    controls: ResolvedRegionZoomControls;
+    scaleExtent: [number, number];
 };
 
 const normalizeGeoFeatures = (geoJson: any | any[] | undefined): any[] => {
@@ -102,6 +123,54 @@ const resolveLabels = <T = any>(
         offset: labels?.offset ?? 18
     };
 };
+
+const resolveRegionZoomControls = (
+    controls: boolean | KChartGeoRegionMapZoomControlsConfiguration
+): ResolvedRegionZoomControls => {
+    if (typeof controls === 'boolean') {
+        return {
+            visible: controls,
+            x: 8,
+            y: 8,
+            step: 0.28
+        };
+    }
+
+    return {
+        visible: controls?.visible ?? false,
+        x: controls?.x ?? 8,
+        y: controls?.y ?? 8,
+        step: controls?.step ?? 0.28
+    };
+};
+
+const resolveRegionZoom = (
+    zoomConfiguration: KChartGeoRegionMapSeriesConfiguration<any>['zoom']
+): ResolvedRegionZoom => {
+    if (typeof zoomConfiguration === 'boolean') {
+        return {
+            enabled: zoomConfiguration,
+            wheel: true,
+            pan: true,
+            controls: resolveRegionZoomControls(zoomConfiguration),
+            scaleExtent: [1, 8]
+        };
+    }
+
+    return {
+        enabled: zoomConfiguration?.enabled ?? false,
+        wheel: zoomConfiguration?.wheel ?? true,
+        pan: zoomConfiguration?.pan ?? true,
+        controls: resolveRegionZoomControls(zoomConfiguration?.controls ?? false),
+        scaleExtent: zoomConfiguration?.scaleExtent ?? [1, 8]
+    };
+};
+
+const clampNumber = (
+    value: number,
+    min: number,
+    max: number
+): number => Math.max(min, Math.min(max, value));
 
 const resolveRegionFill = <T = any>(
     context: KChartGeoRegionMapContext<T>,
@@ -177,13 +246,34 @@ const createTooltipHtml = <T = any>(
 
 export const createGeoRegionMapSeries = <T = any>(
     configuration: KChartGeoRegionMapSeriesConfiguration<T>
-): KChartSeries<T> => createCustomSeries<T>({
+): KChartSeries<T> => {
+    let regionZoomTransform: ZoomTransform = zoomIdentity;
+
+    const getLocalPoint = (x: number, y: number): [number, number] => [
+        (x - regionZoomTransform.x) / regionZoomTransform.k,
+        (y - regionZoomTransform.y) / regionZoomTransform.k
+    ];
+
+    const getScreenPoint = (point: [number, number]): [number, number] => [
+        point[0] * regionZoomTransform.k + regionZoomTransform.x,
+        point[1] * regionZoomTransform.k + regionZoomTransform.y
+    ];
+
+    return createCustomSeries<T>({
     selector: configuration.selector,
     displayName: configuration.displayName,
     color: typeof configuration.fill === 'string' ? configuration.fill : undefined,
-    render({group, data, plotSize}) {
+    render({group, data, plotSize, overlayGroup}) {
         const width = plotSize.width;
         const height = plotSize.height;
+        const zoomConfiguration = resolveRegionZoom(configuration.zoom);
+        const [minZoom, maxZoom] = [
+            Math.min(zoomConfiguration.scaleExtent[0], zoomConfiguration.scaleExtent[1]),
+            Math.max(zoomConfiguration.scaleExtent[0], zoomConfiguration.scaleExtent[1])
+        ];
+        regionZoomTransform = zoomIdentity
+            .translate(regionZoomTransform.x, regionZoomTransform.y)
+            .scale(clampNumber(regionZoomTransform.k, minZoom, maxZoom));
         const features = normalizeGeoFeatures(configuration.geoJson);
         const featureCollection = {
             type: 'FeatureCollection',
@@ -233,7 +323,13 @@ export const createGeoRegionMapSeries = <T = any>(
             .attr('height', height)
             .style('fill', configuration.backgroundFill ?? 'transparent');
 
-        group.selectAll<SVGPathElement, RegionRenderDatum<T>>(`path.${configuration.selector}`)
+        const mapLayer = group.selectAll<SVGGElement, unknown>('g.kchart-region-map-layer')
+            .data([undefined])
+            .join('g')
+            .attr('class', 'kchart-region-map-layer')
+            .attr('transform', regionZoomTransform.toString());
+
+        mapLayer.selectAll<SVGPathElement, RegionRenderDatum<T>>(`path.${configuration.selector}`)
             .data(regions, (item) => item.key)
             .join('path')
             .attr('class', configuration.selector)
@@ -252,13 +348,7 @@ export const createGeoRegionMapSeries = <T = any>(
             });
 
         const labelConfiguration = resolveLabels(configuration.labels);
-        if (!labelConfiguration.visible) {
-            group.selectAll(`text.${configuration.selector}-label`).remove();
-            group.selectAll(`path.${configuration.selector}-callout`).remove();
-            return;
-        }
-
-        const labelItems = regions
+        const labelItems = labelConfiguration.visible ? regions
             .filter((item) => Number.isFinite(item.centroid[0]) && Number.isFinite(item.centroid[1]))
             .map((item) => {
                 const side = labelConfiguration.side === 'auto'
@@ -275,9 +365,9 @@ export const createGeoRegionMapSeries = <T = any>(
                         ? side === 'left' ? 'end' : 'start'
                         : 'middle'
                 };
-            });
+            }) : [];
 
-        if (labelConfiguration.mode === 'callout') {
+        if (labelConfiguration.visible && labelConfiguration.mode === 'callout') {
             const minGap = labelConfiguration.fontSize + 6;
             (['left', 'right'] as const).forEach((side) => {
                 const sideItems = labelItems
@@ -293,7 +383,7 @@ export const createGeoRegionMapSeries = <T = any>(
             });
         }
 
-        group.selectAll<SVGPathElement, typeof labelItems[number]>(`path.${configuration.selector}-callout`)
+        mapLayer.selectAll<SVGPathElement, typeof labelItems[number]>(`path.${configuration.selector}-callout`)
             .data(labelConfiguration.mode === 'callout' ? labelItems : [], (item) => item.key)
             .join('path')
             .attr('class', `${configuration.selector}-callout`)
@@ -304,7 +394,7 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke-opacity', labelConfiguration.calloutOpacity)
             .style('pointer-events', 'none');
 
-        group.selectAll<SVGTextElement, typeof labelItems[number]>(`text.${configuration.selector}-label`)
+        mapLayer.selectAll<SVGTextElement, typeof labelItems[number]>(`text.${configuration.selector}-label`)
             .data(labelItems, (item) => item.key)
             .join('text')
             .attr('class', `${configuration.selector}-label`)
@@ -320,6 +410,133 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke-width', labelConfiguration.strokeWidth)
             .style('pointer-events', 'none')
             .text((item) => labelConfiguration.formatter(item));
+
+        const applyZoomTransform = (transform: ZoomTransform): void => {
+            regionZoomTransform = transform;
+            group.select<SVGGElement>('g.kchart-region-map-layer')
+                .attr('transform', regionZoomTransform.toString());
+            overlayGroup.selectAll<SVGGElement, unknown>(`g.${configuration.selector}-zoom-controls`).raise();
+        };
+
+        const renderZoomControls = (): void => {
+            const controls = zoomConfiguration.controls;
+            const controlItems = controls.visible ? [
+                {key: 'in', label: '+', title: 'Zoom in'},
+                {key: 'reset', label: `${Math.round(regionZoomTransform.k * 100)}%`, title: 'Reset zoom'},
+                {key: 'out', label: '-', title: 'Zoom out'}
+            ] : [];
+            const controlsGroup = overlayGroup.selectAll<SVGGElement, unknown>(`g.${configuration.selector}-zoom-controls`)
+                .data(controlItems.length ? [undefined] : [])
+                .join('g')
+                .attr('class', `${configuration.selector}-zoom-controls`)
+                .attr('transform', `translate(${Math.max(0, width - controls.x - 48)}, ${controls.y})`)
+                .style('pointer-events', 'all');
+
+            const buttons = controlsGroup.selectAll<SVGGElement, typeof controlItems[number]>('g.kchart-region-map-zoom-control')
+                .data(controlItems, (item) => item.key)
+                .join('g')
+                .attr('class', 'kchart-region-map-zoom-control')
+                .attr('transform', (_item, index) => `translate(0, ${index * 34})`)
+                .style('cursor', 'pointer')
+                .style('opacity', (item) => {
+                    if (item.key === 'in' && regionZoomTransform.k >= maxZoom) return 0.45;
+                    if (item.key === 'out' && regionZoomTransform.k <= minZoom) return 0.45;
+                    return 1;
+                })
+                .on('click', (event: MouseEvent, item) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const nextScale = item.key === 'in'
+                        ? regionZoomTransform.k * (1 + controls.step)
+                        : item.key === 'out'
+                            ? regionZoomTransform.k / (1 + controls.step)
+                            : 1;
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const scale = clampNumber(nextScale, minZoom, maxZoom);
+                    const nextTransform = item.key === 'reset'
+                        ? zoomIdentity
+                        : zoomIdentity
+                            .translate(centerX, centerY)
+                            .scale(scale)
+                            .translate(
+                                -(centerX - regionZoomTransform.x) / regionZoomTransform.k,
+                                -(centerY - regionZoomTransform.y) / regionZoomTransform.k
+                            );
+                    applyZoomTransform(nextTransform);
+                    renderZoomControls();
+                });
+
+            buttons.selectAll<SVGRectElement, unknown>('rect')
+                .data([undefined])
+                .join('rect')
+                .attr('width', 48)
+                .attr('height', 30)
+                .attr('rx', 7)
+                .style('fill', 'rgba(16, 23, 33, 0.86)')
+                .style('stroke', 'rgba(226, 236, 249, 0.55)')
+                .style('stroke-width', 1);
+
+            buttons.selectAll<SVGTextElement, typeof controlItems[number]>('text')
+                .data((item) => [item])
+                .join('text')
+                .attr('x', 24)
+                .attr('y', 16)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .style('fill', '#f8fbff')
+                .style('font-size', (item) => item.key === 'reset' ? '10px' : '18px')
+                .style('font-weight', 800)
+                .style('pointer-events', 'none')
+                .text((item) => item.label);
+
+            controlsGroup.raise();
+        };
+
+        if (!zoomConfiguration.enabled) {
+            overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
+            return;
+        }
+
+        const attachZoom = (): void => {
+            let overlay = overlayGroup.select<SVGRectElement>('rect.kchart-tooltip-overlay');
+            if (!overlay.node()) {
+                overlay = overlayGroup.selectAll<SVGRectElement, unknown>(`rect.${configuration.selector}-zoom-overlay`)
+                    .data([undefined])
+                    .join('rect')
+                    .attr('class', `${configuration.selector}-zoom-overlay`)
+                    .attr('width', width)
+                    .attr('height', height)
+                    .style('fill', 'transparent')
+                    .style('pointer-events', 'all');
+            }
+            const overlayNode = overlay.node();
+            if (!overlayNode) {
+                return;
+            }
+            const zoomBehavior = zoom<SVGRectElement, unknown>()
+                .scaleExtent([minZoom, maxZoom])
+                .filter((event: any) => {
+                    if (event.type === 'wheel') return zoomConfiguration.wheel;
+                    if (event.type === 'mousedown') return zoomConfiguration.pan && event.button === 0;
+                    if (event.type === 'touchstart' || event.type === 'touchmove') return zoomConfiguration.pan;
+                    return true;
+                })
+                .on('zoom', (event) => {
+                    applyZoomTransform(event.transform);
+                    renderZoomControls();
+                });
+
+            overlay.call(zoomBehavior as any);
+            (overlayNode as any).__zoom = regionZoomTransform;
+            renderZoomControls();
+        };
+
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(attachZoom);
+        } else {
+            setTimeout(attachZoom, 0);
+        }
     },
     tooltip({seriesGroup, mouseX, mouseY}) {
         if (configuration.tooltip === false) {
@@ -327,12 +544,13 @@ export const createGeoRegionMapSeries = <T = any>(
         }
 
         let active: RegionRenderDatum<T> | undefined;
+        const [localMouseX, localMouseY] = getLocalPoint(mouseX, mouseY);
         seriesGroup.selectAll<SVGPathElement, RegionRenderDatum<T>>(`path.${configuration.selector}`)
             .style('fill', (item) => resolveRegionFill(item, configuration))
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2)
             .each(function findHit(item) {
-                if (!active && pointHitsPath(this, mouseX, mouseY)) {
+                if (!active && pointHitsPath(this, localMouseX, localMouseY)) {
                     active = item;
                 }
             });
@@ -349,10 +567,11 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke', configuration.hoverStroke ?? '#ffffff')
             .style('stroke-width', configuration.hoverStrokeWidth ?? Math.max(2, configuration.strokeWidth ?? 1.2));
 
+        const [tooltipX, tooltipY] = getScreenPoint(active.centroid);
         return {
             data: active.data ?? (active as unknown as T),
-            x: active.centroid[0],
-            y: active.centroid[1],
+            x: tooltipX,
+            y: tooltipY,
             distance: 0,
             color: resolveRegionFill(active, configuration),
             html: createTooltipHtml(active, configuration)
@@ -363,8 +582,12 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('fill', (item) => resolveRegionFill(item, configuration))
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2);
+    },
+    destroy({overlayGroup}) {
+        overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
     }
-});
+    });
+};
 
 export const createWorldCountryMapSeries = <T = any>(
     configuration: Omit<KChartGeoRegionMapSeriesConfiguration<T>, 'geoJson'>

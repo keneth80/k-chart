@@ -333,6 +333,21 @@ export interface KChartGeoRegionMapLabelConfiguration<T = any> {
     offset?: number;
 }
 
+export interface KChartGeoRegionMapZoomControlsConfiguration {
+    visible?: boolean;
+    x?: number;
+    y?: number;
+    step?: number;
+}
+
+export interface KChartGeoRegionMapZoomConfiguration {
+    enabled?: boolean;
+    wheel?: boolean;
+    pan?: boolean;
+    controls?: boolean | KChartGeoRegionMapZoomControlsConfiguration;
+    scaleExtent?: [number, number];
+}
+
 export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
@@ -352,6 +367,7 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     hoverFill?: string | ((context: KChartGeoRegionMapContext<T>) => string);
     hoverStroke?: string;
     hoverStrokeWidth?: number;
+    zoom?: boolean | KChartGeoRegionMapZoomConfiguration;
     labels?: boolean | KChartGeoRegionMapLabelConfiguration<T>;
     tooltip?: boolean | {
         formatter?: (context: KChartGeoRegionMapContext<T>) => string;

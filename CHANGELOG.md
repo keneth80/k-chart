@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.12.0 - 2026-07-03
+
+### Added
+
+- Added `zoom` support to `createGeoRegionMapSeries()` for wheel zoom, drag pan, and in-chart zoom controls.
+
+### Changed
+
+- Updated the Korea Region Map example to use centroid labels and choropleth colors instead of dense callout guide lines.
+- Documented region map zoom options in the functional API guide and configuration reference.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.12.0`.
+
 ## 1.11.0 - 2026-07-02
 
 ### Added

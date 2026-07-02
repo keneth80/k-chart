@@ -257,6 +257,27 @@ createKChart({
 
 WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달합니다. Worker async path는 line series에만 구현되어 있습니다.
 
+### SVG Region Map: `createGeoRegionMapSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `geoJson` | `FeatureCollection \| Feature \| Feature[]` | required | 지도 경계 GeoJSON입니다. 한국 시도, 세계 국가, 사내 구역처럼 polygon feature를 넣습니다. |
+| `dataKey` | `keyof T & string` | `name` | chart data에서 region key로 사용할 field입니다. |
+| `featureKey` | `string \| (feature) => string` | `name` | GeoJSON feature에서 region key로 사용할 property입니다. |
+| `labelKey` | `string \| (feature) => string` | `featureKey` | label에 사용할 feature property입니다. |
+| `valueField` | `keyof T & string` | - | tooltip/label에 표시할 값 field입니다. |
+| `colorField` | `keyof T & string` | - | data row별 fill color field입니다. |
+| `fitPadding` | `number` | `16` | projection fit 시 plot edge와 지도 사이 여백입니다. |
+| `backgroundFill` | `string` | transparent | 지도 배경색입니다. |
+| `fill` / `missingFill` | `string \| (context) => string` | palette / translucent gray | data가 있는 region과 없는 region의 채움색입니다. |
+| `stroke` / `strokeWidth` | `string \| (context) => string`, `number` | white, `1.2` | region 경계선입니다. |
+| `hoverFill` / `hoverStroke` / `hoverStrokeWidth` | mixed | - | tooltip hit region hover style입니다. |
+| `labels` | `boolean \| KChartGeoRegionMapLabelConfiguration<T>` | disabled | `centroid` 또는 `callout` 라벨을 표시합니다. |
+| `zoom` | `boolean \| KChartGeoRegionMapZoomConfiguration` | disabled | 지도 내부 wheel zoom, drag pan, zoom button control을 켭니다. |
+| `tooltip` | `boolean \| { formatter }` | enabled | region tooltip입니다. |
+
+`zoom: {enabled: true, controls: {visible: true}, scaleExtent: [1, 7]}`처럼 지정하면 축이 없는 지도에서도 확대/축소와 drag 이동을 사용할 수 있습니다. `wheel`은 mouse wheel zoom, `pan`은 drag pan 입력을 제어합니다. `labels.mode: 'callout'`은 작은 지도의 라벨 선이 복잡해질 수 있으므로, choropleth 지도에서는 `centroid`와 짧은 label formatter를 우선 권장합니다.
+
 ### SVG Globe: `createSvgGlobeSeries`
 
 | Field | Type | Default | Description |

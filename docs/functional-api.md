@@ -524,9 +524,17 @@ createKChart<Region>({
             labelKey: 'name',
             valueField: 'value',
             colorField: 'color',
+            zoom: {
+                enabled: true,
+                wheel: true,
+                pan: true,
+                scaleExtent: [1, 7],
+                controls: {visible: true}
+            },
             labels: {
                 visible: true,
-                mode: 'callout'
+                mode: 'centroid',
+                formatter: ({label, value}) => `${label} ${value}`
             },
             tooltip: {
                 formatter: ({label, value}) => `<strong>${label}</strong><br/>value: ${value}`
@@ -535,6 +543,8 @@ createKChart<Region>({
     ]
 }).render();
 ```
+
+`zoom`은 지역 지도 전용 확대/이동 옵션입니다. `enabled: true`이면 mouse wheel로 확대/축소하고 drag로 지도를 이동할 수 있습니다. `controls: {visible: true}`를 지정하면 오른쪽 상단에 `+`, 현재 배율, `-` 버튼이 표시됩니다. `scaleExtent`는 최소/최대 배율이며, `wheel`과 `pan`을 각각 꺼서 입력 방식을 제한할 수 있습니다. 지도 라벨은 비교적 좁은 화면에서 `callout` 선이 복잡해질 수 있으므로, 한국 시도 choropleth처럼 경계 내부에 값을 보여줄 때는 `labels.mode: 'centroid'`를 권장합니다.
 
 전세계 국가 지도는 `world-atlas` 110m country geometry를 내장한 `createWorldCountryMapSeries()`로 더 짧게 만들 수 있습니다. country 이름은 `world-atlas`의 `properties.name`과 맞춰야 합니다.
 
