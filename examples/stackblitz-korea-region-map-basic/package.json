@@ -1,0 +1,17 @@
+{
+  "name": "kchart-korea-region-map-basic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@keneth80/k-chart": "^1.11.0",
+    "typescript": "^6.0.3",
+    "vite": "^7.1.12"
+  },
+  "devDependencies": {}
+}

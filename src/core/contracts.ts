@@ -305,6 +305,60 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     onMarkerClick?: (context: KChartGlobeMarkerClickContext<T>) => void;
 }
 
+export interface KChartGeoRegionMapContext<T = any> {
+    feature: any;
+    data?: T;
+    index: number;
+    key: string;
+    label: string;
+    value?: any;
+}
+
+export interface KChartGeoRegionMapClickContext<T = any> extends KChartGeoRegionMapContext<T> {
+    event: MouseEvent;
+}
+
+export interface KChartGeoRegionMapLabelConfiguration<T = any> {
+    visible?: boolean;
+    mode?: 'centroid' | 'callout';
+    formatter?: (context: KChartGeoRegionMapContext<T>) => string;
+    fill?: string;
+    fontSize?: number;
+    fontWeight?: number | string;
+    stroke?: string;
+    strokeWidth?: number;
+    calloutStroke?: string;
+    calloutOpacity?: number;
+    side?: 'auto' | 'left' | 'right';
+    offset?: number;
+}
+
+export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    geoJson?: any | any[];
+    dataKey?: keyof T & string;
+    featureKey?: string | ((feature: any) => string);
+    labelKey?: string | ((feature: any) => string);
+    valueField?: keyof T & string;
+    colorField?: keyof T & string;
+    fitPadding?: number;
+    backgroundFill?: string;
+    fill?: string | ((context: KChartGeoRegionMapContext<T>) => string);
+    missingFill?: string;
+    stroke?: string | ((context: KChartGeoRegionMapContext<T>) => string);
+    strokeWidth?: number;
+    opacity?: number | ((context: KChartGeoRegionMapContext<T>) => number);
+    hoverFill?: string | ((context: KChartGeoRegionMapContext<T>) => string);
+    hoverStroke?: string;
+    hoverStrokeWidth?: number;
+    labels?: boolean | KChartGeoRegionMapLabelConfiguration<T>;
+    tooltip?: boolean | {
+        formatter?: (context: KChartGeoRegionMapContext<T>) => string;
+    };
+    onRegionClick?: (context: KChartGeoRegionMapClickContext<T>) => void;
+}
+
 export interface KChartWebglPointSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;

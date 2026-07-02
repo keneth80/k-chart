@@ -56,6 +56,10 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-worker-json-line?title=KChart%20Worker%20JSON%20Line&file=src/main.ts"><strong>Worker JSON</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-korea-region-map-basic?title=KChart%20Korea%20Region%20Map&file=src/main.ts"><strong>Korea Map</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts"><strong>World Map</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-column-basic?title=KChart%20Column&file=src/main.ts"><strong>Column</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-stacked-column-basic?title=KChart%20Stacked%20Column&file=src/main.ts"><strong>Stacked Column</strong></a>

@@ -4,5 +4,6 @@ export * from './canvas-point';
 export * from './custom';
 export * from './svg-line';
 export * from './svg-globe';
+export * from './svg-region-map';
 export * from './webgl-line';
 export * from './webgl-point';

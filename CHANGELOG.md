@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.11.0 - 2026-07-02
+
+### Added
+
+- Added `createGeoRegionMapSeries()` for SVG choropleth/region maps backed by user-provided GeoJSON.
+- Added `createWorldCountryMapSeries()` with built-in `world-atlas` country geometry for country-level color maps.
+- Added region map hover highlight, click callbacks, tooltip formatting, centroid labels, and callout labels.
+- Added Korea Region Map and World Country Map StackBlitz examples.
+
+### Changed
+
+- Documented region map usage and linked the new map examples from README and the functional API guide.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.11.0`.
+
 ## 1.10.0 - 2026-07-02
 
 ### Added
