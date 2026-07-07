@@ -352,6 +352,7 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
     geoJson?: any | any[];
+    topoObjectName?: string;
     dataKey?: keyof T & string;
     featureKey?: string | ((feature: any) => string);
     labelKey?: string | ((feature: any) => string);

@@ -55,11 +55,27 @@ type ResolvedRegionZoom = {
     scaleExtent: [number, number];
 };
 
-const normalizeGeoFeatures = (geoJson: any | any[] | undefined): any[] => {
+const normalizeGeoFeatures = (
+    geoJson: any | any[] | undefined,
+    topoObjectName?: string
+): any[] => {
     const values = Array.isArray(geoJson) ? geoJson : [geoJson];
     return values.flatMap((value) => {
         if (!value) {
             return [];
+        }
+        if (value.type === 'Topology' && value.objects) {
+            const objectName = topoObjectName && value.objects[topoObjectName]
+                ? topoObjectName
+                : Object.keys(value.objects)[0];
+            if (!objectName) {
+                return [];
+            }
+            const converted: any = topojsonFeature(value, value.objects[objectName]);
+            if (converted.type === 'FeatureCollection' && Array.isArray(converted.features)) {
+                return converted.features;
+            }
+            return converted.type === 'Feature' ? [converted] : [];
         }
         if (value.type === 'FeatureCollection' && Array.isArray(value.features)) {
             return value.features;
@@ -274,7 +290,7 @@ export const createGeoRegionMapSeries = <T = any>(
         regionZoomTransform = zoomIdentity
             .translate(regionZoomTransform.x, regionZoomTransform.y)
             .scale(clampNumber(regionZoomTransform.k, minZoom, maxZoom));
-        const features = normalizeGeoFeatures(configuration.geoJson);
+        const features = normalizeGeoFeatures(configuration.geoJson, configuration.topoObjectName);
         const featureCollection = {
             type: 'FeatureCollection',
             features

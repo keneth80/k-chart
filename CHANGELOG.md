@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.12.2 - 2026-07-07
+
+### Changed
+
+- Tuned the Korea Region Map example labels to show compact values inside the real province boundaries.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.12.2`.
+
+## 1.12.1 - 2026-07-07
+
+### Added
+
+- Added TopoJSON `Topology` support to `createGeoRegionMapSeries()` with optional `topoObjectName`.
+- Added real Korea province TopoJSON data to the Korea Region Map StackBlitz example with source license notes.
+
+### Fixed
+
+- Replaced the temporary block-shaped Korea map example geometry with real province boundary data.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.12.1`.
+
 ## 1.12.0 - 2026-07-03
 
 ### Added
