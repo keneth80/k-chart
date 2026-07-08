@@ -223,6 +223,88 @@ export interface KChartBubbleSeriesConfiguration<T = any> extends KChartScatterS
     maxRadius?: number;
 }
 
+export interface KChartBoxPlotSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    minField: keyof T & string;
+    q1Field: keyof T & string;
+    medianField: keyof T & string;
+    q3Field: keyof T & string;
+    maxField: keyof T & string;
+    outliersField?: keyof T & string;
+    color?: string;
+    fill?: string | ((point: T, index: number) => string);
+    opacity?: number;
+    boxWidthRatio?: number;
+    minBoxWidth?: number;
+    maxBoxWidth?: number;
+    strokeWidth?: number;
+}
+
+export interface KChartHistogramSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    binStartField: keyof T & string;
+    binEndField: keyof T & string;
+    valueField: keyof T & string;
+    color?: string;
+    fill?: string | ((point: T, index: number) => string);
+    opacity?: number;
+    gap?: number;
+    radius?: number;
+    baseline?: number;
+}
+
+export interface KChartTreemapSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    labelField: keyof T & string;
+    valueField: keyof T & string;
+    colorField?: keyof T & string;
+    color?: string;
+    fill?: string | ((point: T, index: number) => string);
+    opacity?: number;
+    gap?: number;
+    radius?: number;
+    minLabelArea?: number;
+    sort?: boolean;
+}
+
+export interface KChartGaugeSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    valueField: keyof T & string;
+    labelField?: keyof T & string;
+    min?: number;
+    max?: number;
+    startAngle?: number;
+    endAngle?: number;
+    color?: string;
+    trackColor?: string;
+    needleColor?: string;
+    thickness?: number;
+    showNeedle?: boolean;
+    valueFormat?: (value: number, point: T) => string;
+}
+
+export interface KChartWaterfallSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    valueField: keyof T & string;
+    totalField?: keyof T & string;
+    color?: string;
+    positiveColor?: string;
+    negativeColor?: string;
+    totalColor?: string;
+    connectorColor?: string;
+    opacity?: number;
+    barWidthRatio?: number;
+    radius?: number;
+    baseline?: number;
+}
+
 export interface KChartCanvasLineSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;

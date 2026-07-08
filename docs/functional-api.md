@@ -49,6 +49,11 @@ import {
     createCanvasCandlestickSeries,
     createCanvasLineSeries,
     createCanvasPointSeries,
+    createBoxPlotSeries,
+    createGaugeSeries,
+    createHistogramSeries,
+    createTreemapSeries,
+    createWaterfallSeries,
     createSvgGlobeSeries,
     createSpecAreaOption,
     createTooltipNoteOption,
@@ -123,6 +128,62 @@ const chart = chartConfig(data)
 ```
 
 Builder는 `series(...)`와 `option(...)`도 제공하므로, 초보자용 흐름에서 시작해 기존 `createLineSeries(...)`, `createSpecAreaOption(...)` 같은 고급 함수와 섞어 사용할 수 있습니다.
+
+## Built-In BI / Distribution Series
+
+대시보드에서 자주 필요한 분포, 구성, KPI, 누적 흐름 차트도 class-free factory로 사용할 수 있습니다.
+
+```ts
+createKChart({
+    selector: '#box-plot',
+    data: [
+        {team: 'A', min: 12, q1: 18, median: 24, q3: 31, max: 42, outliers: [48]},
+        {team: 'B', min: 10, q1: 16, median: 22, q3: 28, max: 39, outliers: []}
+    ],
+    axes: [
+        {field: 'team', type: 'point', placement: 'bottom'},
+        {field: 'median', type: 'number', placement: 'left', domainFields: ['min', 'max']}
+    ],
+    series: [
+        createBoxPlotSeries({
+            selector: 'box',
+            xField: 'team',
+            minField: 'min',
+            q1Field: 'q1',
+            medianField: 'median',
+            q3Field: 'q3',
+            maxField: 'max',
+            outliersField: 'outliers'
+        })
+    ]
+});
+```
+
+```ts
+createKChart({
+    selector: '#kpi',
+    data: [{label: 'SLA', value: 92}],
+    axes: [],
+    series: [
+        createGaugeSeries({
+            selector: 'sla',
+            labelField: 'label',
+            valueField: 'value',
+            min: 0,
+            max: 100,
+            color: '#56d08f'
+        })
+    ]
+});
+```
+
+| Factory | Purpose |
+| --- | --- |
+| `createBoxPlotSeries(options)` | min/q1/median/q3/max와 outlier를 표시합니다. |
+| `createHistogramSeries(options)` | `binStart`, `binEnd`, `count` 형태의 binned 데이터를 막대로 표시합니다. |
+| `createTreemapSeries(options)` | 값 비중을 tile 면적으로 표현합니다. |
+| `createGaugeSeries(options)` | 단일 KPI 값을 arc/needle meter로 표현합니다. |
+| `createWaterfallSeries(options)` | 증가/감소/합계 흐름을 누적 bar로 표현합니다. |
 
 ## Controller
 

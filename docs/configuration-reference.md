@@ -237,6 +237,75 @@ createKChart({
 | `stroke` / `strokeWidth` | `string`, `number` | light stroke, `1.4` | point stroke 스타일입니다. |
 | `opacity` | `number` | scatter `0.9`, bubble `0.55` | point fill opacity입니다. |
 
+### SVG Box Plot: `createBoxPlotSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` | `keyof T & string` | required | category 위치 field입니다. |
+| `minField`, `q1Field`, `medianField`, `q3Field`, `maxField` | `keyof T & string` | required | box plot 5-number summary field입니다. |
+| `outliersField` | `keyof T & string` | - | outlier 값 배열 field입니다. |
+| `fill` / `color` | `string \| (point, index) => string` | chart color | box fill/stroke 색상입니다. |
+| `boxWidthRatio` | `number` | `0.48` | category band 중 box가 차지하는 비율입니다. |
+| `minBoxWidth` / `maxBoxWidth` | `number` | `16`, `46` | box width clamp입니다. |
+| `strokeWidth` | `number` | `1.8` | whisker, cap, box, median line stroke width입니다. |
+
+### SVG Histogram: `createHistogramSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `binStartField` / `binEndField` | `keyof T & string` | required | numeric bin start/end field입니다. |
+| `valueField` | `keyof T & string` | required | bin 높이로 사용할 count/frequency field입니다. |
+| `fill` / `color` | `string \| (point, index) => string` | chart color | bin fill 색상입니다. |
+| `gap` | `number` | `2` | bin 사이 간격입니다. |
+| `radius` | `number` | `3` | bin corner radius입니다. |
+| `baseline` | `number` | `0` | bar 시작 기준 y 값입니다. |
+
+### SVG Treemap: `createTreemapSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `labelField` | `keyof T & string` | required | tile label field입니다. |
+| `valueField` | `keyof T & string` | required | tile 면적을 결정하는 numeric field입니다. |
+| `colorField` | `keyof T & string` | - | data row별 fill color field입니다. |
+| `fill` / `color` | `string \| (point, index) => string` | palette | tile fill fallback입니다. |
+| `gap` | `number` | `6` | tile 사이 간격입니다. |
+| `radius` | `number` | `6` | tile corner radius입니다. |
+| `minLabelArea` | `number` | `1800` | label을 표시할 최소 tile 면적입니다. |
+| `sort` | `boolean` | `true` | value 내림차순으로 layout할지 정합니다. |
+
+현재 treemap은 추가 dependency 없이 recursive slice layout을 사용합니다. 많은 계층 구조나 squarified layout이 필요하면 custom series로 확장하거나 향후 전용 hierarchy 옵션을 추가할 수 있습니다.
+
+### SVG Gauge / KPI Meter: `createGaugeSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `valueField` | `keyof T & string` | required | meter 값 field입니다. 첫 번째 data row를 사용합니다. |
+| `labelField` | `keyof T & string` | - | 중앙 label field입니다. |
+| `min` / `max` | `number` | `0`, `100` | gauge 값 범위입니다. |
+| `startAngle` / `endAngle` | `number` | `-130`, `130` | arc 시작/끝 각도입니다. |
+| `color` / `trackColor` / `needleColor` | `string` | theme colors | value arc, track, needle 색상입니다. |
+| `thickness` | `number` | `16` | arc stroke width입니다. |
+| `showNeedle` | `boolean` | `true` | needle 표시 여부입니다. |
+| `valueFormat` | `(value, point) => string` | rounded number | 중앙 value text formatter입니다. |
+
+### SVG Waterfall: `createWaterfallSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` | `keyof T & string` | required | category 위치 field입니다. |
+| `valueField` | `keyof T & string` | required | 누적 delta 값 field입니다. |
+| `totalField` | `keyof T & string` | - | true이면 해당 row를 total bar로 처리해 baseline에서 value까지 그립니다. |
+| `positiveColor` / `negativeColor` / `totalColor` | `string` | green/red/blue | 증가, 감소, total bar 색상입니다. |
+| `connectorColor` | `string` | translucent gray | bar 사이 dashed connector 색상입니다. |
+| `barWidthRatio` | `number` | `0.58` | category band 중 bar가 차지하는 비율입니다. |
+| `radius` | `number` | `4` | bar corner radius입니다. |
+| `baseline` | `number` | `0` | 누적 시작 기준값입니다. |
+
 ### Canvas Line: `createCanvasLineSeries`
 
 | Field | Type | Default | Description |

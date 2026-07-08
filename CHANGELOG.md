@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.15.0 - 2026-07-09
+
+### Added
+
+- Added `createBoxPlotSeries()` for SVG distribution summaries.
+- Added `createHistogramSeries()` for binned frequency charts.
+- Added `createTreemapSeries()` for compact part-to-whole dashboards.
+- Added `createGaugeSeries()` for KPI meter displays.
+- Added `createWaterfallSeries()` for cumulative delta flows.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.15.0`.
+
 ## 1.14.0 - 2026-07-08
 
 ### Added

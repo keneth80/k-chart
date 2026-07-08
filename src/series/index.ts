@@ -4,6 +4,8 @@ export * from './canvas-point';
 export * from './custom';
 export * from './svg-area';
 export * from './svg-bar';
+export * from './svg-dashboard';
+export * from './svg-distribution';
 export * from './svg-line';
 export * from './svg-globe';
 export * from './svg-region-map';
