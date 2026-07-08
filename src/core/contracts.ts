@@ -156,6 +156,73 @@ export interface KChartLineSeriesConfiguration<T = any> {
     downsample?: boolean | KChartDownsampleConfiguration<T>;
 }
 
+export interface KChartAreaSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    yField: keyof T & string;
+    baseline?: number;
+    color?: string;
+    fill?: string;
+    fillOpacity?: number;
+    stroke?: string;
+    strokeWidth?: number;
+    curve?: boolean;
+    downsample?: boolean | KChartDownsampleConfiguration<T>;
+}
+
+export interface KChartBarSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    yField: keyof T & string;
+    color?: string;
+    fill?: string | ((point: T, index: number) => string);
+    opacity?: number;
+    barHeight?: number;
+    minBarHeight?: number;
+    maxBarHeight?: number;
+    radius?: number;
+    baseline?: number;
+}
+
+export interface KChartGroupedColumnSegment<T = any> {
+    field: keyof T & string;
+    label?: string;
+    color?: string;
+}
+
+export interface KChartGroupedColumnSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    segments: Array<KChartGroupedColumnSegment<T>>;
+    opacity?: number;
+    groupWidthRatio?: number;
+    gap?: number;
+    radius?: number;
+    baseline?: number;
+}
+
+export interface KChartScatterSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    xField: keyof T & string;
+    yField: keyof T & string;
+    color?: string;
+    radius?: number | ((point: T, index: number) => number);
+    fill?: string | ((point: T, index: number) => string);
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+}
+
+export interface KChartBubbleSeriesConfiguration<T = any> extends KChartScatterSeriesConfiguration<T> {
+    radiusField?: keyof T & string;
+    minRadius?: number;
+    maxRadius?: number;
+}
+
 export interface KChartCanvasLineSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;

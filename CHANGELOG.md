@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.14.0 - 2026-07-08
+
+### Added
+
+- Added `createAreaSeries()` for SVG area charts.
+- Added `createBarSeries()` for horizontal bar charts.
+- Added `createGroupedColumnSeries()` for side-by-side grouped columns.
+- Added `createScatterSeries()` and `createBubbleSeries()` for correlation and size-encoded point charts.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.14.0`.
+
 ## 1.13.0 - 2026-07-07
 
 ### Added

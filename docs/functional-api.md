@@ -183,6 +183,56 @@ const chart = createKChart<TrafficPoint>({
 chart.render();
 ```
 
+## Built-In SVG BI Series
+
+일반 BI 화면에서 자주 쓰는 면적, 가로 막대, 그룹 막대, 산점도, 버블 차트는 SVG factory로 제공합니다.
+
+```ts
+createAreaSeries<Point>({
+    selector: 'area',
+    xField: 'month',
+    yField: 'traffic',
+    curve: true,
+    fill: '#5db8ff',
+    stroke: '#5db8ff'
+});
+
+createBarSeries<CategoryPoint>({
+    selector: 'ranking',
+    yField: 'name',
+    xField: 'score',
+    color: '#56d08f'
+});
+
+createGroupedColumnSeries<SalesPoint>({
+    selector: 'grouped-sales',
+    xField: 'month',
+    segments: [
+        {field: 'online', label: 'Online', color: '#5db8ff'},
+        {field: 'store', label: 'Store', color: '#56d08f'}
+    ]
+});
+
+createScatterSeries<Point>({
+    selector: 'scatter',
+    xField: 'temperature',
+    yField: 'sales',
+    color: '#f3b45b'
+});
+
+createBubbleSeries<Point>({
+    selector: 'bubble',
+    xField: 'growth',
+    yField: 'margin',
+    radiusField: 'revenue',
+    minRadius: 5,
+    maxRadius: 22,
+    color: '#d876ff'
+});
+```
+
+`createBarSeries()`는 horizontal bar 전용이므로 x축은 숫자, y축은 문자열/point/category 축을 사용합니다. `createGroupedColumnSeries()`는 같은 x 값 안에 여러 segment를 나란히 배치합니다. `createBubbleSeries()`는 `radiusField` 값의 최소/최대 범위를 `minRadius`와 `maxRadius`로 선형 매핑합니다.
+
 ## Built-In Canvas Series
 
 Canvas 2D line/point renderer는 별도 class 없이 factory로 생성합니다.

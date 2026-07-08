@@ -188,6 +188,55 @@ createKChart({
 | `dot` | `boolean \| { radius; fill; stroke }` | `false` | 각 point에 SVG circle을 표시합니다. |
 | `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
 
+### SVG Area: `createAreaSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` / `yField` | `keyof T & string` | required | area 좌표 field입니다. |
+| `baseline` | `number` | `0` | area가 닫히는 기준 y 값입니다. |
+| `fill` / `fillOpacity` | `string`, `number` | chart color, `0.26` | area fill 스타일입니다. |
+| `stroke` / `strokeWidth` | `string`, `number` | chart color, `2` | area 상단 라인 스타일입니다. |
+| `curve` | `boolean` | `false` | `true`이면 `curveMonotoneX`를 사용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+
+### SVG Horizontal Bar: `createBarSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` | `keyof T & string` | required | bar 길이로 사용할 numeric field입니다. |
+| `yField` | `keyof T & string` | required | category 위치 field입니다. |
+| `fill` / `color` | `string \| (point, index) => string` | chart color | bar fill 색상입니다. |
+| `barHeight` | `number` | auto | bar 높이입니다. `minBarHeight`, `maxBarHeight`로 제한할 수 있습니다. |
+| `radius` | `number` | `5` | bar corner radius입니다. |
+| `baseline` | `number` | `0` | bar 시작 기준 x 값입니다. |
+
+### SVG Grouped Column: `createGroupedColumnSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` | `keyof T & string` | required | group category field입니다. |
+| `segments` | `{ field; label?; color? }[]` | required | group 안에 나란히 그릴 numeric fields입니다. |
+| `groupWidthRatio` | `number` | `0.72` | category band 중 column group이 차지하는 비율입니다. |
+| `gap` | `number` | `4` | segment 사이 간격입니다. |
+| `radius` | `number` | `4` | column corner radius입니다. |
+| `baseline` | `number` | `0` | column 시작 기준 y 값입니다. |
+
+### SVG Scatter / Bubble: `createScatterSeries`, `createBubbleSeries`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `xField` / `yField` | `keyof T & string` | required | point 좌표 field입니다. |
+| `radius` | `number \| (point, index) => number` | `5` | scatter point 반지름입니다. |
+| `radiusField` | `keyof T & string` | - | bubble 크기 매핑 field입니다. |
+| `minRadius` / `maxRadius` | `number` | `4`, `18` | bubble radius 범위입니다. |
+| `fill` / `color` | `string \| (point, index) => string` | chart color | point fill 색상입니다. |
+| `stroke` / `strokeWidth` | `string`, `number` | light stroke, `1.4` | point stroke 스타일입니다. |
+| `opacity` | `number` | scatter `0.9`, bubble `0.55` | point fill opacity입니다. |
+
 ### Canvas Line: `createCanvasLineSeries`
 
 | Field | Type | Default | Description |
