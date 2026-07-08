@@ -348,6 +348,46 @@ export interface KChartGeoRegionMapZoomConfiguration {
     scaleExtent?: [number, number];
 }
 
+export interface KChartGeoRegionMapMarkerClickContext {
+    marker: KChartGeoRegionMapMarker;
+    event: MouseEvent;
+    x: number;
+    y: number;
+}
+
+export interface KChartGeoRegionMapMarker {
+    id: string;
+    lat: number;
+    lon: number;
+    label?: string;
+    size?: number;
+    color?: string;
+    imageUrl?: string;
+    imagePadding?: number;
+    stroke?: string;
+    strokeWidth?: number;
+    labelPosition?: 'top' | 'right' | 'bottom' | 'left';
+    labelFill?: string;
+    labelTextFill?: string;
+    labelFontSize?: number;
+    labelFontWeight?: number | string;
+    labelOffset?: number;
+    pin?: boolean;
+    onClick?: (context: KChartGeoRegionMapMarkerClickContext) => void;
+}
+
+export interface KChartGeoRegionMapBubble {
+    id: string;
+    lat: number;
+    lon: number;
+    value?: number;
+    radius?: number;
+    color?: string;
+    opacity?: number;
+    stroke?: string;
+    strokeWidth?: number;
+}
+
 export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
@@ -370,6 +410,8 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     hoverStrokeWidth?: number;
     zoom?: boolean | KChartGeoRegionMapZoomConfiguration;
     labels?: boolean | KChartGeoRegionMapLabelConfiguration<T>;
+    bubbles?: KChartGeoRegionMapBubble[];
+    markers?: KChartGeoRegionMapMarker[];
     tooltip?: boolean | {
         formatter?: (context: KChartGeoRegionMapContext<T>) => string;
     };

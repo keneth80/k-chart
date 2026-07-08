@@ -10,8 +10,10 @@ import {
 import {feature as topojsonFeature} from 'topojson-client';
 import worldCountries110m from 'world-atlas/countries-110m.json';
 import type {
+    KChartGeoRegionMapBubble,
     KChartGeoRegionMapContext,
     KChartGeoRegionMapLabelConfiguration,
+    KChartGeoRegionMapMarker,
     KChartGeoRegionMapZoomControlsConfiguration,
     KChartGeoRegionMapSeriesConfiguration,
     KChartSeries
@@ -187,6 +189,61 @@ const clampNumber = (
     min: number,
     max: number
 ): number => Math.max(min, Math.min(max, value));
+
+const projectGeoPoint = (
+    projection: ReturnType<typeof geoMercator>,
+    lon: number,
+    lat: number
+): [number, number] | undefined => {
+    const point = projection([lon, lat]);
+    if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+        return undefined;
+    }
+    return point as [number, number];
+};
+
+const getMarkerLabelAnchor = (
+    marker: KChartGeoRegionMapMarker,
+    size: number
+): {
+    x: number;
+    y: number;
+    textAnchor: 'start' | 'middle' | 'end';
+    dominantBaseline: 'middle' | 'auto' | 'hanging';
+} => {
+    const offset = marker.labelOffset ?? 10;
+    switch (marker.labelPosition ?? 'top') {
+        case 'right':
+            return {
+                x: size / 2 + offset,
+                y: 0,
+                textAnchor: 'start',
+                dominantBaseline: 'middle'
+            };
+        case 'bottom':
+            return {
+                x: 0,
+                y: size / 2 + offset,
+                textAnchor: 'middle',
+                dominantBaseline: 'hanging'
+            };
+        case 'left':
+            return {
+                x: -size / 2 - offset,
+                y: 0,
+                textAnchor: 'end',
+                dominantBaseline: 'middle'
+            };
+        case 'top':
+        default:
+            return {
+                x: 0,
+                y: -size / 2 - offset,
+                textAnchor: 'middle',
+                dominantBaseline: 'auto'
+            };
+    }
+};
 
 const resolveRegionFill = <T = any>(
     context: KChartGeoRegionMapContext<T>,
@@ -426,6 +483,122 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke-width', labelConfiguration.strokeWidth)
             .style('pointer-events', 'none')
             .text((item) => labelConfiguration.formatter(item));
+
+        const bubbleItems = (configuration.bubbles ?? [])
+            .map((bubble) => {
+                const point = projectGeoPoint(projection, bubble.lon, bubble.lat);
+                return point ? {...bubble, x: point[0], y: point[1]} : undefined;
+            })
+            .filter((bubble): bubble is KChartGeoRegionMapBubble & { x: number; y: number } => Boolean(bubble));
+
+        mapLayer.selectAll<SVGCircleElement, typeof bubbleItems[number]>(`circle.${configuration.selector}-bubble`)
+            .data(bubbleItems, (item) => item.id)
+            .join('circle')
+            .attr('class', `${configuration.selector}-bubble`)
+            .attr('cx', (item) => item.x)
+            .attr('cy', (item) => item.y)
+            .attr('r', (item) => item.radius ?? Math.max(4, Math.sqrt(Math.max(0, item.value ?? 24)) * 3.1))
+            .style('fill', (item) => item.color ?? '#5db8ff')
+            .style('fill-opacity', (item) => item.opacity ?? 0.82)
+            .style('stroke', (item) => item.stroke ?? 'rgba(248, 251, 255, 0.42)')
+            .style('stroke-width', (item) => item.strokeWidth ?? 0)
+            .style('pointer-events', 'none');
+
+        const markerItems = (configuration.markers ?? [])
+            .map((marker) => {
+                const point = projectGeoPoint(projection, marker.lon, marker.lat);
+                return point ? {...marker, x: point[0], y: point[1]} : undefined;
+            })
+            .filter((marker): marker is KChartGeoRegionMapMarker & { x: number; y: number } => Boolean(marker));
+
+        const defs = group.selectAll<SVGDefsElement, unknown>('defs.kchart-region-map-defs')
+            .data(markerItems.some((marker) => marker.imageUrl) ? [undefined] : [])
+            .join('defs')
+            .attr('class', 'kchart-region-map-defs');
+
+        const clipPaths = defs.selectAll<SVGClipPathElement, typeof markerItems[number]>('clipPath')
+            .data(markerItems.filter((marker) => marker.imageUrl), (item) => item.id)
+            .join('clipPath')
+            .attr('id', (item) => `${configuration.selector}-marker-clip-${item.id}`);
+
+        clipPaths.selectAll<SVGCircleElement, typeof markerItems[number]>('circle')
+            .data((item) => [item])
+            .join('circle')
+            .attr('cx', 0)
+            .attr('cy', 0)
+            .attr('r', (item) => (item.size ?? 54) / 2 - (item.imagePadding ?? 4));
+
+        const markerGroups = mapLayer.selectAll<SVGGElement, typeof markerItems[number]>(`g.${configuration.selector}-marker`)
+            .data(markerItems, (item) => item.id)
+            .join('g')
+            .attr('class', `${configuration.selector}-marker`)
+            .attr('transform', (item) => `translate(${item.x},${item.y})`)
+            .style('cursor', (item) => item.onClick ? 'pointer' : 'default')
+            .on('click', (event: MouseEvent, item) => {
+                event.preventDefault();
+                event.stopPropagation();
+                item.onClick?.({
+                    marker: item,
+                    event,
+                    x: item.x,
+                    y: item.y
+                });
+            });
+
+        markerGroups.selectAll<SVGPathElement, typeof markerItems[number]>('path.kchart-region-map-marker-pin')
+            .data((item) => item.pin === false ? [] : [item])
+            .join('path')
+            .attr('class', 'kchart-region-map-marker-pin')
+            .attr('d', (item) => {
+                const size = item.size ?? 54;
+                return `M0,${size / 2 - 4} C${size * 0.18},${size * 0.64} ${size * 0.18},${size * 0.82} 0,${size * 0.98} C${-size * 0.18},${size * 0.82} ${-size * 0.18},${size * 0.64} 0,${size / 2 - 4}Z`;
+            })
+            .style('fill', (item) => item.color ?? '#5db8ff')
+            .style('fill-opacity', 0.92)
+            .style('stroke', 'none')
+            .style('pointer-events', 'none');
+
+        markerGroups.selectAll<SVGCircleElement, typeof markerItems[number]>('circle.kchart-region-map-marker-ring')
+            .data((item) => [item])
+            .join('circle')
+            .attr('class', 'kchart-region-map-marker-ring')
+            .attr('r', (item) => (item.size ?? 54) / 2)
+            .style('fill', (item) => item.imageUrl ? 'rgba(248, 251, 255, 0.95)' : item.color ?? '#5db8ff')
+            .style('stroke', (item) => item.stroke ?? item.color ?? '#5db8ff')
+            .style('stroke-width', (item) => item.strokeWidth ?? 4)
+            .style('filter', 'drop-shadow(0 6px 10px rgba(0, 0, 0, 0.28))');
+
+        markerGroups.selectAll<SVGImageElement, typeof markerItems[number]>('image.kchart-region-map-marker-image')
+            .data((item) => item.imageUrl ? [item] : [])
+            .join('image')
+            .attr('class', 'kchart-region-map-marker-image')
+            .attr('href', (item) => item.imageUrl ?? '')
+            .attr('xlink:href', (item) => item.imageUrl ?? '')
+            .attr('x', (item) => -(item.size ?? 54) / 2 + (item.imagePadding ?? 4))
+            .attr('y', (item) => -(item.size ?? 54) / 2 + (item.imagePadding ?? 4))
+            .attr('width', (item) => (item.size ?? 54) - (item.imagePadding ?? 4) * 2)
+            .attr('height', (item) => (item.size ?? 54) - (item.imagePadding ?? 4) * 2)
+            .attr('preserveAspectRatio', 'xMidYMid slice')
+            .attr('clip-path', (item) => `url(#${configuration.selector}-marker-clip-${item.id})`)
+            .style('pointer-events', 'none');
+
+        markerGroups.selectAll<SVGTextElement, typeof markerItems[number]>('text.kchart-region-map-marker-label')
+            .data((item) => item.label ? [item] : [])
+            .join('text')
+            .attr('class', 'kchart-region-map-marker-label')
+            .attr('x', (item) => getMarkerLabelAnchor(item, item.size ?? 54).x)
+            .attr('y', (item) => getMarkerLabelAnchor(item, item.size ?? 54).y)
+            .attr('text-anchor', (item) => getMarkerLabelAnchor(item, item.size ?? 54).textAnchor)
+            .attr('dominant-baseline', (item) => getMarkerLabelAnchor(item, item.size ?? 54).dominantBaseline)
+            .style('fill', (item) => item.labelTextFill ?? '#ffffff')
+            .style('font-size', (item) => `${item.labelFontSize ?? 13}px`)
+            .style('font-weight', (item) => item.labelFontWeight ?? 800)
+            .style('paint-order', 'stroke')
+            .style('stroke', (item) => item.labelFill ?? item.color ?? 'rgba(16, 23, 33, 0.86)')
+            .style('stroke-width', 8)
+            .style('stroke-linejoin', 'round')
+            .style('pointer-events', 'none')
+            .text((item) => item.label ?? '');
 
         const applyZoomTransform = (transform: ZoomTransform): void => {
             regionZoomTransform = transform;

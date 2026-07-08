@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.0 - 2026-07-07
+
+### Added
+
+- Added coordinate-based `bubbles` and `markers` to SVG region maps and world country maps.
+- Added circular image markers, marker labels, pin tails, and marker click callbacks for map-style branch/location visualizations.
+- Added a World Photo Marker Map StackBlitz example.
+
+### Changed
+
+- Updated map StackBlitz examples to depend on `@keneth80/k-chart@^1.13.0`.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.13.0`.
+
 ## 1.12.2 - 2026-07-07
 
 ### Changed

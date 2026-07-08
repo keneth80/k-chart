@@ -559,10 +559,47 @@ createWorldCountryMapSeries<Country>({
 });
 ```
 
+지도 위에 좌표 기반 강조 요소가 필요하면 `bubbles`와 `markers`를 함께 사용할 수 있습니다. 둘 다 일반적인 위도/경도 값을 사용하며 내부에서 `projection([lon, lat])`로 화면 좌표를 계산합니다. `bubbles`는 지도 위 원형 분포/규모 표현에 적합하고, `markers`는 사진 썸네일, 라벨, 핀 형태의 지점 표시를 제공합니다. `imageUrl`에는 일반 이미지 URL이나 `data:image/...` URI를 넣을 수 있습니다. 마커별 `onClick`을 지정하면 원본 marker, 화면 좌표, mouse event를 받아 팝업이나 상세 이동을 연결할 수 있습니다.
+
+```ts
+createWorldCountryMapSeries<Country>({
+    selector: 'world-branches',
+    dataKey: 'name',
+    colorField: 'color',
+    backgroundFill: '#1f7daf',
+    fill: '#f8fbff',
+    missingFill: '#f8fbff',
+    zoom: {
+        enabled: true,
+        wheel: true,
+        pan: true,
+        controls: {visible: true}
+    },
+    bubbles: [
+        {id: 'seoul-bubble', lat: 37.5665, lon: 126.978, value: 56, color: '#ffd45a'},
+        {id: 'us-bubble', lat: 39.8, lon: -98.5, value: 82, color: '#ff5a36'}
+    ],
+    markers: [
+        {
+            id: 'netherlands',
+            label: '네덜란드교회',
+            lat: 52.3676,
+            lon: 4.9041,
+            color: '#4ecfb0',
+            size: 66,
+            imageUrl: '/images/church/netherlands.jpg',
+            labelPosition: 'top',
+            onClick: ({marker}) => console.log(marker.id)
+        }
+    ]
+});
+```
+
 전체 예제:
 
 - [Korea Region Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-korea-region-map-basic?title=KChart%20Korea%20Region%20Map&file=src/main.ts)
 - [World Country Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts)
+- [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
 
 ## Display Options
 
