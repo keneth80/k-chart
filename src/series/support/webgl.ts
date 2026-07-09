@@ -75,6 +75,9 @@ export const resolveWebglLineVertices = (
     width: number,
     height: number
 ): Float32Array => {
+    // D3 scales produce pixel coordinates, while WebGL shaders expect clip
+    // space from -1 to 1. Keeping the conversion here lets series code stay
+    // focused on chart semantics instead of GPU coordinate rules.
     const vertices = new Float32Array(points.length);
     for (let index = 0; index < points.length; index += 2) {
         vertices[index] = (points[index] / width) * 2 - 1;
@@ -93,6 +96,8 @@ export const resolveWebglPointInterleavedData = <T = any>(
     height: number,
     resolveSize: (point: T) => number
 ): {buffer: Float32Array, count: number} => {
+    // Interleaving x, y, and size keeps each point in one contiguous stride.
+    // That reduces buffer binding work and is the pattern GPU pipelines expect.
     const buffer = new Float32Array(data.length * 3);
     let pointCount = 0;
 

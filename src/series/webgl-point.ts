@@ -77,6 +77,8 @@ export const createWebglPointSeries = <T = any>(
         gl.bindBuffer(gl.ARRAY_BUFFER, interleavedBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, buffer, gl.STATIC_DRAW);
         const stride = 3 * Float32Array.BYTES_PER_ELEMENT;
+        // Position and size share one buffer. The shader reads them with
+        // different offsets, which keeps point rendering to one GPU upload.
         const positionLocation = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, stride, 0);

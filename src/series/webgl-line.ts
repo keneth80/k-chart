@@ -47,6 +47,8 @@ export const createWebglLineSeries = <T = any>(
         const renderPoints = visiblePointCount < pointCount
             ? points.slice(0, Math.max(0, visiblePointCount * 2))
             : points;
+        // The worker path has the same payload as the fallback path. That keeps
+        // the public series API stable while moving heavy drawing off-thread.
         const workerRender = renderLineWithWorker(canvas, 'webgl', configuration.asyncRender, {
             width: canvasSize.width,
             height: canvasSize.height,
@@ -96,6 +98,8 @@ export const createWebglLineSeries = <T = any>(
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        // A line series is a single vertex stream; one draw call is enough for
+        // very large downsampled lines after coordinates are in clip space.
         const positionLocation = gl.getAttribLocation(program, 'a_position');
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(

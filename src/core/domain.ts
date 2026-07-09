@@ -7,16 +7,22 @@ export const resolveAxisDomain = <T = any>(
     axis: KChartAxis<T>,
     data: T[]
 ): any[] => {
+    // A fixed domain is an explicit contract from the caller, so the runtime
+    // must not spend time scanning data or trying to "improve" the answer.
     if (axis.domain) {
         return axis.domain;
     }
 
+    // Categorical axes need their original order, not numeric min/max.
+    // Keeping this path separate also avoids coercing string labels.
     if (axis.type === 'string' || axis.type === 'point') {
         return data.map((item: T) => item[axis.field]);
     }
 
     const hasMin = axis.min !== undefined;
     const hasMax = axis.max !== undefined;
+    // For million-point dashboards, min/max is often known from upstream data.
+    // Returning immediately is the cheapest path and preserves caller intent.
     if (hasMin && hasMax) {
         return [axis.min, axis.max];
     }
@@ -29,6 +35,8 @@ export const resolveAxisDomain = <T = any>(
     let minComparable: number | undefined;
     let maxComparable: number | undefined;
 
+    // This loop replaces flatMap/filter/extent. The result is intentionally the
+    // same, but it avoids allocating large temporary arrays on every render.
     for (let dataIndex = 0; dataIndex < data.length; dataIndex += 1) {
         const item = data[dataIndex];
         for (let fieldIndex = 0; fieldIndex < domainFields.length; fieldIndex += 1) {
@@ -120,6 +128,8 @@ export const resolveDownsampleAccessor = <T = any>(
                 continue;
             }
             if (typeof value === 'number') {
+                // LTTB calls accessors millions of times. If the field is
+                // already numeric, skip Date checks and Number() coercion.
                 return (point: T) => point[field] as any as number;
             }
             break;

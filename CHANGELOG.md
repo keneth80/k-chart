@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.16.0 - 2026-07-09
+## 1.16.0 - 2026-07-10
 
 ### Added
 
@@ -10,6 +10,10 @@
 
 - Optimized numeric/time axis domain resolution with explicit min/max skip paths and allocation-free scans.
 - Added a numeric fast path for default LTTB downsample accessors.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.16.0`.
 
 ## 1.15.3 - 2026-07-09
 

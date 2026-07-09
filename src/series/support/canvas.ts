@@ -53,6 +53,8 @@ const getAsyncCanvasEntry = (
         !asyncRender.workerFactory ||
         typeof canvas.transferControlToOffscreen !== 'function'
     ) {
+        // Unsupported browsers or missing factories fall back to the normal
+        // main-thread renderer, so async rendering is an opt-in acceleration.
         return null;
     }
 
@@ -99,6 +101,8 @@ const getAsyncCanvasEntry = (
             renderer,
             canvas: offscreenCanvas
         }, [offscreenCanvas]);
+        // transferControlToOffscreen can run only once for a canvas. The
+        // WeakSet prevents later resize/render code from resetting it.
         markCanvasTransferred(canvas);
         asyncCanvasEntries.set(canvas, entry);
         return entry;
@@ -147,6 +151,8 @@ export const resolveLinePoints = <T = any>(
     xField: keyof T & string,
     yField: keyof T & string
 ): Float32Array => {
+    // Renderer-facing data is compact numeric data. Series still accept normal
+    // object rows, but Canvas/WebGL receives a transferable Float32Array.
     const points = new Float32Array(data.length * 2);
     let pointIndex = 0;
 
@@ -198,6 +204,8 @@ export const renderLineWithWorker = (
     const completion = new Promise<void>((resolve, reject) => {
         entry.pending.set(requestId, {resolve, reject});
     });
+    // points.buffer is transferred to avoid copying large coordinate arrays.
+    // The request id lets the core expose a truthful render-complete signal.
     entry.worker.postMessage(message, [message.points.buffer]);
     return completion;
 };

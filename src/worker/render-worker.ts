@@ -20,6 +20,8 @@ export const startKChartRenderWorker = (
     const resolveWorkerProgram = (
         entry: WorkerCanvasEntry
     ): WebGLProgram | null => {
+        // Shader compilation is cached per offscreen canvas. In streaming
+        // charts, recompiling every tick would move cost back into the hot path.
         if (entry.program) {
             return entry.program;
         }
@@ -160,6 +162,8 @@ export const startKChartRenderWorker = (
             } else {
                 drawWebglLine(entry, message);
             }
+            // The main thread uses this as the product-level "visual render is
+            // done" signal, so benchmarks do not stop before worker drawing.
             workerScope.postMessage({
                 type: 'kchart:render-complete',
                 canvasId: message.canvasId,

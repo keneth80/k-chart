@@ -199,6 +199,9 @@ const registerRenderTask = <T = any>(
     state: KChartState<T>,
     task: Promise<void>
 ): void => {
+    // Series can choose SVG, Canvas, WebGL, or worker-backed rendering.
+    // The core only tracks "something async is still painting" and stays
+    // decoupled from the renderer implementation.
     const completion = state.renderCompletion;
     completion.asyncTasks += 1;
     completion.tasks.push(task.catch(() => undefined));
@@ -1559,6 +1562,9 @@ const renderSeries = <T = any>(
     state.layers.plotGroup.attr('transform', `translate(${state.margin.left}, ${state.margin.top})`);
     state.layers.seriesGroup.selectAll('*').remove();
 
+    // Axis/legend/tooltip stay in the core, while each series owns only its
+    // drawing strategy. This is the main extension point that lets KChart mix
+    // SVG, Canvas, WebGL, and custom visualizations in one chart.
     state.series.forEach((series: KChartSeries<T>, index: number) => {
         if (state.hiddenSeries.has(series.selector)) {
             series.destroy?.(state.layers);
@@ -1657,6 +1663,8 @@ const render = <T = any>(state: KChartState<T>): void => {
     state.size = sizes.size;
     state.margin = sizes.margin;
     state.plotSize = sizes.plotSize;
+    // Scales are recalculated before every render so custom series always
+    // receive the latest coordinate system instead of owning axis state.
     state.scales = resolveScales(state.data, state.axes, state.plotSize);
     renderTitle(state);
     renderAxes(state);
@@ -1667,6 +1675,8 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
+    // Completion resolves immediately for synchronous SVG/canvas paths, or
+    // waits for worker-backed series that registered async render tasks.
     finishRenderCompletion(state, completion);
 };
 
