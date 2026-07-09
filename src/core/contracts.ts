@@ -64,6 +64,13 @@ export interface KChartAsyncRenderConfiguration {
     workerFactory?: () => Worker;
 }
 
+export interface KChartRenderCompleteEvent {
+    renderId: number;
+    asyncTasks: number;
+    duration: number;
+    timestamp: number;
+}
+
 export interface KChartAnimationConfiguration {
     enabled?: boolean;
     duration?: number;
@@ -104,6 +111,7 @@ export interface KChartRenderContext<T = any> extends KChartLayerContext {
     color: string;
     seriesIndex: number;
     animation: KChartAnimationContext;
+    registerAsyncRenderTask?: (task: Promise<void>) => void;
 }
 
 export interface KChartSeriesTooltipContext<T = any> extends KChartLayerContext {
@@ -782,6 +790,16 @@ export interface KChartConfiguration<T = any> {
     guideLines?: KChartGuideLinesConfiguration;
     options?: KChartOption<T>[];
     animation?: boolean | KChartAnimationConfiguration;
+    onRenderComplete?: (event: KChartRenderCompleteEvent) => void;
+}
+
+export interface KChartRenderCompletionState {
+    renderId: number;
+    startedAt: number;
+    asyncTasks: number;
+    tasks: Promise<void>[];
+    promise: Promise<KChartRenderCompleteEvent>;
+    resolve: (event: KChartRenderCompleteEvent) => void;
 }
 
 export interface KChartState<T = any> {
@@ -802,6 +820,7 @@ export interface KChartState<T = any> {
     zoomTransform: ZoomTransform;
     animationFrame?: number;
     animationRenderId: number;
+    renderCompletion: KChartRenderCompletionState;
     zoomSelection?: {
         active: boolean;
         startX: number;
@@ -813,6 +832,7 @@ export interface KChartState<T = any> {
 
 export interface KChartController<T = any> {
     render(): KChartController<T>;
+    whenRenderComplete(): Promise<KChartRenderCompleteEvent>;
     updateData(data: T[]): KChartController<T>;
     updateAxes(axes: KChartAxis<T>[]): KChartController<T>;
     updateSeries(series: KChartSeries<T>[]): KChartController<T>;

@@ -1,4 +1,3 @@
-import { extent } from 'd3-array';
 import { axisBottom, axisLeft, axisRight, axisTop } from 'd3-axis';
 import { scaleBand, scaleLinear, scalePoint, scaleTime } from 'd3-scale';
 import { schemeCategory10 } from 'd3-scale-chromatic';
@@ -16,6 +15,10 @@ import {
 import {isCanvasTransferred} from '../series/support/canvas';
 import {resolveScalePosition} from '../series/support/scale';
 import {downsampleLTTB} from '../utils/downsample-lttb';
+import {
+    resolveAxisDomain,
+    resolveDownsampleAccessor
+} from './domain';
 
 export * from './contracts';
 import type {
@@ -50,7 +53,9 @@ import type {
     KChartGuideLinesConfiguration,
     KChartConfiguration,
     KChartState,
-    KChartController
+    KChartController,
+    KChartRenderCompleteEvent,
+    KChartRenderCompletionState
 } from './contracts';
 
 const defaultMargin: KChartMargin = {
@@ -143,6 +148,81 @@ const defaultAnimationContext: KChartAnimationContext = {
     easing: 'easeOutCubic',
     mode: 'enter',
     phase: 'enter'
+};
+
+const now = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+
+const createResolvedRenderCompletion = (
+    renderId = 0
+): KChartRenderCompletionState => {
+    const timestamp = now();
+    const event: KChartRenderCompleteEvent = {
+        renderId,
+        asyncTasks: 0,
+        duration: 0,
+        timestamp
+    };
+
+    return {
+        renderId,
+        startedAt: timestamp,
+        asyncTasks: 0,
+        tasks: [],
+        promise: Promise.resolve(event),
+        resolve: () => undefined
+    };
+};
+
+const beginRenderCompletion = <T = any>(
+    state: KChartState<T>
+): KChartRenderCompletionState => {
+    const renderId = state.renderCompletion.renderId + 1;
+    let resolveCompletion: (event: KChartRenderCompleteEvent) => void = () => undefined;
+    const completion: KChartRenderCompletionState = {
+        renderId,
+        startedAt: now(),
+        asyncTasks: 0,
+        tasks: [],
+        promise: new Promise<KChartRenderCompleteEvent>((resolve) => {
+            resolveCompletion = resolve;
+        }),
+        resolve: resolveCompletion
+    };
+
+    state.renderCompletion = completion;
+    return completion;
+};
+
+const registerRenderTask = <T = any>(
+    state: KChartState<T>,
+    task: Promise<void>
+): void => {
+    const completion = state.renderCompletion;
+    completion.asyncTasks += 1;
+    completion.tasks.push(task.catch(() => undefined));
+};
+
+const finishRenderCompletion = <T = any>(
+    state: KChartState<T>,
+    completion: KChartRenderCompletionState
+): void => {
+    Promise.all(completion.tasks).then(() => {
+        if (state.renderCompletion !== completion) {
+            return;
+        }
+
+        const timestamp = now();
+        const event: KChartRenderCompleteEvent = {
+            renderId: completion.renderId,
+            asyncTasks: completion.asyncTasks,
+            duration: timestamp - completion.startedAt,
+            timestamp
+        };
+        completion.resolve(event);
+        state.config.onRenderComplete?.(event);
+    });
 };
 
 const resolveAnimationConfiguration = <T = any>(
@@ -381,62 +461,6 @@ const ensureCanvas = (
     return canvas;
 };
 
-const resolveAxisDomain = <T = any>(
-    axis: KChartAxis<T>,
-    data: T[]
-): any[] => {
-    if (axis.domain) {
-        return axis.domain;
-    }
-
-    if (axis.type === 'string' || axis.type === 'point') {
-        return data.map((item: T) => item[axis.field]);
-    }
-
-    const domainFields = axis.domainFields?.length ? axis.domainFields : [axis.field];
-    const values = data.flatMap((item: T) => domainFields.map((field) => {
-        const value = item[field];
-        return axis.type === 'time'
-            ? new Date(value as any)
-            : Number(value);
-    })).filter((value) => axis.type === 'time'
-        ? value instanceof Date && Number.isFinite(value.getTime())
-        : Number.isFinite(value));
-    const [minValue, maxValue] = extent(values as any[]);
-    const resolvedMin = axis.min ?? minValue ?? 0;
-    const resolvedMax = axis.max ?? maxValue ?? 1;
-    const canApplyPadding = axis.padding !== undefined && axis.min === undefined && axis.max === undefined;
-
-    if (canApplyPadding && axis.type === 'time') {
-        const minTime = resolvedMin instanceof Date ? resolvedMin.getTime() : new Date(resolvedMin as any).getTime();
-        const maxTime = resolvedMax instanceof Date ? resolvedMax.getTime() : new Date(resolvedMax as any).getTime();
-        const span = Math.max(maxTime - minTime, 24 * 60 * 60 * 1000);
-        const padding = span * Math.max(axis.padding ?? 0, 0);
-
-        return [
-            new Date(minTime - padding),
-            new Date(maxTime + padding)
-        ];
-    }
-
-    if (canApplyPadding && axis.type === 'number') {
-        const minNumber = Number(resolvedMin);
-        const maxNumber = Number(resolvedMax);
-        const span = Math.max(maxNumber - minNumber, 1);
-        const padding = span * Math.max(axis.padding ?? 0, 0);
-
-        return [
-            minNumber - padding,
-            maxNumber + padding
-        ];
-    }
-
-    return [
-        resolvedMin,
-        resolvedMax
-    ];
-};
-
 const resolveScales = <T = any>(
     data: T[],
     axes: KChartAxis<T>[],
@@ -551,29 +575,6 @@ const resolveAxisTransform = (
     return 'translate(0, 0)';
 };
 
-const resolveDownsampleValue = (value: any, scale?: KChartResolvedScale<any>): number => {
-    if (value instanceof Date) {
-        return value.getTime();
-    }
-
-    if (scale?.type === 'time' && typeof value === 'string') {
-        return new Date(value).getTime();
-    }
-
-    return Number(value);
-};
-
-const resolveDownsampleAccessor = <T = any>(
-    field: keyof T & string | undefined,
-    scale: KChartResolvedScale<T> | undefined
-): ((point: T) => number) | undefined => {
-    if (!field) {
-        return undefined;
-    }
-
-    return (point: T) => resolveDownsampleValue(point[field], scale);
-};
-
 const resolveDownsampleThreshold = <T = any>(
     downsample: boolean | KChartDownsampleConfiguration<T>,
     context: KChartDownsampleContext<T>
@@ -602,11 +603,11 @@ const resolveSeriesRenderData = <T = any>(
     }
 
     const xAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.xField, xScale)
-        : downsample.xAccessor ?? resolveDownsampleAccessor(series.xField, xScale);
+        ? resolveDownsampleAccessor(series.xField, xScale, state.data)
+        : downsample.xAccessor ?? resolveDownsampleAccessor(series.xField, xScale, state.data);
     const yAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.yField, yScale)
-        : downsample.yAccessor ?? resolveDownsampleAccessor(series.yField, yScale);
+        ? resolveDownsampleAccessor(series.yField, yScale, state.data)
+        : downsample.yAccessor ?? resolveDownsampleAccessor(series.yField, yScale, state.data);
 
     if (!xAccessor || !yAccessor) {
         return state.data;
@@ -1591,7 +1592,8 @@ const renderSeries = <T = any>(
             margin: state.margin,
             color: series.color ?? state.colors[index % state.colors.length],
             seriesIndex: index,
-            animation
+            animation,
+            registerAsyncRenderTask: (task: Promise<void>) => registerRenderTask(state, task)
         });
     });
 };
@@ -1646,6 +1648,7 @@ const renderSeriesWithAnimation = <T = any>(state: KChartState<T>): void => {
 };
 
 const render = <T = any>(state: KChartState<T>): void => {
+    const completion = beginRenderCompletion(state);
     const baseMargin: KChartMargin = {
         ...defaultMargin,
         ...state.config.margin
@@ -1664,6 +1667,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
+    finishRenderCompletion(state, completion);
 };
 
 export const createKChart = <T = any>(
@@ -1691,7 +1695,8 @@ export const createKChart = <T = any>(
         layers: undefined as any,
         hiddenSeries: new Set<string>(),
         zoomTransform: zoomIdentity,
-        animationRenderId: 0
+        animationRenderId: 0,
+        renderCompletion: createResolvedRenderCompletion()
     };
     state.layers = createLayers(container, config, () => state.size, () => state.margin);
 
@@ -1699,6 +1704,9 @@ export const createKChart = <T = any>(
         render() {
             render(state);
             return controller;
+        },
+        whenRenderComplete() {
+            return state.renderCompletion.promise;
         },
         updateData(data: T[]) {
             state.data = data;

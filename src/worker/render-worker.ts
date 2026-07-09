@@ -160,6 +160,11 @@ export const startKChartRenderWorker = (
             } else {
                 drawWebglLine(entry, message);
             }
+            workerScope.postMessage({
+                type: 'kchart:render-complete',
+                canvasId: message.canvasId,
+                requestId: message.requestId
+            });
         }
     };
 };

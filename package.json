@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.15.3",
+    "version": "1.16.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -59,6 +59,7 @@
         "build-demo": "cross-env NODE_ENV=development webpack --mode development",
         "build-prod": "cross-env NODE_ENV=production webpack --mode production",
         "typecheck": "tsc --noEmit",
+        "test:unit": "npm run build:lib && node tests/domain.test.cjs && node tests/render-complete.test.cjs",
         "dev": "webpack-dev-server --host 127.0.0.1 --port 9003 --mode development",
         "prepublishOnly": "npm run typecheck",
         "prepack": "npm run build:lib",

@@ -24,7 +24,7 @@ export const createWebglLineSeries = <T = any>(
     yField: configuration.yField,
     color: configuration.color,
     downsample: configuration.downsample,
-    render({getWebglCanvas, data, xScale, yScale, color, animation}) {
+    render({getWebglCanvas, data, xScale, yScale, color, animation, registerAsyncRenderTask}) {
         if (!xScale || !yScale) {
             return;
         }
@@ -47,13 +47,15 @@ export const createWebglLineSeries = <T = any>(
         const renderPoints = visiblePointCount < pointCount
             ? points.slice(0, Math.max(0, visiblePointCount * 2))
             : points;
-        if (renderLineWithWorker(canvas, 'webgl', configuration.asyncRender, {
+        const workerRender = renderLineWithWorker(canvas, 'webgl', configuration.asyncRender, {
             width: canvasSize.width,
             height: canvasSize.height,
             color: configuration.color ?? color,
             lineWidth: configuration.lineWidth ?? 1,
             points: renderPoints
-        })) {
+        });
+        if (workerRender) {
+            registerAsyncRenderTask?.(workerRender);
             return;
         }
 

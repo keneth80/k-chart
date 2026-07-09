@@ -793,6 +793,23 @@ createWebglLineSeries<Point>({
 });
 ```
 
+렌더 완료 시점을 측정하거나 후속 작업과 동기화해야 한다면 차트 컨트롤러의 완료 신호를 사용할 수 있습니다. Worker 렌더링을 쓰는 Canvas/WebGL line series는 worker가 draw를 끝낸 뒤 완료 메시지를 보내고, SVG/fallback 렌더링은 동기 렌더 후 완료됩니다.
+
+```ts
+const chart = createKChart<Point>({
+    selector: '#chart',
+    data,
+    axes,
+    series,
+    onRenderComplete: (event) => {
+        console.log(`render #${event.renderId} completed in ${event.duration.toFixed(1)}ms`);
+    }
+});
+
+chart.render();
+await chart.whenRenderComplete();
+```
+
 같은 옵션은 `createCanvasLineSeries`에서도 사용할 수 있습니다.
 
 JSON 데이터를 `fetch()`로 읽고 worker 생성 여부를 화면에서 확인하는 전체 예제는

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.16.0 - 2026-07-09
+
+### Added
+
+- Added `controller.whenRenderComplete()` and `onRenderComplete` so callers can wait for worker-backed Canvas/WebGL render completion.
+
+### Changed
+
+- Optimized numeric/time axis domain resolution with explicit min/max skip paths and allocation-free scans.
+- Added a numeric fast path for default LTTB downsample accessors.
+
 ## 1.15.3 - 2026-07-09
 
 ### Fixed

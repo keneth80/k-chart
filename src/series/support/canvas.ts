@@ -11,6 +11,7 @@ export type KChartWorkerRenderer = '2d' | 'webgl';
 export interface KChartLineRenderPayload {
     type: 'kchart:render-line';
     canvasId: string;
+    requestId: number;
     renderer: KChartWorkerRenderer;
     width: number;
     height: number;
@@ -24,6 +25,11 @@ interface KChartAsyncCanvasEntry {
     renderer: KChartWorkerRenderer;
     canvasId: string;
     failed: boolean;
+    requestId: number;
+    pending: Map<number, {
+        resolve: () => void;
+        reject: () => void;
+    }>;
 }
 
 const transferredCanvases = new WeakSet<HTMLCanvasElement>();
@@ -65,11 +71,27 @@ const getAsyncCanvasEntry = (
             worker,
             renderer,
             canvasId,
-            failed: false
+            failed: false,
+            requestId: 0,
+            pending: new Map()
         };
 
         worker.onerror = () => {
             entry.failed = true;
+            entry.pending.forEach((pending) => pending.reject());
+            entry.pending.clear();
+        };
+        worker.onmessage = (event: MessageEvent<any>) => {
+            const message = event.data;
+            if (message?.type !== 'kchart:render-complete' || message.canvasId !== canvasId) {
+                return;
+            }
+            const pending = entry.pending.get(message.requestId);
+            if (!pending) {
+                return;
+            }
+            entry.pending.delete(message.requestId);
+            pending.resolve();
         };
         worker.postMessage({
             type: 'kchart:init-canvas',
@@ -158,19 +180,24 @@ export const renderLineWithWorker = (
     canvas: HTMLCanvasElement,
     renderer: KChartWorkerRenderer,
     asyncRender: KChartAsyncRenderConfiguration | undefined,
-    payload: Omit<KChartLineRenderPayload, 'type' | 'canvasId' | 'renderer'>
-): boolean => {
+    payload: Omit<KChartLineRenderPayload, 'type' | 'canvasId' | 'requestId' | 'renderer'>
+): Promise<void> | null => {
     const entry = getAsyncCanvasEntry(canvas, renderer, asyncRender);
     if (!entry) {
-        return false;
+        return null;
     }
 
+    const requestId = entry.requestId += 1;
     const message: KChartLineRenderPayload = {
         type: 'kchart:render-line',
         canvasId: entry.canvasId,
+        requestId,
         renderer,
         ...payload
     };
+    const completion = new Promise<void>((resolve, reject) => {
+        entry.pending.set(requestId, {resolve, reject});
+    });
     entry.worker.postMessage(message, [message.points.buffer]);
-    return true;
+    return completion;
 };

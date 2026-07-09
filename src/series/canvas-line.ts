@@ -19,7 +19,7 @@ export const createCanvasLineSeries = <T = any>(
     yField: configuration.yField,
     color: configuration.color,
     downsample: configuration.downsample,
-    render({getCanvas, data, xScale, yScale, color, animation}) {
+    render({getCanvas, data, xScale, yScale, color, animation, registerAsyncRenderTask}) {
         if (!xScale || !yScale) {
             return;
         }
@@ -40,13 +40,15 @@ export const createCanvasLineSeries = <T = any>(
         const renderPoints = visiblePointCount < pointCount
             ? points.slice(0, Math.max(0, visiblePointCount * 2))
             : points;
-        if (renderLineWithWorker(canvas, '2d', configuration.asyncRender, {
+        const workerRender = renderLineWithWorker(canvas, '2d', configuration.asyncRender, {
             width: canvasSize.width,
             height: canvasSize.height,
             color: configuration.color ?? color,
             lineWidth: configuration.lineWidth ?? 2,
             points: renderPoints
-        })) {
+        });
+        if (workerRender) {
+            registerAsyncRenderTask?.(workerRender);
             return;
         }
 
