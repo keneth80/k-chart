@@ -425,7 +425,7 @@ export const createWaterfallSeries = <T = any>(
             ? configuration.labels
             : labelConfiguration.visible ?? false;
         const labelData = labelsVisible
-            ? renderItems.filter((item) => labelConfiguration.showZero ?? item.value !== 0)
+            ? renderItems.filter((item) => (labelConfiguration.showZero ?? false) || item.value !== 0)
             : [];
 
         group.selectAll<SVGTextElement, WaterfallItem<T>>(`text.${configuration.selector}-label`)

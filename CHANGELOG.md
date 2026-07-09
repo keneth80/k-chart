@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.15.2 - 2026-07-09
+
+### Fixed
+
+- Fixed Waterfall label filtering so `showZero: false` hides only zero-value bars instead of hiding every value label.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.15.2`.
+
 ## 1.15.1 - 2026-07-09
 
 ### Added
