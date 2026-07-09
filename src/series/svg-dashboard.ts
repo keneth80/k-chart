@@ -24,6 +24,7 @@ type WaterfallItem<T> = {
     end: number;
     delta: number;
     total: boolean;
+    value: number;
 };
 
 const toNumber = (value: any, fallback = 0): number => {
@@ -158,9 +159,23 @@ const buildWaterfall = <T = any>(
             start,
             end,
             delta: total ? value - baseline : value,
-            total
+            total,
+            value
         };
     });
+};
+
+const resolveWaterfallLabel = <T = any>(
+    configuration: KChartWaterfallSeriesConfiguration<T>,
+    item: WaterfallItem<T>
+): string => {
+    const labelConfiguration = typeof configuration.labels === 'object'
+        ? configuration.labels
+        : {};
+    if (labelConfiguration.formatter) {
+        return labelConfiguration.formatter(item);
+    }
+    return `${item.value}`;
 };
 
 export const createTreemapSeries = <T = any>(
@@ -379,8 +394,8 @@ export const createWaterfallSeries = <T = any>(
             .attr('y1', (item) => resolveScalePosition(yScale, items[item.index - 1].end))
             .attr('y2', (item) => resolveScalePosition(yScale, items[item.index - 1].end))
             .style('stroke', configuration.connectorColor ?? 'rgba(188, 206, 218, 0.42)')
-            .style('stroke-dasharray', '3 4')
-            .style('stroke-width', 1.2);
+            .style('stroke-dasharray', configuration.connectorDasharray ?? '3 4')
+            .style('stroke-width', configuration.connectorWidth ?? 1.2);
 
         group.selectAll<SVGRectElement, WaterfallItem<T>>(`rect.${configuration.selector}`)
             .data(renderItems)
@@ -402,6 +417,33 @@ export const createWaterfallSeries = <T = any>(
             .style('fill-opacity', configuration.opacity ?? 0.88)
             .style('stroke', 'transparent')
             .style('stroke-width', 0);
+
+        const labelConfiguration = typeof configuration.labels === 'object'
+            ? configuration.labels
+            : {};
+        const labelsVisible = typeof configuration.labels === 'boolean'
+            ? configuration.labels
+            : labelConfiguration.visible ?? false;
+        const labelData = labelsVisible
+            ? renderItems.filter((item) => labelConfiguration.showZero ?? item.value !== 0)
+            : [];
+
+        group.selectAll<SVGTextElement, WaterfallItem<T>>(`text.${configuration.selector}-label`)
+            .data(labelData)
+            .join('text')
+            .attr('class', `${configuration.selector}-label`)
+            .attr('x', (item) => resolveScalePosition(xScale, item.point[configuration.xField]))
+            .attr('y', (item) => {
+                const yStart = resolveScalePosition(yScale, item.start);
+                const yEnd = resolveScalePosition(yScale, item.end);
+                return Math.min(yStart, yEnd) - (labelConfiguration.offset ?? 6);
+            })
+            .attr('text-anchor', 'middle')
+            .style('fill', labelConfiguration.color ?? 'rgba(237, 243, 248, 0.86)')
+            .style('font-size', labelConfiguration.fontSize ?? 11)
+            .style('font-weight', labelConfiguration.fontWeight ?? 800)
+            .style('pointer-events', 'none')
+            .text((item) => resolveWaterfallLabel(configuration, item));
     },
     tooltip({data, scales, plotSize, seriesGroup, mouseX, mouseY}) {
         const xScale = scales.find((scale) => scale.field === configuration.xField);

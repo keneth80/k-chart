@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.15.1 - 2026-07-09
+
+### Added
+
+- Added Waterfall value label options with formatter, font, offset, and zero-value visibility controls.
+- Added Waterfall connector dasharray and width options for infographic-style layouts.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.15.1`.
+
 ## 1.15.0 - 2026-07-09
 
 ### Added

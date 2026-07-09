@@ -302,9 +302,24 @@ createKChart({
 | `totalField` | `keyof T & string` | - | true이면 해당 row를 total bar로 처리해 baseline에서 value까지 그립니다. |
 | `positiveColor` / `negativeColor` / `totalColor` | `string` | green/red/blue | 증가, 감소, total bar 색상입니다. |
 | `connectorColor` | `string` | translucent gray | bar 사이 dashed connector 색상입니다. |
+| `connectorDasharray` | `string` | `3 4` | connector line의 SVG dash pattern입니다. 빈 문자열이면 실선으로 쓸 수 있습니다. |
+| `connectorWidth` | `number` | `1.2` | connector line stroke width입니다. |
 | `barWidthRatio` | `number` | `0.58` | category band 중 bar가 차지하는 비율입니다. |
 | `radius` | `number` | `4` | bar corner radius입니다. |
 | `baseline` | `number` | `0` | 누적 시작 기준값입니다. |
+| `labels` | `boolean \| object` | `false` | 막대 위 value label 표시 설정입니다. |
+
+`labels` object:
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `visible` | `boolean` | `false` | label 표시 여부입니다. `labels: true`와 동일하게 켤 수 있습니다. |
+| `formatter` | `(item) => string` | raw `value` | label text formatter입니다. `item`에는 `point`, `start`, `end`, `delta`, `total`, `value`가 들어옵니다. |
+| `color` | `string` | light text | label 색상입니다. |
+| `fontSize` | `number` | `11` | label 글자 크기입니다. |
+| `fontWeight` | `number \| string` | `800` | label 굵기입니다. |
+| `offset` | `number` | `6` | 막대 위쪽과 label 사이 거리입니다. |
+| `showZero` | `boolean` | `false` | 값이 0인 bar label 표시 여부입니다. |
 
 ### Canvas Line: `createCanvasLineSeries`
 

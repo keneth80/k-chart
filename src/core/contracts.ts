@@ -299,10 +299,29 @@ export interface KChartWaterfallSeriesConfiguration<T = any> {
     negativeColor?: string;
     totalColor?: string;
     connectorColor?: string;
+    connectorDasharray?: string;
+    connectorWidth?: number;
     opacity?: number;
     barWidthRatio?: number;
     radius?: number;
     baseline?: number;
+    labels?: boolean | {
+        visible?: boolean;
+        formatter?: (item: {
+            point: T;
+            index: number;
+            start: number;
+            end: number;
+            delta: number;
+            total: boolean;
+            value: number;
+        }) => string;
+        color?: string;
+        fontSize?: number;
+        fontWeight?: number | string;
+        offset?: number;
+        showZero?: boolean;
+    };
 }
 
 export interface KChartCanvasLineSeriesConfiguration<T = any> {
