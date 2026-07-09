@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.15.3 - 2026-07-09
+
+### Fixed
+
+- Fixed Waterfall bar width fallback so point scales do not render zero-width bars.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.15.3`.
+
 ## 1.15.2 - 2026-07-09
 
 ### Fixed

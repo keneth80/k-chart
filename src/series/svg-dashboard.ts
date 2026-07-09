@@ -178,6 +178,29 @@ const resolveWaterfallLabel = <T = any>(
     return `${item.value}`;
 };
 
+const resolveWaterfallBand = (
+    xScale: any,
+    plotWidth: number,
+    count: number
+): number => {
+    if (!xScale) {
+        return plotWidth / Math.max(count, 1);
+    }
+    if (typeof xScale.scale.bandwidth === 'function') {
+        const bandwidth = xScale.scale.bandwidth();
+        if (Number.isFinite(bandwidth) && bandwidth > 0) {
+            return bandwidth;
+        }
+    }
+    if (typeof xScale.scale.step === 'function') {
+        const step = xScale.scale.step();
+        if (Number.isFinite(step) && step > 0) {
+            return step;
+        }
+    }
+    return plotWidth / Math.max(count, 1);
+};
+
 export const createTreemapSeries = <T = any>(
     configuration: KChartTreemapSeriesConfiguration<T>
 ): KChartSeries<T> => createCustomSeries<T>({
@@ -376,9 +399,7 @@ export const createWaterfallSeries = <T = any>(
             ? Math.max(1, Math.ceil(items.length * animation.progress))
             : items.length;
         const renderItems = visibleCount < items.length ? items.slice(0, visibleCount) : items;
-        const band = typeof xScale.scale.bandwidth === 'function'
-            ? xScale.scale.bandwidth()
-            : plotSize.width / Math.max(items.length, 1);
+        const band = resolveWaterfallBand(xScale, plotSize.width, items.length);
         const barWidth = band * (configuration.barWidthRatio ?? 0.58);
         const radius = configuration.radius ?? 4;
 
@@ -458,9 +479,7 @@ export const createWaterfallSeries = <T = any>(
 
         const baseline = configuration.baseline ?? 0;
         const items = buildWaterfall(data, configuration.valueField, configuration.totalField, baseline);
-        const band = typeof xScale.scale.bandwidth === 'function'
-            ? xScale.scale.bandwidth()
-            : plotSize.width / Math.max(items.length, 1);
+        const band = resolveWaterfallBand(xScale, plotSize.width, items.length);
         const barWidth = band * (configuration.barWidthRatio ?? 0.58);
 
         for (const item of items) {
