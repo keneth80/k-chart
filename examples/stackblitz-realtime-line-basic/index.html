@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart Realtime Line</title>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="intro">
+        <p class="eyebrow">StackBlitz starter</p>
+        <h1>KChart Realtime Time-Series</h1>
+        <p>Streams a fixed-size time window so the chart keeps moving without unbounded memory growth.</p>
+      </section>
+      <section class="chart-panel">
+        <div class="metric-strip">
+          <span>250ms interval</span>
+          <span>240 point window</span>
+          <span>single chart instance</span>
+        </div>
+        <div id="chart"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

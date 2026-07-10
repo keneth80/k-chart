@@ -51,7 +51,7 @@ import {
 } from './index';
 
 interface DemoPoint {
-    [key: string]: string | number;
+    [key: string]: string | number | Date | undefined;
     label: string;
     x: number;
     value: number;
@@ -60,6 +60,7 @@ interface DemoPoint {
     radius: number;
     category: string;
     previousClose?: number;
+    time?: Date;
 }
 
 type DemoKind =
@@ -111,6 +112,35 @@ const baseData: DemoPoint[] = [
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
+
+const REALTIME_INTERVAL_MS = 250;
+const REALTIME_MAX_POINTS = 240;
+const REALTIME_INITIAL_POINTS = 120;
+
+const formatRealtimeTick = (value: Date): string =>
+    value.toLocaleTimeString([], { minute: '2-digit', second: '2-digit' });
+
+const createRealtimePoint = (tick: number, startTime: number): DemoPoint => {
+    const time = new Date(startTime + tick * REALTIME_INTERVAL_MS);
+    const wave = Math.sin(tick / 8) * 13;
+    const microMove = Math.sin(tick / 2.9) * 2.8 + Math.cos(tick / 5.7) * 2.2;
+    const drift = Math.sin(tick / 48) * 5;
+
+    return {
+        label: formatRealtimeTick(time),
+        time,
+        x: tick,
+        value: Number((52 + wave + microMove + drift).toFixed(2)),
+        volume: Number((45 + Math.cos(tick / 10) * 8 + Math.sin(tick / 3.4) * 2.6).toFixed(2)),
+        extra: Number((58 + Math.sin(tick / 14) * 7 - Math.cos(tick / 6.2) * 3.2).toFixed(2)),
+        radius: 5,
+        category: 'Realtime'
+    };
+};
+
+const createRealtimeData = (count = REALTIME_INITIAL_POINTS, startTime = Date.now() - (count - 1) * REALTIME_INTERVAL_MS): DemoPoint[] => {
+    return Array.from({ length: count }, (_, index) => createRealtimePoint(index, startTime));
+};
 
 const globeData: DemoPoint[] = [
     { label: 'Seoul', x: 126.9780, value: 37.5665, volume: 1, extra: 1, radius: 6, category: 'Asia', lat: 37.5665, lon: 126.9780, url: 'https://en.wikipedia.org/wiki/Seoul' },
@@ -316,7 +346,7 @@ const examples: ExampleMeta[] = [
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
-    { kind: 'real-time', title: 'Real time series API' },
+    { kind: 'real-time', title: 'Realtime time-series line', dataLabel: '250ms sliding window' },
     { kind: 'circle', title: 'Custom SVG circle renderer' },
     { kind: 'radial', title: 'Custom SVG radial renderer' },
     { kind: 'pie', title: 'Custom SVG pie renderer' },
@@ -1349,6 +1379,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'canvas-candlestick') {
         return stockData;
     }
+    if (kind === 'real-time') {
+        return createRealtimeData();
+    }
     if (isGlobeMapExample(kind)) {
         return globeData;
     }
@@ -1404,6 +1437,12 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
             { field: 'volume', type: 'number' as const, placement: 'right' as const, min: 0, max: 48, title: 'Volume' }
         ];
     }
+    if (kind === 'real-time') {
+        return [
+            { field: 'time', type: 'time' as const, placement: 'bottom' as const, title: 'Clock', tickCount: 6, tickFormat: formatRealtimeTick },
+            { field: 'value', type: 'number' as const, placement: 'left' as const, min: 28, max: 76, title: 'Signal', domainFields: ['value', 'volume', 'extra'] }
+        ];
+    }
     return [
         { field: 'x', type: 'number' as const, placement: 'bottom' as const, min: 0, max: 7, title: 'Month Index' },
         { field: kind === 'canvas-point' ? 'volume' as const : 'value' as const, type: 'number' as const, placement: 'left' as const, min: 0, max: 72, title: kind === 'canvas-point' ? 'Volume' : 'Value' }
@@ -1439,6 +1478,13 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             createWebglLineSeries({ selector: `${prefix}-value`, displayName: 'WebGL Value', xField: 'x', yField: 'value', color: '#5db8ff', lineWidth: 1 }),
             createWebglLineSeries({ selector: `${prefix}-volume`, displayName: 'WebGL Volume', xField: 'x', yField: 'volume', color: '#56d08f', lineWidth: 1 }),
             createWebglLineSeries({ selector: `${prefix}-extra`, displayName: 'WebGL Extra', xField: 'x', yField: 'extra', color: '#f3b45b', lineWidth: 1 })
+        ];
+    }
+    if (kind === 'real-time') {
+        return [
+            createCanvasLineSeries({ selector: 'demo-realtime-value', displayName: 'Signal A', xField: 'time', yField: 'value', color: '#5db8ff', lineWidth: 2.5 }),
+            createCanvasLineSeries({ selector: 'demo-realtime-volume', displayName: 'Signal B', xField: 'time', yField: 'volume', color: '#56d08f', lineWidth: 2.5 }),
+            createCanvasLineSeries({ selector: 'demo-realtime-extra', displayName: 'Signal C', xField: 'time', yField: 'extra', color: '#f3b45b', lineWidth: 2.5 })
         ];
     }
     if (kind === 'column') {
@@ -1865,6 +1911,24 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     onDieClick: ({ die }) => console.log(die)
 })`;
     }
+    if (kind === 'real-time') {
+        return `createCanvasLineSeries({
+    selector: 'realtime-signal-a',
+    displayName: 'Signal A',
+    xField: 'time',
+    yField: 'value',
+    color: '#5db8ff',
+    lineWidth: 2.5
+}),
+        createCanvasLineSeries({
+    selector: 'realtime-signal-b',
+    displayName: 'Signal B',
+    xField: 'time',
+    yField: 'volume',
+    color: '#56d08f',
+    lineWidth: 2.5
+})`;
+    }
     if (isGlobeMapExample(kind)) {
         const drilldownMode = kind === 'globe-map-drilldown' ? 'external-map' : 'zoom';
         return `createSvgGlobeSeries({
@@ -2138,6 +2202,8 @@ globe.addRoute({
             ? 'createLargeData(50000)'
             : kind === 'canvas-candlestick'
                 ? 'stockData'
+                : kind === 'real-time'
+                    ? 'createRealtimeData()'
                 : kind === 'three-constellation'
                     ? 'ariesNodes'
                     : kind === 'three-wafer'
@@ -2248,6 +2314,39 @@ const stockDomain = [
     formatDate(addDays(new Date(stockData[0].label), -4)),
     formatDate(addDays(new Date(stockData[stockData.length - 1].label), 4))
 ];
+`
+        : kind === 'real-time'
+        ? `
+type DemoPoint = {
+    label: string;
+    time: Date;
+    value: number;
+    volume: number;
+};
+
+const REALTIME_INTERVAL_MS = 250;
+const REALTIME_MAX_POINTS = 240;
+const REALTIME_INITIAL_POINTS = 120;
+
+const formatRealtimeTick = (value: Date): string =>
+    value.toLocaleTimeString([], { minute: '2-digit', second: '2-digit' });
+
+const createRealtimePoint = (tick: number, startTime: number): DemoPoint => {
+    const time = new Date(startTime + tick * REALTIME_INTERVAL_MS);
+    return {
+        label: formatRealtimeTick(time),
+        time,
+        value: 52 + Math.sin(tick / 8) * 13 + Math.sin(tick / 2.9) * 2.8,
+        volume: 45 + Math.cos(tick / 10) * 8 + Math.sin(tick / 3.4) * 2.6
+    };
+};
+
+const createRealtimeData = (): DemoPoint[] => {
+    const startTime = Date.now() - (REALTIME_INITIAL_POINTS - 1) * REALTIME_INTERVAL_MS;
+    return Array.from({ length: REALTIME_INITIAL_POINTS }, (_, index) =>
+        createRealtimePoint(index, startTime)
+    );
+};
 `
         : isUsageGlobeMap
         ? `
@@ -2443,6 +2542,9 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
     axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
+    ]` : kind === 'real-time' ? `[
+        { field: 'time', type: 'time', placement: 'bottom', title: 'Clock', tickCount: 6, tickFormat: formatRealtimeTick },
+        { field: 'value', type: 'number', placement: 'left', min: 28, max: 76, title: 'Signal', domainFields: ['value', 'volume'] }
     ]` : 'createAxesForExample()'},
     series: [
         ${createSeriesSnippet(kind)}
@@ -2455,7 +2557,20 @@ chart.updateData(nextData);` : ''}${kind === 'update-series' ? `
 
 chart.updateSeries(nextSeries);` : ''}${kind === 'real-time' ? `
 
-setInterval(() => chart.updateData(nextRealtimeData()), 1000);` : ''}`;
+const startTime = Date.now() - (REALTIME_INITIAL_POINTS - 1) * REALTIME_INTERVAL_MS;
+let tick = REALTIME_INITIAL_POINTS;
+let realtimeData = createRealtimeData();
+
+const timer = window.setInterval(() => {
+    realtimeData.push(createRealtimePoint(tick, startTime));
+    if (realtimeData.length > REALTIME_MAX_POINTS) {
+        realtimeData.splice(0, realtimeData.length - REALTIME_MAX_POINTS);
+    }
+    chart.updateData(realtimeData);
+    tick += 1;
+}, REALTIME_INTERVAL_MS);
+
+window.addEventListener('beforeunload', () => window.clearInterval(timer));` : ''}`;
 };
 
 const startExampleBehavior = (kind: DemoKind): void => {
@@ -2484,28 +2599,20 @@ const startExampleBehavior = (kind: DemoKind): void => {
     }
 
     if (kind === 'real-time') {
-        let tick = 7;
-        let realtimeData = baseData.slice();
+        const startTime = Date.now() - (REALTIME_INITIAL_POINTS - 1) * REALTIME_INTERVAL_MS;
+        let tick = REALTIME_INITIAL_POINTS;
+        let realtimeData = createRealtimeData(REALTIME_INITIAL_POINTS, startTime);
+
+        chart.updateData(realtimeData);
         realtimeTimer = window.setInterval(() => {
-            realtimeData = [
-                ...realtimeData.slice(-9),
-                {
-                    label: String(tick),
-                    x: tick,
-                    value: 42 + Math.sin(tick / 2) * 18 + Math.random() * 8,
-                    volume: 24,
-                    extra: 12,
-                    radius: 5,
-                    category: String(tick)
-                }
-            ];
-            chart?.updateAxes([
-                { field: 'x', type: 'number', placement: 'bottom', min: Math.max(0, tick - 9), max: tick + 1, title: 'Tick' },
-                { field: 'value', type: 'number', placement: 'left', min: 0, max: 72, title: 'Value' }
-            ]);
+            realtimeData.push(createRealtimePoint(tick, startTime));
+            if (realtimeData.length > REALTIME_MAX_POINTS) {
+                realtimeData.splice(0, realtimeData.length - REALTIME_MAX_POINTS);
+            }
+
             chart?.updateData(realtimeData);
             tick += 1;
-        }, 1000);
+        }, REALTIME_INTERVAL_MS);
     }
 };
 
@@ -2514,7 +2621,7 @@ const renderExample = (kind: DemoKind): void => {
         return;
     }
 
-    if (realtimeTimer) {
+    if (realtimeTimer !== undefined) {
         window.clearInterval(realtimeTimer);
         realtimeTimer = undefined;
     }

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.16.1 - 2026-07-10
+
+### Added
+
+- Added a realtime time-series line demo with a 250ms sliding time window.
+- Added a `stackblitz-realtime-line-basic` starter showing fixed-size stream data and interval cleanup.
+
+### Changed
+
+- Updated the playground/demo realtime usage snippet to avoid unbounded data growth and duplicate axis/data renders.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.16.1`.
+
 ## 1.16.0 - 2026-07-10
 
 ### Added
