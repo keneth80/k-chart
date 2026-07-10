@@ -37,8 +37,10 @@ import {
     createCursorLineOption,
     createCustomSeries,
     createGuideLineOption,
+    createGraphSeries,
     createKChart,
     createLineSeries,
+    createSankeySeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
     createTooltipNoteOption,
@@ -95,6 +97,8 @@ type DemoKind =
     | 'radial'
     | 'pie'
     | 'doughnut'
+    | 'graph'
+    | 'sankey'
     | 'canvas-point'
     | 'webgl-point';
 
@@ -111,6 +115,32 @@ const baseData: DemoPoint[] = [
     { label: 'Apr', x: 4, value: 56, volume: 34, extra: 26, radius: 12, category: 'D' },
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
+];
+
+const graphData: DemoPoint[] = [
+    { label: 'Browser → API', source: 'Browser', target: 'API Gateway', metric: 46, x: 0, value: 46, volume: 0, extra: 0, radius: 0, category: 'Client' },
+    { label: 'Mobile → API', source: 'Mobile App', target: 'API Gateway', metric: 34, x: 0, value: 34, volume: 0, extra: 0, radius: 0, category: 'Client' },
+    { label: 'API → Auth', source: 'API Gateway', target: 'Auth', metric: 32, x: 0, value: 32, volume: 0, extra: 0, radius: 0, category: 'Platform' },
+    { label: 'API → Orders', source: 'API Gateway', target: 'Orders', metric: 58, x: 0, value: 58, volume: 0, extra: 0, radius: 0, category: 'Platform' },
+    { label: 'API → Catalog', source: 'API Gateway', target: 'Catalog', metric: 41, x: 0, value: 41, volume: 0, extra: 0, radius: 0, category: 'Platform' },
+    { label: 'Orders → Database', source: 'Orders', target: 'Database', metric: 43, x: 0, value: 43, volume: 0, extra: 0, radius: 0, category: 'Service' },
+    { label: 'Orders → Queue', source: 'Orders', target: 'Queue', metric: 27, x: 0, value: 27, volume: 0, extra: 0, radius: 0, category: 'Service' },
+    { label: 'Catalog → Search', source: 'Catalog', target: 'Search', metric: 36, x: 0, value: 36, volume: 0, extra: 0, radius: 0, category: 'Service' },
+    { label: 'Queue → Worker', source: 'Queue', target: 'Worker', metric: 24, x: 0, value: 24, volume: 0, extra: 0, radius: 0, category: 'Data' },
+    { label: 'Worker → Database', source: 'Worker', target: 'Database', metric: 19, x: 0, value: 19, volume: 0, extra: 0, radius: 0, category: 'Data' }
+];
+
+const sankeyData: DemoPoint[] = [
+    { label: 'Visit → Signup', source: 'Visit', target: 'Signup', metric: 120, x: 0, value: 120, volume: 0, extra: 0, radius: 0, category: 'Acquisition' },
+    { label: 'Visit → Browse', source: 'Visit', target: 'Browse', metric: 80, x: 0, value: 80, volume: 0, extra: 0, radius: 0, category: 'Acquisition' },
+    { label: 'Signup → Trial', source: 'Signup', target: 'Trial', metric: 85, x: 0, value: 85, volume: 0, extra: 0, radius: 0, category: 'Activation' },
+    { label: 'Signup → Drop off', source: 'Signup', target: 'Drop off', metric: 35, x: 0, value: 35, volume: 0, extra: 0, radius: 0, category: 'Activation' },
+    { label: 'Browse → Trial', source: 'Browse', target: 'Trial', metric: 30, x: 0, value: 30, volume: 0, extra: 0, radius: 0, category: 'Evaluation' },
+    { label: 'Browse → Exit', source: 'Browse', target: 'Exit', metric: 50, x: 0, value: 50, volume: 0, extra: 0, radius: 0, category: 'Evaluation' },
+    { label: 'Trial → Paid', source: 'Trial', target: 'Paid', metric: 72, x: 0, value: 72, volume: 0, extra: 0, radius: 0, category: 'Conversion' },
+    { label: 'Trial → Churn', source: 'Trial', target: 'Churn', metric: 43, x: 0, value: 43, volume: 0, extra: 0, radius: 0, category: 'Conversion' },
+    { label: 'Paid → Retained', source: 'Paid', target: 'Retained', metric: 62, x: 0, value: 62, volume: 0, extra: 0, radius: 0, category: 'Retention' },
+    { label: 'Paid → Cancelled', source: 'Paid', target: 'Cancelled', metric: 10, x: 0, value: 10, volume: 0, extra: 0, radius: 0, category: 'Retention' }
 ];
 
 const REALTIME_INTERVAL_MS = 250;
@@ -351,6 +381,8 @@ const examples: ExampleMeta[] = [
     { kind: 'radial', title: 'Custom SVG radial renderer' },
     { kind: 'pie', title: 'Custom SVG pie renderer' },
     { kind: 'doughnut', title: 'Custom SVG doughnut renderer' },
+    { kind: 'graph', title: 'SVG graph relationship renderer', dataLabel: 'force + circular layout' },
+    { kind: 'sankey', title: 'SVG Sankey flow renderer', dataLabel: 'source → target metric' },
     { kind: 'canvas-point', title: 'Canvas point renderer' },
     { kind: 'webgl-point', title: 'WebGL point renderer' }
 ];
@@ -1382,6 +1414,12 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'real-time') {
         return createRealtimeData();
     }
+    if (kind === 'graph') {
+        return graphData;
+    }
+    if (kind === 'sankey') {
+        return sankeyData;
+    }
     if (isGlobeMapExample(kind)) {
         return globeData;
     }
@@ -1402,7 +1440,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'graph' || kind === 'sankey') {
         return [];
     }
     if (kind === 'column') {
@@ -1592,6 +1630,59 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     if (kind === 'topology') {
         return [topologySeries];
     }
+    if (kind === 'graph') {
+        return [
+            createGraphSeries({
+                selector: 'demo-graph',
+                displayName: 'Service relationships',
+                sourceField: 'source',
+                targetField: 'target',
+                valueField: 'metric',
+                categoryField: 'category',
+                categorySide: 'source',
+                layout: 'force',
+                directed: true,
+                edgeSymbols: 'circle-arrow',
+                roam: 'both',
+                selectMode: 'multiple',
+                nodeMinRadius: 10,
+                nodeMaxRadius: 30,
+                edgeMinWidth: 1.2,
+                edgeMaxWidth: 7,
+                labels: {
+                    visible: true,
+                    formatter: (node) => `${node.label} · ${node.value}`
+                },
+                onNodeClick: ({node, selectedIds}) => {
+                    console.info(`[KChart Graph] ${node.label}`, selectedIds);
+                }
+            })
+        ];
+    }
+    if (kind === 'sankey') {
+        return [
+            createSankeySeries({
+                selector: 'demo-sankey',
+                displayName: 'Customer journey',
+                sourceField: 'source',
+                targetField: 'target',
+                valueField: 'metric',
+                categoryField: 'category',
+                categorySide: 'source',
+                nodeAlign: 'justify',
+                nodeWidth: 18,
+                nodePadding: 16,
+                linkColor: 'gradient',
+                linkOpacity: 0.64,
+                labels: {
+                    visible: true,
+                    formatter: (node) => `${node.label} · ${node.value}`
+                },
+                onNodeClick: ({node}) => console.info(`[KChart Sankey] node ${node.label}`),
+                onLinkClick: ({link}) => console.info(`[KChart Sankey] ${link.source.label} → ${link.target.label}: ${link.value}`)
+            })
+        ];
+    }
     if (kind === 'three-constellation') {
         return [
             createThreeConstellationSeries<DemoPoint>({
@@ -1734,6 +1825,8 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isBigData = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line';
     const hasInteractiveZoom = isBigData || kind === 'canvas-candlestick';
     const isTopology = kind === 'topology';
+    const isGraph = kind === 'graph';
+    const isSankey = kind === 'sankey';
     const isThreeConstellation = kind === 'three-constellation';
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
@@ -1748,7 +1841,9 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         || kind === 'circle'
         || kind === 'radial'
         || kind === 'pie'
-        || kind === 'doughnut';
+        || kind === 'doughnut'
+        || kind === 'sankey';
+    const hasFlowAnimation = hasSeriesAnimation || isSankey;
 
     return createKChart<DemoPoint>({
         selector: chartRoot,
@@ -1758,6 +1853,10 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             : chartRoot?.clientWidth || 760,
         height: kind === 'topology'
             ? 620
+            : isGraph
+                ? 520
+            : isSankey
+                ? 520
             : isThreeScene
                 ? 520
             : chartRoot?.clientHeight || 420,
@@ -1765,6 +1864,10 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
                 ? { top: 10, right: 10, bottom: 10, left: 10 }
+                : isGraph
+                    ? { top: 68, right: 20, bottom: 20, left: 20 }
+                : isSankey
+                    ? { top: 68, right: 20, bottom: 20, left: 20 }
                 : isThreeScene
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap
@@ -1778,7 +1881,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGlobeMap && !isThreeScene && !isRadial,
+            visible: !isTopology && !isGraph && !isSankey && !isGlobeMap && !isThreeScene && !isRadial,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1786,11 +1889,11 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGlobeMap && !isThreeScene,
+            visible: kind !== 'topology' && !isGraph && !isSankey && !isGlobeMap && !isThreeScene,
             placement: 'top'
         },
         tooltip: {
-            visible: !isBigData && !isTopology && !isGlobeMap && !isThreeScene,
+            visible: !isBigData && !isTopology && !isGraph && !isSankey && !isGlobeMap && !isThreeScene,
             formatter: kind === 'tooltip-template'
                 ? ({ data: item }) => `<strong>${item.label}</strong><br/>Revenue ${item.value}<br/>Volume ${item.volume}`
                 : kind === 'tooltip-custom'
@@ -1806,13 +1909,13 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
-        animation: hasSeriesAnimation ? {
+        animation: hasFlowAnimation ? {
             enabled: true,
             duration: 820,
             easing: 'easeOutCubic',
             mode: 'enter'
         } : undefined,
-        axes: isTopology || isThreeScene ? [] : createAxes(kind),
+        axes: isTopology || isGraph || isSankey || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
     });
 };
@@ -1825,6 +1928,25 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     yField: 'value',
     render({ group, data, xScale, yScale }) {
         // draw SVG rect columns from chart scales
+    }
+})`;
+    }
+    if (kind === 'sankey') {
+        return `createSankeySeries({
+    selector: 'customer-flow',
+    displayName: 'Customer journey',
+    sourceField: 'source',
+    targetField: 'target',
+    valueField: 'metric',
+    categoryField: 'category',
+    categorySide: 'source',
+    nodeAlign: 'justify',
+    nodeWidth: 18,
+    nodePadding: 16,
+    linkColor: 'gradient',
+    labels: {
+        visible: true,
+        formatter: (node) => \`\${node.label} · \${node.value}\`
     }
 })`;
     }
@@ -1867,6 +1989,26 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     selector: 'demo-topology',
     render({ group, plotSize }) {
         // draw nodes and links inside the plot area
+    }
+})`;
+    }
+    if (kind === 'graph') {
+        return `createGraphSeries({
+    selector: 'service-graph',
+    displayName: 'Service relationships',
+    sourceField: 'source',
+    targetField: 'target',
+    valueField: 'metric',
+    categoryField: 'category',
+    categorySide: 'source',
+    layout: 'force',
+    directed: true,
+    edgeSymbols: 'circle-arrow',
+    roam: 'both',
+    selectMode: 'multiple',
+    labels: {
+        visible: true,
+        formatter: (node) => \`\${node.label} · \${node.value}\`
     }
 })`;
     }
@@ -2177,6 +2319,8 @@ globe.addRoute({
     }
     const selected = examples.find((example) => example.kind === kind);
     const isUsageGlobeMap = isGlobeMapExample(kind);
+    const isUsageGraph = kind === 'graph';
+    const isUsageSankey = kind === 'sankey';
     const hasUsageSpecAreas = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'option-spec-area';
     const hasUsageGuideLines = kind === 'webgl-large-line' || kind === 'option-guide-line';
     const hasUsageCursorGuide = kind === 'webgl-line'
@@ -2195,7 +2339,8 @@ globe.addRoute({
         || kind === 'circle'
         || kind === 'radial'
         || kind === 'pie'
-        || kind === 'doughnut';
+        || kind === 'doughnut'
+        || kind === 'sankey';
     const dataExpression = kind === 'webgl-large-line'
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
@@ -2204,6 +2349,10 @@ globe.addRoute({
                 ? 'stockData'
                 : kind === 'real-time'
                     ? 'createRealtimeData()'
+                : isUsageGraph
+                    ? 'graphData'
+                : isUsageSankey
+                    ? 'sankeyData'
                 : kind === 'three-constellation'
                     ? 'ariesNodes'
                     : kind === 'three-wafer'
@@ -2211,7 +2360,43 @@ globe.addRoute({
                 : isUsageGlobeMap
                     ? 'globeData'
                     : 'baseData';
-    const dataSnippet = kind === 'three-constellation'
+    const dataSnippet = isUsageSankey
+        ? `
+type SankeyRow = {
+    source: string;
+    target: string;
+    metric: number;
+    category: string;
+};
+
+const sankeyData: SankeyRow[] = [
+    { source: 'Visit', target: 'Signup', metric: 120, category: 'Acquisition' },
+    { source: 'Visit', target: 'Browse', metric: 80, category: 'Acquisition' },
+    { source: 'Signup', target: 'Trial', metric: 85, category: 'Activation' },
+    { source: 'Signup', target: 'Drop off', metric: 35, category: 'Activation' },
+    { source: 'Browse', target: 'Trial', metric: 30, category: 'Evaluation' },
+    { source: 'Trial', target: 'Paid', metric: 72, category: 'Conversion' }
+];
+`
+        : isUsageGraph
+        ? `
+type GraphRow = {
+    source: string;
+    target: string;
+    metric: number;
+    category: string;
+};
+
+const graphData: GraphRow[] = [
+    { source: 'Browser', target: 'API Gateway', metric: 46, category: 'Client' },
+    { source: 'Mobile App', target: 'API Gateway', metric: 34, category: 'Client' },
+    { source: 'API Gateway', target: 'Auth', metric: 32, category: 'Platform' },
+    { source: 'API Gateway', target: 'Orders', metric: 58, category: 'Platform' },
+    { source: 'Orders', target: 'Database', metric: 43, category: 'Service' },
+    { source: 'Orders', target: 'Queue', metric: 27, category: 'Service' }
+];
+`
+        : kind === 'three-constellation'
         ? `
 type ConstellationNode = {
     id: string;
@@ -2453,9 +2638,11 @@ const baseData = [
     createCanvasPointSeries,
     createCursorLineOption,
     createCustomSeries,
+    createGraphSeries,
     createGuideLineOption,
     createKChart,
     createLineSeries,
+    createSankeySeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
     createTooltipNoteOption,
@@ -2483,13 +2670,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : kind === 'three-wafer' ? 'WaferDie' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : isUsageGraph ? 'GraphRow' : isUsageSankey ? 'SankeyRow' : kind === 'three-wafer' ? 'WaferDie' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
     margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${isUsageGlobeMap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
+    grid: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -2520,7 +2707,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         ].filter(Boolean).join(',\n        ')}
     ],` : ''}
     tooltip: {
-        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
+        visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
     },${hasUsageAnimation ? `
@@ -2539,7 +2726,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : kind === 'real-time' ? `[
@@ -2638,6 +2825,8 @@ const renderExample = (kind: DemoKind): void => {
         setupMapLibreDemo();
     }
     chartRoot.classList.toggle('topology-chart', kind === 'topology');
+    chartRoot.classList.toggle('graph-chart', kind === 'graph');
+    chartRoot.classList.toggle('sankey-chart', kind === 'sankey');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
     if (kind === 'cesium-route') {
         chart = null;

@@ -294,6 +294,96 @@ createBubbleSeries<Point>({
 
 `createBarSeries()`는 horizontal bar 전용이므로 x축은 숫자, y축은 문자열/point/category 축을 사용합니다. `createGroupedColumnSeries()`는 같은 x 값 안에 여러 segment를 나란히 배치합니다. `createBubbleSeries()`는 `radiusField` 값의 최소/최대 범위를 `minRadius`와 `maxRadius`로 선형 매핑합니다.
 
+## Built-In Graph Series
+
+관계 데이터는 별도 node 배열을 만들지 않고 source-target 행 배열을 그대로 전달할 수 있습니다.
+
+```ts
+type Relation = {
+    source: string;
+    target: string;
+    metric: number;
+    category: string;
+};
+
+const data: Relation[] = [
+    {source: 'Browser', target: 'API', metric: 46, category: 'Client'},
+    {source: 'Mobile', target: 'API', metric: 34, category: 'Client'},
+    {source: 'API', target: 'Orders', metric: 58, category: 'Platform'}
+];
+
+const chart = createKChart<Relation>({
+    selector: '#chart',
+    data,
+    axes: [],
+    grid: {visible: false},
+    legend: {visible: false},
+    tooltip: {visible: false},
+    series: [
+        createGraphSeries({
+            selector: 'relations',
+            sourceField: 'source',
+            targetField: 'target',
+            valueField: 'metric',
+            categoryField: 'category',
+            layout: 'force',
+            edgeSymbols: 'circle-arrow',
+            roam: 'both',
+            selectMode: 'multiple'
+        })
+    ]
+});
+
+chart.render();
+```
+
+`layout: 'circular'`로 바꾸면 같은 데이터를 원형 배치로 비교할 수 있습니다. 중복 source-target 행은 하나의 edge로 합산되고, node metric은 연결된 edge metric의 합입니다.
+
+## Built-In Sankey Series
+
+Sankey는 방향성 비순환 flow에서 단계별 전환량과 이탈량을 비교할 때 사용합니다.
+
+```ts
+type FlowRow = {
+    source: string;
+    target: string;
+    metric: number;
+    category: string;
+};
+
+const flow: FlowRow[] = [
+    {source: 'Visit', target: 'Signup', metric: 120, category: 'Acquisition'},
+    {source: 'Visit', target: 'Browse', metric: 80, category: 'Acquisition'},
+    {source: 'Signup', target: 'Trial', metric: 85, category: 'Activation'},
+    {source: 'Signup', target: 'Drop off', metric: 35, category: 'Activation'},
+    {source: 'Trial', target: 'Paid', metric: 72, category: 'Conversion'}
+];
+
+createKChart<FlowRow>({
+    selector: '#chart',
+    data: flow,
+    axes: [],
+    grid: {visible: false},
+    legend: {visible: false},
+    tooltip: {visible: false},
+    series: [
+        createSankeySeries({
+            selector: 'customer-flow',
+            sourceField: 'source',
+            targetField: 'target',
+            valueField: 'metric',
+            categoryField: 'category',
+            nodeAlign: 'justify',
+            nodeWidth: 18,
+            nodePadding: 16,
+            linkColor: 'gradient'
+        })
+    ]
+}).render();
+```
+
+동일 source-target 행은 하나의 flow로 합산됩니다. 순환 관계망은 `createGraphSeries()`를 사용하고, Sankey에는 단계가 앞으로 진행되는 DAG 데이터를 전달해야 합니다.
+
 ## Built-In Canvas Series
 
 Canvas 2D line/point renderer는 별도 class 없이 factory로 생성합니다.

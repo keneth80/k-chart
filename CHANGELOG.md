@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.17.0 - 2026-07-10
+
+### Added
+
+- Added `createGraphSeries()` for weighted source-target relationship charts.
+- Added force and circular layouts, endpoint symbols, weighted node/edge sizing, category colors, connected hover highlighting, roaming, and single/multiple node selection.
+- Added the Graph Chart library demo, StackBlitz starter, API reference, and aggregation regression tests.
+- Added `createSankeySeries()` for acyclic source-target flow diagrams with proportional node/link sizing, alignment controls, gradient links, connected hover highlighting, and click callbacks.
+- Added the Sankey library demo, StackBlitz starter, API reference, and flow validation tests.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.17.0`.
+
 ## 1.16.1 - 2026-07-10
 
 ### Added

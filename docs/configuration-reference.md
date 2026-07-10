@@ -165,6 +165,7 @@ createKChart({
 | --- | --- | --- |
 | `selector` | `string` | series의 DOM/canvas class, legend key, hidden key로 사용됩니다. 같은 chart 안에서 고유해야 합니다. |
 | `displayName` | `string` | legend와 tooltip에 표시할 이름입니다. 없으면 `selector`를 사용합니다. |
+| `pointerEvents` | `'core' \| 'series'` | 기본값은 `core`입니다. 노드/링크가 직접 hover·click을 처리하는 custom series는 `series`를 지정하면 코어 tooltip이 상위 group에서 이벤트를 함께 수신합니다. |
 | `xField` / `yField` | `keyof T & string` | 기본 tooltip, scale 선택, downsample에 쓰이는 field입니다. |
 | `color` | `string` | series 색상입니다. 없으면 chart `colors` 팔레트에서 할당됩니다. |
 | `downsample` | `boolean \| KChartDownsampleConfiguration<T>` | line 계열 renderer에서 LTTB downsampling을 적용합니다. |
@@ -236,6 +237,89 @@ createKChart({
 | `fill` / `color` | `string \| (point, index) => string` | chart color | point fill 색상입니다. |
 | `stroke` / `strokeWidth` | `string`, `number` | light stroke, `1.4` | point stroke 스타일입니다. |
 | `opacity` | `number` | scatter `0.9`, bubble `0.55` | point fill opacity입니다. |
+
+### SVG Graph: `createGraphSeries`
+
+각 data row는 `sourceField`, `targetField`, `valueField`로 하나의 관계를 표현합니다. 같은 source-target 조합이 여러 번 나오면 edge metric을 합산하며, node 크기는 해당 node로 들어오거나 나가는 edge metric의 합으로 계산합니다.
+이 입력 모델과 주요 상호작용은 [Preset Graph Chart](https://docs.preset.io/docs/graph-chart-1)의 source/target/metric 방식을 참고하되, 구현은 KChart 함수형 SVG series로 독립 구성했습니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `sourceField` / `targetField` | `keyof T & string` | required | edge의 시작/도착 node id field입니다. 빈 값이 있는 row는 제외합니다. |
+| `valueField` | `keyof T & string` | required | node 크기와 edge 굵기에 사용할 metric입니다. 숫자로 변환할 수 없는 값은 `0`으로 처리합니다. |
+| `categoryField` | `keyof T & string` | - | category별 node 색상 field입니다. 누락값은 `N/A`로 분류합니다. |
+| `categorySide` | `source \| target \| both` | `source` | row의 category를 어느 쪽 node에 적용할지 정합니다. |
+| `layout` | `force \| circular` | `force` | force-directed 또는 원형 배치를 선택합니다. |
+| `directed` | `boolean` | `false` | `edgeSymbols` 미지정 시 target 화살표를 표시할지 정합니다. |
+| `edgeSymbols` | `none-none \| none-arrow \| circle-circle \| circle-arrow` | directed에 따라 결정 | edge 시작/끝 장식입니다. |
+| `nodeMinRadius` / `nodeMaxRadius` | `number` | `9`, `28` | node metric을 매핑할 반지름 범위입니다. |
+| `edgeMinWidth` / `edgeMaxWidth` | `number` | `1`, `7` | edge metric을 매핑할 stroke width 범위입니다. |
+| `chargeStrength` | `number` | `-360` | force layout의 node 반발력입니다. |
+| `linkDistance` | `number` | plot 크기 기반 | force layout의 선호 edge 길이입니다. |
+| `collisionPadding` | `number` | `8` | node 충돌 방지 여백입니다. |
+| `iterations` | `number` | `220` | 동기 force simulation tick 횟수입니다. |
+| `labels` | `boolean \| object` | visible | label 표시, formatter, 색상, 크기, 굵기를 설정합니다. |
+| `labelThreshold` | `number` | `0` | 합산 node metric이 이 값 이상인 label만 표시합니다. |
+| `roam` | `move \| scale \| both \| disabled` | `both` | drag 이동과 wheel/touch 확대 사용 범위를 정합니다. |
+| `scaleExtent` | `[number, number]` | `[0.45, 5]` | graph 자체 zoom 배율 범위입니다. |
+| `selectMode` | `single \| multiple \| disabled` | `single` | node 클릭 선택 방식입니다. |
+| `onNodeClick` | `(context) => void` | - | 클릭 node, 선택 상태, 전체 선택 id와 원본 event를 받습니다. |
+
+```ts
+createGraphSeries<Relation>({
+    selector: 'service-graph',
+    sourceField: 'source',
+    targetField: 'target',
+    valueField: 'metric',
+    categoryField: 'category',
+    layout: 'force',
+    edgeSymbols: 'circle-arrow',
+    roam: 'both',
+    selectMode: 'multiple'
+});
+```
+
+Graph가 직접 node hover/click 및 roaming을 처리해야 하는 화면에서는 chart-level `tooltip`과 `zoom`을 끄는 구성을 권장합니다. 코어 tooltip overlay가 필요한 경우 Graph의 `tooltip()` hit-test도 동작하지만, overlay가 SVG node의 직접 pointer event보다 위에 놓일 수 있습니다.
+
+### SVG Sankey: `createSankeySeries`
+
+Sankey 역시 source-target-metric 행을 직접 받지만, 관계 탐색보다 왼쪽에서 오른쪽으로 진행되는 단계별 흐름과 상대적인 flow 폭을 강조합니다. 동일 source-target 행은 합산합니다. Sankey는 방향성 비순환 그래프(DAG)를 전제로 하며 순환이 발견되면 명확한 오류를 발생시킵니다.
+입력 모델은 [Preset Sankey Diagram](https://docs.preset.io/docs/sankey-diagram)을 참고하고, layout과 link path는 공식 [d3-sankey](https://github.com/d3/d3-sankey)를 사용합니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `sourceField` / `targetField` | `keyof T & string` | required | flow 시작/도착 node id field입니다. |
+| `valueField` | `keyof T & string` | required | flow 폭에 사용할 metric입니다. 음수와 숫자가 아닌 값은 `0`으로 처리합니다. |
+| `categoryField` / `categorySide` | field, `source \| target \| both` | -, `source` | node category 색상을 어느 쪽에 적용할지 정합니다. |
+| `nodeAlign` | `left \| right \| center \| justify` | `justify` | Sankey node의 가로 layer 정렬 방식입니다. |
+| `nodeWidth` | `number` | `18` | node rectangle 폭입니다. |
+| `nodePadding` | `number` | `14` | 같은 layer node 사이 세로 간격입니다. |
+| `iterations` | `number` | `12` | Sankey relaxation 반복 횟수입니다. |
+| `fitPadding` | `number` | `8` | plot 경계와 layout 사이 여백입니다. |
+| `labelGutter` | `number` | `88` | 양쪽 label을 위해 layout에서 확보할 공간입니다. |
+| `nodeColor` | `string \| (node, index) => string` | category/chart color | node fill 색상입니다. |
+| `linkColor` | `source \| target \| gradient \| string` | `gradient` | flow 색상 또는 양 끝 node 색상 기반 gradient입니다. |
+| `linkOpacity` | `number` | `0.58` | flow 기본 투명도입니다. |
+| `minLinkWidth` | `number` | `1` | 작은 metric flow의 최소 표시 폭입니다. |
+| `labels` | `boolean \| object` | visible | label formatter, 색상, 글꼴, offset을 설정합니다. |
+| `onNodeClick` | `(context) => void` | - | 클릭한 layout node와 원본 event를 받습니다. |
+| `onLinkClick` | `(context) => void` | - | 클릭한 집계 flow와 원본 event를 받습니다. |
+
+```ts
+createSankeySeries<FlowRow>({
+    selector: 'customer-flow',
+    sourceField: 'source',
+    targetField: 'target',
+    valueField: 'metric',
+    categoryField: 'category',
+    nodeAlign: 'justify',
+    linkColor: 'gradient'
+});
+```
+
+노드와 flow가 직접 hover/click을 처리하므로, 상호작용 중심 화면에서는 chart-level `tooltip`을 끄고 Sankey의 native title 및 callback을 사용하는 구성을 권장합니다.
 
 ### SVG Box Plot: `createBoxPlotSeries`
 

@@ -138,6 +138,8 @@ export interface KChartSeriesTooltipResult<T = any> {
 export interface KChartSeries<T = any> {
     selector: string;
     displayName?: string;
+    /** Let a series receive node/link pointer events instead of the core overlay. */
+    pointerEvents?: 'core' | 'series';
     xField?: keyof T & string;
     yField?: keyof T & string;
     color?: string;
@@ -330,6 +332,149 @@ export interface KChartWaterfallSeriesConfiguration<T = any> {
         offset?: number;
         showZero?: boolean;
     };
+}
+
+export type KChartGraphLayout = 'force' | 'circular';
+export type KChartGraphRoamMode = 'move' | 'scale' | 'both' | 'disabled';
+export type KChartGraphSelectMode = 'single' | 'multiple' | 'disabled';
+export type KChartGraphEdgeSymbols = 'none-none' | 'none-arrow' | 'circle-circle' | 'circle-arrow';
+
+export interface KChartGraphNode<T = any> {
+    id: string;
+    label: string;
+    value: number;
+    category?: string;
+    rows: T[];
+    x: number;
+    y: number;
+}
+
+export interface KChartGraphEdge<T = any> {
+    id: string;
+    source: KChartGraphNode<T>;
+    target: KChartGraphNode<T>;
+    value: number;
+    rows: T[];
+}
+
+export interface KChartGraphNodeInteractionContext<T = any> {
+    node: KChartGraphNode<T>;
+    selected: boolean;
+    selectedIds: string[];
+    event: MouseEvent;
+}
+
+export interface KChartGraphSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    sourceField: keyof T & string;
+    targetField: keyof T & string;
+    valueField: keyof T & string;
+    categoryField?: keyof T & string;
+    categorySide?: 'source' | 'target' | 'both';
+    layout?: KChartGraphLayout;
+    directed?: boolean;
+    edgeSymbols?: KChartGraphEdgeSymbols;
+    color?: string;
+    palette?: string[];
+    nodeMinRadius?: number;
+    nodeMaxRadius?: number;
+    nodeStroke?: string;
+    nodeStrokeWidth?: number;
+    nodeOpacity?: number;
+    edgeColor?: string;
+    edgeMinWidth?: number;
+    edgeMaxWidth?: number;
+    edgeOpacity?: number;
+    chargeStrength?: number;
+    linkDistance?: number;
+    collisionPadding?: number;
+    iterations?: number;
+    labelThreshold?: number;
+    labels?: boolean | {
+        visible?: boolean;
+        formatter?: (node: KChartGraphNode<T>) => string;
+        color?: string;
+        fontSize?: number;
+        fontWeight?: number | string;
+    };
+    roam?: KChartGraphRoamMode;
+    scaleExtent?: [number, number];
+    selectMode?: KChartGraphSelectMode;
+    dimOpacity?: number;
+    onNodeClick?: (context: KChartGraphNodeInteractionContext<T>) => void;
+}
+
+export type KChartSankeyNodeAlign = 'left' | 'right' | 'center' | 'justify';
+
+export interface KChartSankeyNode<T = any> {
+    id: string;
+    label: string;
+    category?: string;
+    value: number;
+    rows: T[];
+    x0: number;
+    x1: number;
+    y0: number;
+    y1: number;
+    depth: number;
+}
+
+export interface KChartSankeyLink<T = any> {
+    id: string;
+    source: KChartSankeyNode<T>;
+    target: KChartSankeyNode<T>;
+    value: number;
+    rows: T[];
+    width: number;
+    y0: number;
+    y1: number;
+}
+
+export interface KChartSankeyNodeClickContext<T = any> {
+    node: KChartSankeyNode<T>;
+    event: MouseEvent;
+}
+
+export interface KChartSankeyLinkClickContext<T = any> {
+    link: KChartSankeyLink<T>;
+    event: MouseEvent;
+}
+
+export interface KChartSankeySeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    sourceField: keyof T & string;
+    targetField: keyof T & string;
+    valueField: keyof T & string;
+    categoryField?: keyof T & string;
+    categorySide?: 'source' | 'target' | 'both';
+    nodeAlign?: KChartSankeyNodeAlign;
+    nodeWidth?: number;
+    nodePadding?: number;
+    iterations?: number;
+    fitPadding?: number;
+    labelGutter?: number;
+    color?: string;
+    palette?: string[];
+    nodeColor?: string | ((node: KChartSankeyNode<T>, index: number) => string);
+    nodeStroke?: string;
+    nodeStrokeWidth?: number;
+    nodeOpacity?: number;
+    linkColor?: 'source' | 'target' | 'gradient' | string;
+    linkOpacity?: number;
+    minLinkWidth?: number;
+    dimOpacity?: number;
+    labels?: boolean | {
+        visible?: boolean;
+        formatter?: (node: KChartSankeyNode<T>) => string;
+        color?: string;
+        fontSize?: number;
+        fontWeight?: number | string;
+        offset?: number;
+    };
+    onNodeClick?: (context: KChartSankeyNodeClickContext<T>) => void;
+    onLinkClick?: (context: KChartSankeyLinkClickContext<T>) => void;
 }
 
 export interface KChartCanvasLineSeriesConfiguration<T = any> {

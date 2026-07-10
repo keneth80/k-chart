@@ -82,6 +82,10 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-topology-basic?title=KChart%20Topology&file=src/main.ts"><strong>Topology</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-graph-basic?title=KChart%20Graph%20Chart&file=src/main.ts"><strong>Graph Chart</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-sankey-basic?title=KChart%20Sankey%20Flow&file=src/main.ts"><strong>Sankey</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-three-wafer-basic?title=KChart%20Three.js%20Wafer&file=src/main.ts"><strong>Three.js Wafer</strong></a>
 </p>
 
@@ -102,6 +106,8 @@ KChart는 완성형 대시보드 차트만 제공하는 라이브러리라기보
 | Custom visualization | `createCustomSeries(...)`로 scale, layer, plot size를 받은 뒤 원하는 renderer를 직접 구현할 수 있습니다. |
 | Optional adapters | Three.js, CesiumJS, MapLibre는 별도 package로 분리해 기본 chart bundle에 3D/map 비용을 섞지 않습니다. |
 | Business UI fit | tooltip note, fixed guide line, spec area, topology, candlestick처럼 운영 화면에서 바로 쓰는 옵션을 포함합니다. |
+| Relationship analysis | `createGraphSeries(...)`로 source-target-metric 데이터를 Force/Circular 관계망으로 표현합니다. |
+| Flow analysis | `createSankeySeries(...)`로 단계별 흐름의 상대적인 크기와 이탈 지점을 표현합니다. |
 
 ### Size And Capability Snapshot
 

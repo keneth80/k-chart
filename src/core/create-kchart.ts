@@ -1038,7 +1038,14 @@ const applySelectionZoom = <T = any>(state: KChartState<T>): void => {
 const renderZoom = <T = any>(state: KChartState<T>): void => {
     const overlay = state.layers.overlayGroup.select<SVGRectElement>('rect.kchart-tooltip-overlay');
     const overlayNode = overlay.node();
-    if (!overlayNode) {
+    const seriesHandlesPointerEvents = state.series.some((series) => (
+        !state.hiddenSeries.has(series.selector) && series.pointerEvents === 'series'
+    ));
+    const eventTarget = (seriesHandlesPointerEvents
+        ? state.layers.seriesGroup
+        : overlay) as unknown as Selection<any, unknown, any, unknown>;
+    const eventTargetNode = eventTarget.node();
+    if (!overlayNode || !eventTargetNode) {
         return;
     }
 
@@ -1061,16 +1068,26 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
         .on('mousemove.kchart-select-zoom', null)
         .on('mouseup.kchart-select-zoom', null)
         .on('mouseleave.kchart-select-zoom', null);
+    state.layers.seriesGroup
+        .style('cursor', seriesHandlesPointerEvents
+            ? selectionEnabled ? 'crosshair' : isZoomEnabled(state) ? 'grab' : null
+            : null)
+        .on('dblclick.kchart-zoom-reset', null)
+        .on('mousedown.kchart-select-zoom', null)
+        .on('mousemove.kchart-select-zoom', null)
+        .on('mouseup.kchart-select-zoom', null)
+        .on('mouseleave.kchart-select-zoom', null);
+    overlay.on('.zoom', null);
+    state.layers.seriesGroup.on('.zoom', null);
 
     if (!isZoomEnabled(state)) {
-        overlay.on('.zoom', null);
         state.layers.overlayGroup.selectAll('rect.kchart-zoom-selection').remove();
         return;
     }
 
     if (wheelEnabled || desktopPanEnabled || gestureEnabled) {
         const wheelSensitivity = getZoomWheelSensitivity(zoomConfig);
-        const zoomBehavior = zoom<SVGRectElement, unknown>()
+        const zoomBehavior = zoom<any, unknown>()
             .scaleExtent(zoomConfig?.scaleExtent ?? [1, 40])
             .extent([[0, 0], [state.plotSize.width, state.plotSize.height]])
             .translateExtent([[0, 0], [state.plotSize.width, state.plotSize.height]])
@@ -1097,7 +1114,7 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                 }
                 return false;
             })
-            .on('zoom', (event: D3ZoomEvent<SVGRectElement, unknown>) => {
+            .on('zoom', (event: D3ZoomEvent<any, unknown>) => {
                 state.zoomTransform = event.transform;
                 const nextZoom = resolveZoomedAxes(state, event.transform);
                 state.axes = nextZoom.axes;
@@ -1109,14 +1126,14 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                 render(state);
             });
 
-        overlay.call(zoomBehavior as any);
-        (overlayNode as any).__zoom = state.zoomTransform;
+        eventTarget.call(zoomBehavior as any);
+        (eventTargetNode as any).__zoom = state.zoomTransform;
     } else {
-        overlay.on('.zoom', null);
+        eventTarget.on('.zoom', null);
     }
 
     if (selectionEnabled) {
-        overlay
+        eventTarget
             .on('mousedown.kchart-select-zoom', (event: MouseEvent) => {
                 if (event.button !== 0) {
                     return;
@@ -1161,7 +1178,7 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
     }
 
     if (zoomConfig?.resetOnDoubleClick !== false) {
-        overlay.on('dblclick.kchart-zoom-reset', () => resetZoom(state));
+        eventTarget.on('dblclick.kchart-zoom-reset', () => resetZoom(state));
     }
 };
 
@@ -1171,6 +1188,9 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
     const cursorGuide = resolveCursorGuide(state);
     const guideEnabled = cursorGuide?.visible === true;
     const enabled = tooltipEnabled || guideEnabled || isZoomEnabled(state);
+    const seriesHandlesPointerEvents = state.series.some((series) => (
+        !state.hiddenSeries.has(series.selector) && series.pointerEvents === 'series'
+    ));
     const overlay = state.layers.overlayGroup.selectAll<SVGRectElement, unknown>('rect.kchart-tooltip-overlay')
         .data(enabled ? [undefined] : [])
         .join('rect')
@@ -1178,7 +1198,26 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
         .attr('width', state.plotSize.width)
         .attr('height', state.plotSize.height)
         .style('fill', 'transparent')
-        .style('pointer-events', 'all');
+        .style('pointer-events', seriesHandlesPointerEvents ? 'none' : 'all');
+    state.layers.seriesGroup.selectAll<SVGRectElement, unknown>('rect.kchart-series-event-surface')
+        .data(enabled && seriesHandlesPointerEvents ? [undefined] : [])
+        .join('rect')
+        .attr('class', 'kchart-series-event-surface')
+        .attr('width', state.plotSize.width)
+        .attr('height', state.plotSize.height)
+        .style('fill', 'transparent')
+        .style('pointer-events', 'all')
+        .lower();
+    const tooltipEventTarget = (seriesHandlesPointerEvents
+        ? state.layers.seriesGroup
+        : overlay) as unknown as Selection<BaseType, unknown, BaseType, unknown>;
+    const tooltipEventNode = tooltipEventTarget.node();
+
+    // Relationship series bind hover/click directly to their nodes and links.
+    // Listen on the parent group in that mode so events still bubble into the
+    // core tooltip without a transparent rectangle blocking the series.
+    overlay.on('.kchart-tooltip', null);
+    state.layers.seriesGroup.on('.kchart-tooltip', null);
 
     const guideLine = state.layers.overlayGroup.selectAll<SVGLineElement, unknown>('line.kchart-guide-line')
         .data(guideEnabled ? [undefined] : [])
@@ -1231,8 +1270,8 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
         tooltip.style('opacity', 0);
     };
 
-    overlay
-        .on('mousemove', (event: MouseEvent) => {
+    tooltipEventTarget
+        .on('mousemove.kchart-tooltip', (event: MouseEvent) => {
             const target = overlay.node();
             if (!target) {
                 return;
@@ -1520,7 +1559,7 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                 .style('top', `${state.margin.top + nearest.y + 12}px`)
                 .style('opacity', 1);
         })
-        .on('mouseleave', (event: MouseEvent) => {
+        .on('mouseleave.kchart-tooltip', (event: MouseEvent) => {
             const tooltipNode = tooltip.node();
             if (
                 event.relatedTarget instanceof Node &&
@@ -1540,10 +1579,9 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
         });
 
     tooltip.on('mouseleave.kchart-tooltip-note', (event: MouseEvent) => {
-        const overlayNode = overlay.node();
         if (
             event.relatedTarget instanceof Node &&
-            overlayNode?.contains(event.relatedTarget)
+            (tooltipEventNode as Node | null)?.contains(event.relatedTarget)
         ) {
             return;
         }
