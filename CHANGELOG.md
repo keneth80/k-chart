@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.17.1 - 2026-07-11
+
+### Changed
+
+- Removed the Worker WebGL line renderer's per-frame pixel-to-clip coordinate copy by moving the equivalent conversion into the vertex shader.
+- Reused one GPU position buffer per OffscreenCanvas and released cached WebGL resources through an acknowledged worker teardown with a termination fallback.
+
+### Tests
+
+- Added Worker WebGL regression coverage for coordinate equivalence, zero-copy uploads, buffer reuse, resizing, render completion messages, acknowledged teardown, pending render rejection, per-canvas isolation, and resource cleanup.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.17.1`.
+
 ## 1.17.0 - 2026-07-10
 
 ### Added

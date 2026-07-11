@@ -13,6 +13,7 @@ export const startKChartRenderWorker = (
         context2d?: OffscreenCanvasRenderingContext2D;
         gl?: WebGLRenderingContext;
         program?: WebGLProgram;
+        positionBuffer?: WebGLBuffer;
     }
 
     const canvases = new Map<string, WorkerCanvasEntry>();
@@ -31,8 +32,13 @@ export const startKChartRenderWorker = (
 
         entry.program = createProgram(entry.gl, `
             attribute vec2 a_position;
+            uniform vec2 u_resolution;
             void main() {
-                gl_Position = vec4(a_position, 0.0, 1.0);
+                vec2 clipPosition = vec2(
+                    (a_position.x / u_resolution.x) * 2.0 - 1.0,
+                    1.0 - (a_position.y / u_resolution.y) * 2.0
+                );
+                gl_Position = vec4(clipPosition, 0.0, 1.0);
             }
         `, `
             precision mediump float;
@@ -42,6 +48,34 @@ export const startKChartRenderWorker = (
             }
         `) ?? undefined;
         return entry.program ?? null;
+    };
+
+    const resolveWorkerPositionBuffer = (
+        entry: WorkerCanvasEntry
+    ): WebGLBuffer | null => {
+        if (entry.positionBuffer) {
+            return entry.positionBuffer;
+        }
+        if (!entry.gl) {
+            return null;
+        }
+
+        entry.positionBuffer = entry.gl.createBuffer() ?? undefined;
+        return entry.positionBuffer ?? null;
+    };
+
+    const releaseWorkerCanvasEntry = (entry: WorkerCanvasEntry): void => {
+        if (!entry.gl) {
+            return;
+        }
+        if (entry.positionBuffer) {
+            entry.gl.deleteBuffer(entry.positionBuffer);
+            entry.positionBuffer = undefined;
+        }
+        if (entry.program) {
+            entry.gl.deleteProgram(entry.program);
+            entry.program = undefined;
+        }
     };
 
     const drawCanvasLine = (
@@ -85,15 +119,10 @@ export const startKChartRenderWorker = (
 
         entry.canvas.width = message.width;
         entry.canvas.height = message.height;
-        const vertices = new Float32Array(message.points.length);
-        for (let index = 0; index < message.points.length; index += 2) {
-            vertices[index] = (message.points[index] / message.width) * 2 - 1;
-            vertices[index + 1] =
-                1 - (message.points[index + 1] / message.height) * 2;
-        }
 
         const program = resolveWorkerProgram(entry);
-        if (!program) {
+        const positionBuffer = resolveWorkerPositionBuffer(entry);
+        if (!program || !positionBuffer) {
             return;
         }
 
@@ -105,10 +134,16 @@ export const startKChartRenderWorker = (
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.lineWidth(message.lineWidth);
 
-        const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, message.points, gl.DYNAMIC_DRAW);
         const positionLocation = gl.getAttribLocation(program, 'a_position');
+        const resolutionLocation = gl.getUniformLocation(
+            program,
+            'u_resolution'
+        );
+        if (positionLocation < 0 || !resolutionLocation) {
+            return;
+        }
         gl.enableVertexAttribArray(positionLocation);
         gl.vertexAttribPointer(
             positionLocation,
@@ -120,12 +155,12 @@ export const startKChartRenderWorker = (
         );
 
         const colorLocation = gl.getUniformLocation(program, 'u_color');
+        gl.uniform2f(resolutionLocation, message.width, message.height);
         gl.uniform4fv(
             colorLocation,
-            new Float32Array(parseColor(message.color))
+            parseColor(message.color)
         );
-        gl.drawArrays(gl.LINE_STRIP, 0, vertices.length / 2);
-        gl.deleteBuffer(positionBuffer);
+        gl.drawArrays(gl.LINE_STRIP, 0, message.points.length / 2);
     };
 
     workerScope.onmessage = (event: MessageEvent<any>) => {
@@ -148,7 +183,15 @@ export const startKChartRenderWorker = (
         }
 
         if (message.type === 'kchart:destroy-canvas') {
-            canvases.delete(message.canvasId);
+            const entry = canvases.get(message.canvasId);
+            if (entry) {
+                releaseWorkerCanvasEntry(entry);
+                canvases.delete(message.canvasId);
+            }
+            workerScope.postMessage({
+                type: 'kchart:destroy-complete',
+                canvasId: message.canvasId
+            });
             return;
         }
 

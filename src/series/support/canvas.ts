@@ -26,6 +26,9 @@ interface KChartAsyncCanvasEntry {
     canvasId: string;
     failed: boolean;
     requestId: number;
+    destroying?: boolean;
+    terminated?: boolean;
+    destroyTimer?: ReturnType<typeof setTimeout>;
     pending: Map<number, {
         resolve: () => void;
         reject: () => void;
@@ -35,6 +38,20 @@ interface KChartAsyncCanvasEntry {
 const transferredCanvases = new WeakSet<HTMLCanvasElement>();
 const asyncCanvasEntries = new WeakMap<HTMLCanvasElement, KChartAsyncCanvasEntry>();
 let asyncCanvasId = 0;
+
+const terminateAsyncCanvasEntry = (entry: KChartAsyncCanvasEntry): void => {
+    if (entry.terminated) {
+        return;
+    }
+    entry.terminated = true;
+    if (entry.destroyTimer) {
+        clearTimeout(entry.destroyTimer);
+        entry.destroyTimer = undefined;
+    }
+    entry.pending.forEach((pending) => pending.reject());
+    entry.pending.clear();
+    entry.worker.terminate();
+};
 
 export const isCanvasTransferred = (canvas: HTMLCanvasElement): boolean =>
     transferredCanvases.has(canvas);
@@ -82,9 +99,16 @@ const getAsyncCanvasEntry = (
             entry.failed = true;
             entry.pending.forEach((pending) => pending.reject());
             entry.pending.clear();
+            if (entry.destroying) {
+                terminateAsyncCanvasEntry(entry);
+            }
         };
         worker.onmessage = (event: MessageEvent<any>) => {
             const message = event.data;
+            if (message?.type === 'kchart:destroy-complete' && message.canvasId === canvasId) {
+                terminateAsyncCanvasEntry(entry);
+                return;
+            }
             if (message?.type !== 'kchart:render-complete' || message.canvasId !== canvasId) {
                 return;
             }
@@ -111,20 +135,28 @@ const getAsyncCanvasEntry = (
     }
 };
 
-const destroyAsyncCanvas = (canvas: HTMLCanvasElement): void => {
+export const destroyAsyncCanvas = (canvas: HTMLCanvasElement): void => {
     const entry = asyncCanvasEntries.get(canvas);
-    if (!entry) {
+    if (!entry || entry.destroying) {
         return;
     }
 
+    entry.destroying = true;
+    entry.failed = true;
+    entry.pending.forEach((pending) => pending.reject());
+    entry.pending.clear();
+    asyncCanvasEntries.delete(canvas);
+    // Give the worker a chance to delete its WebGL resources before the
+    // terminate fallback stops it. The timeout preserves the previous
+    // never-hang teardown behavior for failed or non-conforming workers.
+    entry.destroyTimer = setTimeout(() => terminateAsyncCanvasEntry(entry), 250);
     try {
         entry.worker.postMessage({
             type: 'kchart:destroy-canvas',
             canvasId: entry.canvasId
         });
-    } finally {
-        entry.worker.terminate();
-        asyncCanvasEntries.delete(canvas);
+    } catch (_error) {
+        terminateAsyncCanvasEntry(entry);
     }
 };
 
