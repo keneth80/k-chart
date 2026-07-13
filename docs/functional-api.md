@@ -339,6 +339,96 @@ chart.render();
 
 `layout: 'circular'`로 바꾸면 같은 데이터를 원형 배치로 비교할 수 있습니다. 중복 source-target 행은 하나의 edge로 합산되고, node metric은 연결된 edge metric의 합입니다.
 
+## Built-In Tree Series
+
+조직도나 분류 체계처럼 부모가 하나인 계층 데이터는 별도 nested object 변환 없이 id-parent 행 배열을 전달할 수 있습니다.
+
+```ts
+type OrganizationRow = {
+    id: string;
+    parentId: string | null;
+    name: string;
+    team: string;
+    headcount: number;
+};
+
+const organization: OrganizationRow[] = [
+    {id: 'company', parentId: null, name: 'KChart', team: 'Company', headcount: 42},
+    {id: 'product', parentId: 'company', name: 'Product', team: 'Product', headcount: 14},
+    {id: 'engineering', parentId: 'company', name: 'Engineering', team: 'Engineering', headcount: 24},
+    {id: 'platform', parentId: 'engineering', name: 'Platform', team: 'Engineering', headcount: 8}
+];
+
+createKChart<OrganizationRow>({
+    selector: '#chart',
+    data: organization,
+    axes: [],
+    grid: {visible: false},
+    legend: {visible: false},
+    tooltip: {visible: true},
+    zoom: {visible: false},
+    series: [
+        createTreeSeries({
+            selector: 'organization-tree',
+            idField: 'id',
+            parentField: 'parentId',
+            labelField: 'name',
+            valueField: 'headcount',
+            categoryField: 'team',
+            layout: 'orthogonal',
+            orientation: 'left-right',
+            emphasis: 'descendant',
+            roam: 'both'
+        })
+    ]
+}).render();
+```
+
+`layout: 'radial'`은 같은 데이터를 중심에서 바깥으로 펼칩니다. 루트는 하나만 허용하며 모든 non-root node는 존재하는 부모를 가리켜야 합니다. 입력 오류는 렌더 전에 명확한 예외로 반환됩니다.
+
+## Built-In Treemap Series
+
+Treemap은 동일 metric을 여러 Dimension 항목으로 나누고, 전체에서 차지하는 비중을 tile 면적으로 비교할 때 사용합니다.
+
+```ts
+type ProductShare = {
+    product: string;
+    revenue: number;
+    color: string;
+};
+
+const products: ProductShare[] = [
+    {product: 'Analytics Cloud', revenue: 420, color: '#5db8ff'},
+    {product: 'Commerce API', revenue: 310, color: '#56d08f'},
+    {product: 'Data Platform', revenue: 245, color: '#f3b45b'},
+    {product: 'Automation', revenue: 165, color: '#d876ff'}
+];
+
+createKChart<ProductShare>({
+    selector: '#chart',
+    data: products,
+    axes: [],
+    grid: {visible: false},
+    legend: {visible: false},
+    tooltip: {visible: true},
+    animation: {enabled: true, duration: 720, mode: 'enter'},
+    series: [
+        createTreemapSeries({
+            selector: 'product-share',
+            labelField: 'product',
+            valueField: 'revenue',
+            colorField: 'color',
+            gap: 5,
+            radius: 4,
+            minLabelArea: 1600,
+            sort: true
+        })
+    ]
+}).render();
+```
+
+`valueField`는 0보다 큰 숫자를 사용해야 하며 면적은 전체 양수 metric 합에 대한 상대 비율입니다. 현재 API는 단일 Dimension 항목 비교에 집중합니다.
+
 ## Built-In Sankey Series
 
 Sankey는 방향성 비순환 flow에서 단계별 전환량과 이탈량을 비교할 때 사용합니다.

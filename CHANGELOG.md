@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.18.0 - 2026-07-12
+
+### Added
+
+- Added `createTreeSeries()` for id-parent hierarchy data with orthogonal and radial layouts, four orientations, ancestor/descendant hover emphasis, node labels, click callbacks, tooltips, and pan/zoom roaming.
+- Added the Tree Chart library demo, StackBlitz starter, API reference, and hierarchy validation regression tests.
+- Added a Preset-inspired Treemap library demo, StackBlitz starter, Usage snippet, and API guidance for Dimension + Metric part-to-whole analysis.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.18.0`.
+
 ## 1.17.1 - 2026-07-11
 
 ### Changed
