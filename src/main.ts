@@ -43,6 +43,8 @@ import {
     createSankeySeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
+    createTreeSeries,
+    createTreemapSeries,
     createTooltipNoteOption,
     createWebglLineSeries,
     createWebglPointSeries,
@@ -99,6 +101,8 @@ type DemoKind =
     | 'doughnut'
     | 'graph'
     | 'sankey'
+    | 'tree'
+    | 'treemap'
     | 'canvas-point'
     | 'webgl-point';
 
@@ -141,6 +145,31 @@ const sankeyData: DemoPoint[] = [
     { label: 'Trial → Churn', source: 'Trial', target: 'Churn', metric: 43, x: 0, value: 43, volume: 0, extra: 0, radius: 0, category: 'Conversion' },
     { label: 'Paid → Retained', source: 'Paid', target: 'Retained', metric: 62, x: 0, value: 62, volume: 0, extra: 0, radius: 0, category: 'Retention' },
     { label: 'Paid → Cancelled', source: 'Paid', target: 'Cancelled', metric: 10, x: 0, value: 10, volume: 0, extra: 0, radius: 0, category: 'Retention' }
+];
+
+const treeData: DemoPoint[] = [
+    { id: 'ceo', parent: '', name: 'Chief Executive Officer', team: 'Executive', headcount: 1, label: 'Chief Executive Officer', x: 0, value: 1, volume: 1, extra: 1, radius: 6, category: 'Executive' },
+    { id: 'product', parent: 'ceo', name: 'VP Product', team: 'Product', headcount: 28, label: 'VP Product', x: 1, value: 28, volume: 28, extra: 28, radius: 8, category: 'Product' },
+    { id: 'engineering', parent: 'ceo', name: 'VP Engineering', team: 'Engineering', headcount: 54, label: 'VP Engineering', x: 2, value: 54, volume: 54, extra: 54, radius: 10, category: 'Engineering' },
+    { id: 'revenue', parent: 'ceo', name: 'VP Revenue', team: 'Revenue', headcount: 35, label: 'VP Revenue', x: 3, value: 35, volume: 35, extra: 35, radius: 9, category: 'Revenue' },
+    { id: 'design', parent: 'product', name: 'Design', team: 'Product', headcount: 9, label: 'Design', x: 4, value: 9, volume: 9, extra: 9, radius: 7, category: 'Product' },
+    { id: 'research', parent: 'product', name: 'Research', team: 'Product', headcount: 7, label: 'Research', x: 5, value: 7, volume: 7, extra: 7, radius: 7, category: 'Product' },
+    { id: 'platform', parent: 'engineering', name: 'Platform', team: 'Engineering', headcount: 18, label: 'Platform', x: 6, value: 18, volume: 18, extra: 18, radius: 8, category: 'Engineering' },
+    { id: 'frontend', parent: 'engineering', name: 'Frontend', team: 'Engineering', headcount: 16, label: 'Frontend', x: 7, value: 16, volume: 16, extra: 16, radius: 8, category: 'Engineering' },
+    { id: 'data', parent: 'engineering', name: 'Data & AI', team: 'Engineering', headcount: 20, label: 'Data & AI', x: 8, value: 20, volume: 20, extra: 20, radius: 8, category: 'Engineering' },
+    { id: 'sales', parent: 'revenue', name: 'Sales', team: 'Revenue', headcount: 22, label: 'Sales', x: 9, value: 22, volume: 22, extra: 22, radius: 8, category: 'Revenue' },
+    { id: 'success', parent: 'revenue', name: 'Customer Success', team: 'Revenue', headcount: 13, label: 'Customer Success', x: 10, value: 13, volume: 13, extra: 13, radius: 7, category: 'Revenue' }
+];
+
+const treemapData: DemoPoint[] = [
+    { label: 'Enterprise Cloud', product: 'Enterprise Cloud', category: 'Platform', revenue: 420, tileColor: '#2563eb', x: 0, value: 420, volume: 0, extra: 0, radius: 0 },
+    { label: 'Analytics Pro', product: 'Analytics Pro', category: 'Data', revenue: 310, tileColor: '#0891b2', x: 1, value: 310, volume: 0, extra: 0, radius: 0 },
+    { label: 'Commerce Suite', product: 'Commerce Suite', category: 'Commerce', revenue: 245, tileColor: '#7c3aed', x: 2, value: 245, volume: 0, extra: 0, radius: 0 },
+    { label: 'Security Hub', product: 'Security Hub', category: 'Security', revenue: 190, tileColor: '#db2777', x: 3, value: 190, volume: 0, extra: 0, radius: 0 },
+    { label: 'Customer 360', product: 'Customer 360', category: 'CRM', revenue: 165, tileColor: '#059669', x: 4, value: 165, volume: 0, extra: 0, radius: 0 },
+    { label: 'Workflow AI', product: 'Workflow AI', category: 'Automation', revenue: 130, tileColor: '#d97706', x: 5, value: 130, volume: 0, extra: 0, radius: 0 },
+    { label: 'Developer API', product: 'Developer API', category: 'Platform', revenue: 96, tileColor: '#4f46e5', x: 6, value: 96, volume: 0, extra: 0, radius: 0 },
+    { label: 'Support Plus', product: 'Support Plus', category: 'Service', revenue: 72, tileColor: '#64748b', x: 7, value: 72, volume: 0, extra: 0, radius: 0 }
 ];
 
 const REALTIME_INTERVAL_MS = 250;
@@ -383,6 +412,8 @@ const examples: ExampleMeta[] = [
     { kind: 'doughnut', title: 'Custom SVG doughnut renderer' },
     { kind: 'graph', title: 'SVG graph relationship renderer', dataLabel: 'force + circular layout' },
     { kind: 'sankey', title: 'SVG Sankey flow renderer', dataLabel: 'source → target metric' },
+    { kind: 'tree', title: 'SVG organization tree renderer', dataLabel: 'id → parent hierarchy' },
+    { kind: 'treemap', title: 'SVG product revenue treemap', dataLabel: 'area = revenue' },
     { kind: 'canvas-point', title: 'Canvas point renderer' },
     { kind: 'webgl-point', title: 'WebGL point renderer' }
 ];
@@ -1420,6 +1451,12 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'sankey') {
         return sankeyData;
     }
+    if (kind === 'tree') {
+        return treeData;
+    }
+    if (kind === 'treemap') {
+        return treemapData;
+    }
     if (isGlobeMapExample(kind)) {
         return globeData;
     }
@@ -1440,7 +1477,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'graph' || kind === 'sankey') {
+    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'graph' || kind === 'sankey' || kind === 'tree' || kind === 'treemap') {
         return [];
     }
     if (kind === 'column') {
@@ -1683,6 +1720,51 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             })
         ];
     }
+    if (kind === 'tree') {
+        return [
+            createTreeSeries<DemoPoint>({
+                selector: 'demo-tree',
+                displayName: 'Organization',
+                idField: 'id',
+                parentField: 'parent',
+                labelField: 'name',
+                valueField: 'headcount',
+                categoryField: 'team',
+                layout: 'orthogonal',
+                orientation: 'left-right',
+                emphasis: 'descendant',
+                symbol: 'circle',
+                symbolSize: (node) => 10 + Math.sqrt(node.value) * 1.5,
+                labelPosition: 'right',
+                roam: 'both',
+                scaleExtent: [0.6, 4],
+                fitPadding: 112,
+                labels: {
+                    visible: true,
+                    formatter: (node) => `${node.label} · ${node.value}`
+                },
+                onNodeClick: ({node}) => {
+                    console.info('[KChart Tree]', node.id, node.row);
+                }
+            })
+        ];
+    }
+    if (kind === 'treemap') {
+        return [
+            createTreemapSeries<DemoPoint>({
+                selector: 'demo-treemap',
+                displayName: 'Product revenue',
+                labelField: 'product',
+                valueField: 'revenue',
+                colorField: 'tileColor',
+                gap: 7,
+                radius: 5,
+                opacity: 0.92,
+                minLabelArea: 2600,
+                sort: true
+            })
+        ];
+    }
     if (kind === 'three-constellation') {
         return [
             createThreeConstellationSeries<DemoPoint>({
@@ -1827,6 +1909,8 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isTopology = kind === 'topology';
     const isGraph = kind === 'graph';
     const isSankey = kind === 'sankey';
+    const isTree = kind === 'tree';
+    const isTreemap = kind === 'treemap';
     const isThreeConstellation = kind === 'three-constellation';
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
@@ -1842,7 +1926,8 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         || kind === 'radial'
         || kind === 'pie'
         || kind === 'doughnut'
-        || kind === 'sankey';
+        || kind === 'sankey'
+        || kind === 'treemap';
     const hasFlowAnimation = hasSeriesAnimation || isSankey;
 
     return createKChart<DemoPoint>({
@@ -1857,6 +1942,10 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                 ? 520
             : isSankey
                 ? 520
+            : isTree
+                ? 600
+            : isTreemap
+                ? 520
             : isThreeScene
                 ? 520
             : chartRoot?.clientHeight || 420,
@@ -1868,6 +1957,10 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? { top: 68, right: 20, bottom: 20, left: 20 }
                 : isSankey
                     ? { top: 68, right: 20, bottom: 20, left: 20 }
+                : isTree
+                    ? { top: 72, right: 32, bottom: 24, left: 32 }
+                : isTreemap
+                    ? { top: 72, right: 24, bottom: 24, left: 24 }
                 : isThreeScene
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap
@@ -1881,7 +1974,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGraph && !isSankey && !isGlobeMap && !isThreeScene && !isRadial,
+            visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isThreeScene && !isRadial,
             x: false,
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -1889,7 +1982,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGraph && !isSankey && !isGlobeMap && !isThreeScene,
+            visible: kind !== 'topology' && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isThreeScene,
             placement: 'top'
         },
         tooltip: {
@@ -1915,7 +2008,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             easing: 'easeOutCubic',
             mode: 'enter'
         } : undefined,
-        axes: isTopology || isGraph || isSankey || isThreeScene ? [] : createAxes(kind),
+        axes: isTopology || isGraph || isSankey || isTree || isTreemap || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
     });
 };
@@ -2010,6 +2103,45 @@ const createSeriesSnippet = (kind: DemoKind): string => {
         visible: true,
         formatter: (node) => \`\${node.label} · \${node.value}\`
     }
+})`;
+    }
+    if (kind === 'tree') {
+        return `createTreeSeries({
+    selector: 'organization-tree',
+    displayName: 'Organization',
+    idField: 'id',
+    parentField: 'parent',
+    labelField: 'name',
+    valueField: 'headcount',
+    categoryField: 'team',
+    layout: 'orthogonal',
+    orientation: 'left-right',
+    emphasis: 'descendant',
+    symbol: 'circle',
+    symbolSize: (node) => 10 + Math.sqrt(node.value) * 1.5,
+    labelPosition: 'right',
+    roam: 'both',
+    scaleExtent: [0.6, 4],
+    fitPadding: 112,
+    labels: {
+        visible: true,
+        formatter: (node) => \`\${node.label} · \${node.value}\`
+    },
+    onNodeClick: ({ node }) => console.log('Selected tree node', node.id, node.row)
+})`;
+    }
+    if (kind === 'treemap') {
+        return `createTreemapSeries({
+    selector: 'product-revenue',
+    displayName: 'Product revenue',
+    labelField: 'product',
+    valueField: 'revenue',
+    colorField: 'tileColor',
+    gap: 7,
+    radius: 5,
+    opacity: 0.92,
+    minLabelArea: 2600,
+    sort: true
 })`;
     }
     if (kind === 'three-constellation') {
@@ -2321,6 +2453,8 @@ globe.addRoute({
     const isUsageGlobeMap = isGlobeMapExample(kind);
     const isUsageGraph = kind === 'graph';
     const isUsageSankey = kind === 'sankey';
+    const isUsageTree = kind === 'tree';
+    const isUsageTreemap = kind === 'treemap';
     const hasUsageSpecAreas = kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'option-spec-area';
     const hasUsageGuideLines = kind === 'webgl-large-line' || kind === 'option-guide-line';
     const hasUsageCursorGuide = kind === 'webgl-line'
@@ -2340,7 +2474,8 @@ globe.addRoute({
         || kind === 'radial'
         || kind === 'pie'
         || kind === 'doughnut'
-        || kind === 'sankey';
+        || kind === 'sankey'
+        || kind === 'treemap';
     const dataExpression = kind === 'webgl-large-line'
         ? 'createLargeData(120000)'
         : kind === 'canvas-bigdata-line'
@@ -2353,6 +2488,10 @@ globe.addRoute({
                     ? 'graphData'
                 : isUsageSankey
                     ? 'sankeyData'
+                : isUsageTree
+                    ? 'treeData'
+                : isUsageTreemap
+                    ? 'treemapData'
                 : kind === 'three-constellation'
                     ? 'ariesNodes'
                     : kind === 'three-wafer'
@@ -2360,7 +2499,27 @@ globe.addRoute({
                 : isUsageGlobeMap
                     ? 'globeData'
                     : 'baseData';
-    const dataSnippet = isUsageSankey
+    const dataSnippet = isUsageTreemap
+        ? `
+type TreemapRow = {
+    product: string;
+    category: string;
+    revenue: number;
+    tileColor: string;
+};
+
+const treemapData: TreemapRow[] = [
+    { product: 'Enterprise Cloud', category: 'Platform', revenue: 420, tileColor: '#2563eb' },
+    { product: 'Analytics Pro', category: 'Data', revenue: 310, tileColor: '#0891b2' },
+    { product: 'Commerce Suite', category: 'Commerce', revenue: 245, tileColor: '#7c3aed' },
+    { product: 'Security Hub', category: 'Security', revenue: 190, tileColor: '#db2777' },
+    { product: 'Customer 360', category: 'CRM', revenue: 165, tileColor: '#059669' },
+    { product: 'Workflow AI', category: 'Automation', revenue: 130, tileColor: '#d97706' },
+    { product: 'Developer API', category: 'Platform', revenue: 96, tileColor: '#4f46e5' },
+    { product: 'Support Plus', category: 'Service', revenue: 72, tileColor: '#64748b' }
+];
+`
+        : isUsageSankey
         ? `
 type SankeyRow = {
     source: string;
@@ -2394,6 +2553,30 @@ const graphData: GraphRow[] = [
     { source: 'API Gateway', target: 'Orders', metric: 58, category: 'Platform' },
     { source: 'Orders', target: 'Database', metric: 43, category: 'Service' },
     { source: 'Orders', target: 'Queue', metric: 27, category: 'Service' }
+];
+`
+        : isUsageTree
+        ? `
+type TreeRow = {
+    id: string;
+    parent: string;
+    name: string;
+    team: string;
+    headcount: number;
+};
+
+const treeData: TreeRow[] = [
+    { id: 'ceo', parent: '', name: 'Chief Executive Officer', team: 'Executive', headcount: 1 },
+    { id: 'product', parent: 'ceo', name: 'VP Product', team: 'Product', headcount: 28 },
+    { id: 'engineering', parent: 'ceo', name: 'VP Engineering', team: 'Engineering', headcount: 54 },
+    { id: 'revenue', parent: 'ceo', name: 'VP Revenue', team: 'Revenue', headcount: 35 },
+    { id: 'design', parent: 'product', name: 'Design', team: 'Product', headcount: 9 },
+    { id: 'research', parent: 'product', name: 'Research', team: 'Product', headcount: 7 },
+    { id: 'platform', parent: 'engineering', name: 'Platform', team: 'Engineering', headcount: 18 },
+    { id: 'frontend', parent: 'engineering', name: 'Frontend', team: 'Engineering', headcount: 16 },
+    { id: 'data', parent: 'engineering', name: 'Data & AI', team: 'Engineering', headcount: 20 },
+    { id: 'sales', parent: 'revenue', name: 'Sales', team: 'Revenue', headcount: 22 },
+    { id: 'success', parent: 'revenue', name: 'Customer Success', team: 'Revenue', headcount: 13 }
 ];
 `
         : kind === 'three-constellation'
@@ -2645,6 +2828,8 @@ const baseData = [
     createSankeySeries,
     createSpecAreaOption,
     createSvgGlobeSeries,
+    createTreeSeries,
+    createTreemapSeries,
     createTooltipNoteOption,
     createWebglLineSeries,
     createWebglPointSeries
@@ -2670,13 +2855,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 // ${selected?.title ?? 'KChart example'}
 ${dataSnippet}
-const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : isUsageGraph ? 'GraphRow' : isUsageSankey ? 'SankeyRow' : kind === 'three-wafer' ? 'WaferDie' : 'DemoPoint'}>({
+const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUsageGlobeMap ? 'GlobePoint' : isUsageGraph ? 'GraphRow' : isUsageSankey ? 'SankeyRow' : isUsageTree ? 'TreeRow' : isUsageTreemap ? 'TreemapRow' : kind === 'three-wafer' ? 'WaferDie' : 'DemoPoint'}>({
     selector: '#chart-div',
     data: ${dataExpression},
-    margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
+    margin: ${kind === 'axis-custom-margin' ? '{ top: 82, right: 76, bottom: 70, left: 86 }' : isUsageTree ? '{ top: 72, right: 32, bottom: 24, left: 32 }' : isUsageTreemap ? '{ top: 72, right: 24, bottom: 24, left: 24 }' : kind === 'webgl-large-line' ? '{ top: 170, right: 28, bottom: 44, left: 52 }' : '{ top: 104, right: 28, bottom: 44, left: 52 }'},
     title: { text: '${selected?.title ?? 'KChart Example'}', align: 'left' },
-    grid: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' ? 'false' : 'true'}, y: true, x: false },
-    legend: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
+    grid: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || isUsageTree || isUsageTreemap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' ? 'false' : 'true'}, y: true, x: false },
+    legend: { visible: ${isUsageGlobeMap || isUsageGraph || isUsageSankey || isUsageTree || isUsageTreemap || kind === 'three-constellation' || kind === 'three-wafer' ? 'false' : 'true'}, placement: 'top', selectable: true },${hasUsageSpecAreas || hasUsageGuideLines || hasUsageCursorGuide || hasUsageTooltipNotes ? `
     options: [
         ${[
             hasUsageSpecAreas ? `createSpecAreaOption([
@@ -2726,7 +2911,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
         resetOnDoubleClick: true
     },` : ''}
-    axes: ${kind === 'topology' || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
+    axes: ${kind === 'topology' || isUsageGraph || isUsageSankey || isUsageTree || isUsageTreemap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
         { field: 'label', type: 'time', placement: 'bottom', title: 'Trading Day', tickCount: 8, domain: stockDomain },
         { field: 'close', type: 'number', placement: 'left', title: 'Price', domainFields: ['low', 'high'] }
     ]` : kind === 'real-time' ? `[
@@ -2827,6 +3012,8 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('topology-chart', kind === 'topology');
     chartRoot.classList.toggle('graph-chart', kind === 'graph');
     chartRoot.classList.toggle('sankey-chart', kind === 'sankey');
+    chartRoot.classList.toggle('tree-chart', kind === 'tree');
+    chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
     if (kind === 'cesium-route') {
         chart = null;

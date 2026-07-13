@@ -615,6 +615,25 @@ pre > code {
     min-height: 520px;
 }
 
+.container-chart.tree-chart {
+    height: 520px;
+    min-height: 520px;
+}
+
+.container-chart.treemap-chart {
+    height: 520px;
+    min-height: 520px;
+}
+
+.sparkline.treemap-a {
+    background:
+        linear-gradient(90deg, #2563eb 0 46%, transparent 46% 48%, #0891b2 48% 100%),
+        linear-gradient(90deg, #7c3aed 0 34%, transparent 34% 36%, #059669 36% 72%, transparent 72% 74%, #d97706 74% 100%);
+    background-size: 100% 48%, 100% 48%;
+    background-position: top, bottom;
+    background-repeat: no-repeat;
+}
+
 .container-chart.sankey-chart {
     height: 520px;
     min-height: 520px;

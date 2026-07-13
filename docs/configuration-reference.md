@@ -282,6 +282,51 @@ createGraphSeries<Relation>({
 
 Graph가 직접 node hover/click 및 roaming을 처리해야 하는 화면에서는 chart-level `tooltip`과 `zoom`을 끄는 구성을 권장합니다. 코어 tooltip overlay가 필요한 경우 Graph의 `tooltip()` hit-test도 동작하지만, overlay가 SVG node의 직접 pointer event보다 위에 놓일 수 있습니다.
 
+### SVG Tree: `createTreeSeries`
+
+각 행의 `idField`와 `parentField`로 계층을 구성합니다. 부모가 없는 행은 정확히 하나여야 하며, 중복 id, 존재하지 않는 부모, 순환 관계는 오류로 처리합니다. 입력 형태는 [Preset Tree Chart](https://docs.preset.io/docs/tree-chart)의 name/id/parent 모델을 참고했고, 배치는 공식 [D3 tree layout](https://d3js.org/d3-hierarchy/tree)을 사용합니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `selector` | `string` | required | series id/class입니다. |
+| `idField` / `parentField` | `keyof T & string` | required | node id와 부모 id field입니다. 루트의 부모 값은 `null`, `undefined`, 빈 문자열 중 하나로 둡니다. |
+| `labelField` | `keyof T & string` | id | 표시할 node 이름 field입니다. |
+| `valueField` | `keyof T & string` | `0` | tooltip과 node 크기 함수에서 사용할 수치 field입니다. |
+| `categoryField` | `keyof T & string` | - | 기본 palette 색상을 나눌 category field입니다. |
+| `layout` | `orthogonal \| radial` | `orthogonal` | 직교 트리 또는 방사형 트리 배치입니다. |
+| `orientation` | `left-right \| right-left \| top-bottom \| bottom-top` | `left-right` | 직교 트리의 진행 방향입니다. |
+| `emphasis` | `ancestor \| descendant \| both \| none` | `both` | hover node와 함께 강조할 연결 범위입니다. |
+| `symbol` | `circle \| square \| diamond` | `circle` | node 모양입니다. |
+| `symbolSize` | `number \| (node) => number` | `13` | node 크기 또는 값 기반 크기 함수입니다. |
+| `labelPosition` | `auto \| left \| right \| top \| bottom` | `auto` | node label 위치입니다. |
+| `roam` | `move \| scale \| both \| disabled` | `both` | drag 이동과 wheel/touch 확대 사용 범위입니다. |
+| `scaleExtent` | `[number, number]` | `[0.45, 5]` | tree 자체 zoom 배율 범위입니다. |
+| `fitPadding` | `number` | `28` | layout과 plot 경계 사이 여백입니다. |
+| `palette` / `nodeColor` | colors / color resolver | built-in palette | category 또는 node별 색상을 설정합니다. |
+| `nodeOpacity`, `nodeStroke`, `nodeStrokeWidth` | number/string | metallic theme values | node fill/stroke 스타일입니다. |
+| `edgeColor`, `edgeOpacity`, `edgeStrokeWidth` | value or resolver | metallic theme values | parent-child link 스타일입니다. |
+| `dimOpacity` | `number` | `0.12` | hover 연결 범위 밖 node/link의 투명도입니다. |
+| `labels` | `boolean \| object` | visible | formatter, 색상, 크기, 굵기, offset을 설정합니다. |
+| `onNodeClick` | `(context) => void` | - | 클릭 node와 원본 event를 받습니다. |
+
+```ts
+createTreeSeries<OrganizationRow>({
+    selector: 'organization-tree',
+    idField: 'id',
+    parentField: 'parentId',
+    labelField: 'name',
+    valueField: 'headcount',
+    categoryField: 'team',
+    layout: 'orthogonal',
+    orientation: 'left-right',
+    emphasis: 'descendant',
+    symbolSize: (node) => 10 + Math.sqrt(node.value),
+    roam: 'both'
+});
+```
+
+Tree가 pointer hover와 roaming을 직접 처리하므로 chart-level `zoom`은 끄는 구성을 권장합니다. chart-level tooltip은 node와 link를 hit-test하며, `onNodeClick`은 업무 화면의 상세 패널 연결에 사용할 수 있습니다.
+
 ### SVG Sankey: `createSankeySeries`
 
 Sankey 역시 source-target-metric 행을 직접 받지만, 관계 탐색보다 왼쪽에서 오른쪽으로 진행되는 단계별 흐름과 상대적인 flow 폭을 강조합니다. 동일 source-target 행은 합산합니다. Sankey는 방향성 비순환 그래프(DAG)를 전제로 하며 순환이 발견되면 명확한 오류를 발생시킵니다.
@@ -348,6 +393,8 @@ createSankeySeries<FlowRow>({
 
 ### SVG Treemap: `createTreemapSeries`
 
+각 data row를 하나의 Dimension 항목으로 보고, `valueField` Metric의 비중을 tile 면적으로 표현합니다. 이 입력 방식은 [Preset Tree Map](https://docs.preset.io/docs/tree-map)의 기본 Dimension + Metric 모델과 같습니다.
+
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `selector` | `string` | required | series id/class입니다. |
@@ -360,7 +407,20 @@ createSankeySeries<FlowRow>({
 | `minLabelArea` | `number` | `1800` | label을 표시할 최소 tile 면적입니다. |
 | `sort` | `boolean` | `true` | value 내림차순으로 layout할지 정합니다. |
 
-현재 treemap은 추가 dependency 없이 recursive slice layout을 사용합니다. 많은 계층 구조나 squarified layout이 필요하면 custom series로 확장하거나 향후 전용 hierarchy 옵션을 추가할 수 있습니다.
+현재 Treemap은 추가 dependency 없이 recursive slice layout을 사용하며 단일 Dimension을 평면 분할합니다. Preset의 여러 Dimension처럼 부모-자식 구조 자체를 탐색해야 할 때는 `createTreeSeries()`를 사용하고, 계층형 면적 분할이 필요하면 custom series로 확장할 수 있습니다.
+
+```ts
+createTreemapSeries<ProductShare>({
+    selector: 'product-share',
+    labelField: 'product',
+    valueField: 'revenue',
+    colorField: 'color',
+    gap: 5,
+    radius: 4,
+    minLabelArea: 1600,
+    sort: true
+});
+```
 
 ### SVG Gauge / KPI Meter: `createGaugeSeries`
 

@@ -59,6 +59,8 @@ const layoutTreemap = <T = any>(
     gap: number,
     sort = true
 ): Array<TreemapTile<T>> => {
+    // Non-positive metrics cannot own area. Normalize once so rendering and
+    // tooltip hit-testing derive the same deterministic tile geometry.
     const values = data
         .map((point, index) => ({point, index, value: Math.max(0, toNumber(point[valueField]))}))
         .filter((item) => item.value > 0);
@@ -67,6 +69,9 @@ const layoutTreemap = <T = any>(
         : values;
     const tiles: Array<TreemapTile<T>> = [];
 
+    // Split near half of the remaining metric sum and alternate the axis. This
+    // dependency-free binary layout keeps tiles compact while preserving the
+    // defining treemap contract: tile area is proportional to the metric.
     const visit = (
         nodes: typeof items,
         x: number,
@@ -208,6 +213,7 @@ export const createTreemapSeries = <T = any>(
     displayName: configuration.displayName,
     color: configuration.color,
     render({group, data, plotSize, color, animation}) {
+        // Layout is resolved against the current plot size so metric-to-area stays valid after resize.
         const tiles = layoutTreemap(
             data,
             configuration.valueField,

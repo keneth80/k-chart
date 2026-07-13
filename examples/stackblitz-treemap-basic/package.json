@@ -1,0 +1,18 @@
+{
+  "name": "kchart-stackblitz-treemap-basic",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit --ignoreConfig --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM src/main.ts src/vite-env.d.ts && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@keneth80/k-chart": "^1.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^7.2.7"
+  }
+}

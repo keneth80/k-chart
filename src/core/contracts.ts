@@ -405,6 +405,78 @@ export interface KChartGraphSeriesConfiguration<T = any> {
     onNodeClick?: (context: KChartGraphNodeInteractionContext<T>) => void;
 }
 
+export type KChartTreeLayout = 'orthogonal' | 'radial';
+export type KChartTreeOrientation = 'left-right' | 'right-left' | 'top-bottom' | 'bottom-top';
+export type KChartTreeEmphasis = 'ancestor' | 'descendant' | 'both' | 'none';
+export type KChartTreeSymbol = 'circle' | 'square' | 'diamond';
+export type KChartTreeLabelPosition = 'auto' | 'left' | 'right' | 'top' | 'bottom';
+
+export interface KChartTreeNode<T = any> {
+    id: string;
+    parentId?: string;
+    label: string;
+    value: number;
+    category?: string;
+    row: T;
+    parent?: KChartTreeNode<T>;
+    children: Array<KChartTreeNode<T>>;
+    depth: number;
+    height: number;
+    x: number;
+    y: number;
+}
+
+export interface KChartTreeLink<T = any> {
+    id: string;
+    source: KChartTreeNode<T>;
+    target: KChartTreeNode<T>;
+    value: number;
+    row: T;
+}
+
+export interface KChartTreeNodeClickContext<T = any> {
+    node: KChartTreeNode<T>;
+    event: MouseEvent;
+}
+
+export interface KChartTreeSeriesConfiguration<T = any> {
+    selector: string;
+    displayName?: string;
+    idField: keyof T & string;
+    parentField: keyof T & string;
+    labelField?: keyof T & string;
+    valueField?: keyof T & string;
+    categoryField?: keyof T & string;
+    layout?: KChartTreeLayout;
+    orientation?: KChartTreeOrientation;
+    emphasis?: KChartTreeEmphasis;
+    symbol?: KChartTreeSymbol;
+    symbolSize?: number | ((node: KChartTreeNode<T>) => number);
+    labelPosition?: KChartTreeLabelPosition;
+    roam?: KChartGraphRoamMode;
+    scaleExtent?: [number, number];
+    fitPadding?: number;
+    color?: string;
+    palette?: string[];
+    nodeColor?: string | ((node: KChartTreeNode<T>, index: number) => string);
+    nodeOpacity?: number;
+    nodeStroke?: string;
+    nodeStrokeWidth?: number;
+    edgeColor?: string | ((link: KChartTreeLink<T>, index: number) => string);
+    edgeOpacity?: number;
+    edgeStrokeWidth?: number | ((link: KChartTreeLink<T>, index: number) => number);
+    dimOpacity?: number;
+    labels?: boolean | {
+        visible?: boolean;
+        formatter?: (node: KChartTreeNode<T>) => string;
+        color?: string;
+        fontSize?: number;
+        fontWeight?: number | string;
+        offset?: number;
+    };
+    onNodeClick?: (context: KChartTreeNodeClickContext<T>) => void;
+}
+
 export type KChartSankeyNodeAlign = 'left' | 'right' | 'center' | 'justify';
 
 export interface KChartSankeyNode<T = any> {

@@ -12,5 +12,6 @@ export * from './svg-graph';
 export * from './svg-region-map';
 export * from './svg-sankey';
 export * from './svg-scatter';
+export * from './svg-tree';
 export * from './webgl-line';
 export * from './webgl-point';

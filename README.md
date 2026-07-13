@@ -84,6 +84,10 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-graph-basic?title=KChart%20Graph%20Chart&file=src/main.ts"><strong>Graph Chart</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-tree-basic?title=KChart%20Tree%20Chart&file=src/main.ts"><strong>Tree Chart</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-treemap-basic?title=KChart%20Treemap&file=src/main.ts"><strong>Treemap</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-sankey-basic?title=KChart%20Sankey%20Flow&file=src/main.ts"><strong>Sankey</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-three-wafer-basic?title=KChart%20Three.js%20Wafer&file=src/main.ts"><strong>Three.js Wafer</strong></a>
@@ -107,6 +111,8 @@ KChart는 완성형 대시보드 차트만 제공하는 라이브러리라기보
 | Optional adapters | Three.js, CesiumJS, MapLibre는 별도 package로 분리해 기본 chart bundle에 3D/map 비용을 섞지 않습니다. |
 | Business UI fit | tooltip note, fixed guide line, spec area, topology, candlestick처럼 운영 화면에서 바로 쓰는 옵션을 포함합니다. |
 | Relationship analysis | `createGraphSeries(...)`로 source-target-metric 데이터를 Force/Circular 관계망으로 표현합니다. |
+| Hierarchy analysis | `createTreeSeries(...)`로 id-parent 행을 조직도, 분류 체계, 의존 구조 형태로 표현합니다. |
+| Part-to-whole analysis | `createTreemapSeries(...)`로 동일 metric의 구성 비중을 사각형 면적으로 비교합니다. |
 | Flow analysis | `createSankeySeries(...)`로 단계별 흐름의 상대적인 크기와 이탈 지점을 표현합니다. |
 
 ### Size And Capability Snapshot
