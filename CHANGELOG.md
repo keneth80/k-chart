@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.18.1 - 2026-07-14
+
+### Changed
+
+- Improved categorical (`point`/`string`) axis `tickCount` to evenly sample displayed ticks while preserving the first and last domain values without changing the scale domain or data positions. Omitting `tickCount` or setting it to at least the domain length displays every tick; `number`/`time` axes retain the existing D3 tick hint behavior.
+
 ## 1.18.0 - 2026-07-12
 
 ### Added
