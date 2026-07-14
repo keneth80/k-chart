@@ -58,8 +58,10 @@ createKChart({
 | `visible` | `boolean` | no | `false`이면 axis를 숨깁니다. scale 자체는 여전히 series 계산에 사용할 수 있습니다. |
 | `padding` | `number` | no | number/time domain 양끝에 비율 padding을 추가합니다. `min`, `max`가 없을 때만 적용됩니다. |
 | `title` | `string` | no | axis title입니다. |
-| `tickCount` | `number` | no | tick 개수 힌트입니다. |
+| `tickCount` | `number` | no | `number`/`time` 축에서는 기존 D3 tick 개수 힌트입니다. `point`/`string` 축에서는 표시할 tick을 domain 전체에서 균등하게 샘플링하며 첫 값과 마지막 값을 보존합니다. |
 | `tickFormat` | `(value: any) => string` | no | tick label formatter입니다. |
+
+`point`/`string` 축의 `tickCount`는 표시 tick만 줄입니다. scale domain과 데이터 위치는 전체 domain을 기준으로 그대로 유지됩니다. `tickCount`를 지정하지 않거나 domain 길이 이상으로 지정하면 모든 tick을 표시합니다. 여러 category가 있을 때 `tickCount`가 `1`이면 범위의 양 끝을 전달하기 위해 첫 값과 마지막 값, 총 2개를 표시합니다. `number`/`time` 축에서는 계속 D3에 tick 개수 힌트로 전달되므로 실제 tick 개수는 달라질 수 있습니다.
 
 ## Title, Grid, Legend, Tooltip
 

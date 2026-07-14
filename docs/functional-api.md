@@ -129,6 +129,19 @@ const chart = chartConfig(data)
 
 Builder는 `series(...)`와 `option(...)`도 제공하므로, 초보자용 흐름에서 시작해 기존 `createLineSeries(...)`, `createSpecAreaOption(...)` 같은 고급 함수와 섞어 사용할 수 있습니다.
 
+## Axis Tick Density
+
+`point`와 `string` 축에서 `tickCount`를 지정하면 전체 domain 중 표시할 tick을 균등하게 샘플링하고 첫 값과 마지막 값을 보존합니다. 이 설정은 axis에 표시되는 tick만 제한하며 scale domain이나 series의 데이터 위치를 변경하지 않습니다.
+
+```ts
+axes: [
+    {field: 'month', type: 'point', placement: 'bottom', tickCount: 4},
+    {field: 'revenue', type: 'number', placement: 'left', tickCount: 5}
+]
+```
+
+`tickCount`를 생략하거나 domain 길이 이상으로 지정한 `point`/`string` 축은 모든 tick을 표시합니다. 여러 category가 있는 축에서 `tickCount: 1`은 첫 값과 마지막 값을 보존하기 위해 2개 라벨로 처리됩니다. `number`와 `time` 축의 `tickCount`는 기존처럼 D3 tick 생성에 전달되는 개수 힌트이며 실제 표시 개수와 정확히 일치하지 않을 수 있습니다.
+
 ## Built-In BI / Distribution Series
 
 대시보드에서 자주 필요한 분포, 구성, KPI, 누적 흐름 차트도 class-free factory로 사용할 수 있습니다.

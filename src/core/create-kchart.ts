@@ -19,6 +19,7 @@ import {
     resolveAxisDomain,
     resolveDownsampleAccessor
 } from './domain';
+import {applyAxisTickCount} from './ticks';
 
 export * from './contracts';
 import type {
@@ -521,9 +522,7 @@ const renderAxes = <T = any>(state: KChartState<T>): void => {
             left: axisLeft
         }[scale.placement](scale.scale);
 
-        if (scale.tickCount && typeof axisFactory.ticks === 'function') {
-            axisFactory.ticks(scale.tickCount);
-        }
+        applyAxisTickCount(axisFactory, scale);
 
         if (scale.tickFormat) {
             axisFactory.tickFormat(scale.tickFormat as any);
