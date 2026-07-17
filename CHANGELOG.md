@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.19.0 - 2026-07-17
 
 ### Changed
 
@@ -9,6 +9,10 @@
 - Limited update-frame animation to explicitly supported synchronous series; worker-backed lines retain one render per data update to avoid message backpressure.
 - Avoided resetting unchanged main-thread and OffscreenCanvas backing-store dimensions on repeated renders.
 - Ensured superseded render-completion promises resolve when a newer animated update replaces an in-flight frame.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.19.0`.
 
 ## 1.18.1 - 2026-07-14
 
