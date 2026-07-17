@@ -12,6 +12,7 @@ export const createLineSeries = <T = any>(
 ): KChartSeries<T> => createCustomSeries<T>({
     selector: configuration.selector,
     displayName: configuration.displayName,
+    supportsUpdateAnimation: true,
     xField: configuration.xField,
     yField: configuration.yField,
     color: configuration.color,

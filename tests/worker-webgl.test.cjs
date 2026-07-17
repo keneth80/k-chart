@@ -68,9 +68,21 @@ class FakeWebGLContext {
 }
 
 const gl = new FakeWebGLContext();
+let canvasWidth = 0;
+let canvasHeight = 0;
+let widthSetCount = 0;
+let heightSetCount = 0;
 const canvas = {
-    width: 0,
-    height: 0,
+    get width() { return canvasWidth; },
+    set width(value) {
+        canvasWidth = value;
+        widthSetCount += 1;
+    },
+    get height() { return canvasHeight; },
+    set height(value) {
+        canvasHeight = value;
+        heightSetCount += 1;
+    },
     getContext(type) {
         assert.equal(type, 'webgl');
         return gl;
@@ -110,27 +122,32 @@ const render = (requestId, points, width = 100, height = 50) => scope.onmessage(
 
 render(1, firstPoints);
 render(2, secondPoints, 200, 80);
+render(3, secondPoints, 200, 80);
 
 assert.equal(gl.createdBuffers.length, 1, 'WebGL buffer should be created once per worker canvas');
-assert.equal(gl.bufferUploads.length, 2, 'each render should upload its current point data');
+assert.equal(gl.bufferUploads.length, 3, 'each render should upload its current point data');
 assert.equal(gl.bufferUploads[0].data, firstPoints, 'worker should upload the transferred point array without a CPU copy');
 assert.equal(gl.bufferUploads[1].data, secondPoints, 'subsequent renders should also reuse their transferred point array');
 assert.ok(gl.bufferUploads.every((upload) => upload.buffer === gl.createdBuffers[0]), 'all renders should reuse one GPU buffer');
 assert.ok(gl.bufferUploads.every((upload) => upload.usage === gl.DYNAMIC_DRAW), 'reused streaming buffer should use DYNAMIC_DRAW');
+assert.equal(widthSetCount, 2, 'worker canvas width should change only when the pixel width changes');
+assert.equal(heightSetCount, 2, 'worker canvas height should change only when the pixel height changes');
 assert.deepEqual(
     gl.resolutions.map(({location, width, height}) => ({location, width, height})),
     [
         {location: 'u_resolution', width: 100, height: 50},
+        {location: 'u_resolution', width: 200, height: 80},
         {location: 'u_resolution', width: 200, height: 80}
     ],
     'shader should receive canvas resolution for pixel-to-clip conversion'
 );
-assert.deepEqual(gl.drawCalls.map((call) => call.count), [3, 2], 'draw count should remain based on source point pairs');
+assert.deepEqual(gl.drawCalls.map((call) => call.count), [3, 2, 2], 'draw count should remain based on source point pairs');
 assert.deepEqual(
     messages.map(({type, requestId}) => ({type, requestId})),
     [
         {type: 'kchart:render-complete', requestId: 1},
-        {type: 'kchart:render-complete', requestId: 2}
+        {type: 'kchart:render-complete', requestId: 2},
+        {type: 'kchart:render-complete', requestId: 3}
     ],
     'render completion contract should remain unchanged'
 );

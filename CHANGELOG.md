@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.19.0 - 2026-07-17
+
+### Changed
+
+- Implemented `animation.mode: 'update'` for smooth `number`/`time` axis-domain transitions during `updateData()`.
+- Updated the realtime time-series demo and StackBlitz starter to scroll continuously between 250ms samples while retaining the fixed 240-point memory bound.
+- Limited update-frame animation to explicitly supported synchronous series; worker-backed lines retain one render per data update to avoid message backpressure.
+- Avoided resetting unchanged main-thread and OffscreenCanvas backing-store dimensions on repeated renders.
+- Ensured superseded render-completion promises resolve when a newer animated update replaces an in-flight frame.
+
+### Packages
+
+- Published `@keneth80/k-chart@1.19.0`.
+
 ## 1.18.1 - 2026-07-14
 
 ### Changed

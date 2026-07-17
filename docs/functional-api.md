@@ -706,7 +706,7 @@ const sampled = downsampleLTTB(data, 1000, (point) => point.x, (point) => point.
 
 ### Animation
 
-차트 레벨의 `animation` 옵션은 series renderer에 `animation.progress`를 전달합니다. `animation: true`로 기본 enter animation을 켤 수 있고, 세부 옵션으로 duration/easing을 조절할 수 있습니다. 현재 기본 지원 renderer는 `createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`입니다.
+차트 레벨의 `animation` 옵션은 enter animation과 `updateData()` transition을 제어합니다. `animation: true`로 기본 enter animation을 켤 수 있고, 세부 옵션으로 duration/easing을 조절할 수 있습니다. `mode: 'update'`는 `number`/`time` 축 domain을 프레임 단위로 보간하므로 실시간 시계열의 타임라인 이동에 적합합니다.
 
 ```ts
 createKChart<Point>({
@@ -729,7 +729,32 @@ createKChart<Point>({
 });
 ```
 
-Custom series에서는 `render(context)` 안에서 `context.animation.progress`를 읽어 직접 opacity, scale, arc sweep, draw count 등을 조절할 수 있습니다. Demo의 column, stacked column, plot point, radial, pie, doughnut renderer가 같은 방식으로 구현되어 있습니다. 대용량 WebGL chart는 animation 중 매 프레임 렌더링하므로 필요한 화면에서만 opt-in으로 켜는 것을 권장합니다.
+실시간 데이터는 다음처럼 수신 주기와 transition 시간을 맞춥니다.
+
+```ts
+const intervalMs = 250;
+
+const chart = createKChart<Point>({
+    selector: '#chart',
+    data,
+    axes,
+    series,
+    animation: {
+        enabled: true,
+        duration: intervalMs,
+        easing: 'linear',
+        mode: 'update'
+    }
+}).render();
+
+const timer = window.setInterval(() => {
+    data.push(readNextPoint());
+    if (data.length > 240) data.splice(0, data.length - 240);
+    chart.updateData(data);
+}, intervalMs);
+```
+
+Custom series에서는 `render(context)` 안에서 `context.animation.progress`를 읽어 직접 opacity, scale, arc sweep, draw count 등을 조절할 수 있습니다. Update transition에 참여할 동기 custom series는 `supportsUpdateAnimation: true`를 명시해야 합니다. Worker-backed Canvas/WebGL line은 메시지 큐 증가를 막기 위해 update transition을 자동 생략하고 수신 주기당 한 번만 렌더합니다. 대용량 차트에서는 필요한 화면에서만 animation을 켜고 downsampling을 함께 사용하는 것을 권장합니다.
 
 ### Zoom
 
