@@ -20,6 +20,7 @@ import {
     resolveDownsampleAccessor
 } from './domain';
 import {applyAxisTickCount} from './ticks';
+import {interpolateResolvedScales} from './animation';
 
 export * from './contracts';
 import type {
@@ -151,6 +152,8 @@ const defaultAnimationContext: KChartAnimationContext = {
     phase: 'enter'
 };
 
+const animationCancellation = new WeakMap<object, () => void>();
+
 const now = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
     : Date.now();
@@ -213,10 +216,6 @@ const finishRenderCompletion = <T = any>(
     completion: KChartRenderCompletionState
 ): void => {
     Promise.all(completion.tasks).then(() => {
-        if (state.renderCompletion !== completion) {
-            return;
-        }
-
         const timestamp = now();
         const event: KChartRenderCompleteEvent = {
             renderId: completion.renderId,
@@ -225,7 +224,9 @@ const finishRenderCompletion = <T = any>(
             timestamp
         };
         completion.resolve(event);
-        state.config.onRenderComplete?.(event);
+        if (state.renderCompletion === completion) {
+            state.config.onRenderComplete?.(event);
+        }
     });
 };
 
@@ -272,6 +273,8 @@ const cancelSeriesAnimation = <T = any>(state: KChartState<T>): void => {
     if (state.animationFrame !== undefined && typeof globalThis.cancelAnimationFrame === 'function') {
         globalThis.cancelAnimationFrame(state.animationFrame);
     }
+    animationCancellation.get(state)?.();
+    animationCancellation.delete(state);
     state.animationFrame = undefined;
 };
 
@@ -442,6 +445,8 @@ const ensureCanvas = (
     const className = `kchart-${renderer}-canvas-${name}`;
     const width = Math.max(size.width - margin.left - margin.right, 0);
     const height = Math.max(size.height - margin.top - margin.bottom, 0);
+    const pixelWidth = Math.round(width);
+    const pixelHeight = Math.round(height);
     const canvas = container.selectAll<HTMLCanvasElement, unknown>(`canvas.${className}`)
         .data([undefined])
         .join('canvas')
@@ -453,13 +458,15 @@ const ensureCanvas = (
         .style('top', `${margin.top}px`)
         .style('width', `${width}px`)
         .style('height', `${height}px`)
-        .attr('data-kchart-width', String(width))
-        .attr('data-kchart-height', String(height))
+        .attr('data-kchart-width', String(pixelWidth))
+        .attr('data-kchart-height', String(pixelHeight))
         .node();
 
-    if (!isCanvasTransferred(canvas)) {
-        canvas.width = width;
-        canvas.height = height;
+    if (!isCanvasTransferred(canvas) && canvas.width !== pixelWidth) {
+        canvas.width = pixelWidth;
+    }
+    if (!isCanvasTransferred(canvas) && canvas.height !== pixelHeight) {
+        canvas.height = pixelHeight;
     }
 
     return canvas;
@@ -1717,6 +1724,92 @@ const render = <T = any>(state: KChartState<T>): void => {
     finishRenderCompletion(state, completion);
 };
 
+const renderDataUpdate = <T = any>(
+    state: KChartState<T>,
+    previousScales: KChartResolvedScale<T>[]
+): void => {
+    const animation = resolveAnimationConfiguration(state.config);
+    const canAnimate = animation.enabled
+        && (animation.mode === 'update' || animation.mode === 'both')
+        && animation.duration > 0
+        && previousScales.length > 0
+        && state.series
+            .filter((series) => !state.hiddenSeries.has(series.selector))
+            .every((series) => series.supportsUpdateAnimation === true)
+        && typeof globalThis.requestAnimationFrame === 'function'
+        && !(animation.respectReducedMotion && shouldReduceMotion());
+
+    if (!canAnimate) {
+        render(state);
+        return;
+    }
+
+    cancelSeriesAnimation(state);
+    const completion = beginRenderCompletion(state);
+    const baseMargin: KChartMargin = {
+        ...defaultMargin,
+        ...state.config.margin
+    };
+    const sizes = resolveSize(state.container, state.config, baseMargin);
+    state.size = sizes.size;
+    state.margin = sizes.margin;
+    state.plotSize = sizes.plotSize;
+    const nextScales = resolveScales(state.data, state.axes, state.plotSize);
+
+    renderTitle(state);
+    renderLegend(state);
+    renderTooltip(state);
+    renderZoom(state);
+
+    const startedAt = now();
+    const renderId = state.animationRenderId;
+    let resolveTransition: () => void = () => undefined;
+    const transition = new Promise<void>((resolve) => {
+        resolveTransition = resolve;
+    });
+    animationCancellation.set(state, resolveTransition);
+    registerRenderTask(state, transition);
+
+    const renderFrame = (timestamp: number): void => {
+        if (state.animationRenderId !== renderId) {
+            return;
+        }
+
+        const elapsed = Math.max(0, timestamp - startedAt);
+        const rawProgress = Math.min(elapsed / animation.duration, 1);
+        const progress = applyAnimationEasing(rawProgress, animation.easing);
+        state.scales = interpolateResolvedScales(previousScales, nextScales, progress);
+
+        renderAxes(state);
+        renderGrid(state);
+        renderSpecAreas(state);
+        renderGuideLines(state);
+        const taskCountBeforeFrame = completion.tasks.length;
+        renderSeries(state, {
+            ...defaultAnimationContext,
+            elapsed,
+            duration: animation.duration,
+            easing: animation.easing,
+            mode: animation.mode,
+            phase: 'update'
+        });
+
+        if (rawProgress < 1) {
+            state.animationFrame = globalThis.requestAnimationFrame(renderFrame);
+            return;
+        }
+
+        state.scales = nextScales;
+        state.animationFrame = undefined;
+        animationCancellation.delete(state);
+        const finalFrameTasks = completion.tasks.slice(taskCountBeforeFrame);
+        Promise.all(finalFrameTasks).then(resolveTransition);
+    };
+
+    renderFrame(startedAt);
+    finishRenderCompletion(state, completion);
+};
+
 export const createKChart = <T = any>(
     config: KChartConfiguration<T>
 ): KChartController<T> => {
@@ -1756,12 +1849,14 @@ export const createKChart = <T = any>(
             return state.renderCompletion.promise;
         },
         updateData(data: T[]) {
+            const previousScales = state.scales;
             state.data = data;
             state.config = {
                 ...state.config,
                 data
             };
-            return controller.render();
+            renderDataUpdate(state, previousScales);
+            return controller;
         },
         updateAxes(axes: KChartAxis<T>[]) {
             state.axes = cloneAxes(axes);

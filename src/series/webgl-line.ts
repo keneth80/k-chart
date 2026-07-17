@@ -20,6 +20,7 @@ export const createWebglLineSeries = <T = any>(
 ): KChartSeries<T> => createCustomSeries<T>({
     selector: configuration.selector,
     displayName: configuration.displayName,
+    supportsUpdateAnimation: configuration.asyncRender?.enabled !== true,
     xField: configuration.xField,
     yField: configuration.yField,
     color: configuration.color,
