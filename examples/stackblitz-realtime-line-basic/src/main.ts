@@ -49,6 +49,12 @@ const chart = createKChart<RealtimePoint>({
     dasharray: '3 8'
   },
   legend: { visible: true, placement: 'top', selectable: true },
+  animation: {
+    enabled: true,
+    duration: INTERVAL_MS,
+    easing: 'linear',
+    mode: 'update'
+  },
   tooltip: {
     visible: true,
     formatter: ({ data: point, series, y }) => `

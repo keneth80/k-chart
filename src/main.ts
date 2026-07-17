@@ -2002,12 +2002,19 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
             resetOnDoubleClick: true
         } : undefined,
-        animation: hasFlowAnimation ? {
-            enabled: true,
-            duration: 820,
-            easing: 'easeOutCubic',
-            mode: 'enter'
-        } : undefined,
+        animation: kind === 'real-time'
+            ? {
+                enabled: true,
+                duration: REALTIME_INTERVAL_MS,
+                easing: 'linear',
+                mode: 'update'
+            }
+            : hasFlowAnimation ? {
+                enabled: true,
+                duration: 820,
+                easing: 'easeOutCubic',
+                mode: 'enter'
+            } : undefined,
         axes: isTopology || isGraph || isSankey || isTree || isTreemap || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
     });
@@ -2895,7 +2902,13 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         visible: ${kind === 'webgl-large-line' || kind === 'canvas-bigdata-line' || kind === 'topology' || isUsageGraph || isUsageSankey || kind === 'three-constellation' || kind === 'three-wafer' || isUsageGlobeMap ? 'false' : 'true'}${kind === 'tooltip-template' ? `,
         formatter: ({ data }) => \`<strong>\${data.label}</strong><br/>Revenue \${data.value}<br/>Volume \${data.volume}\`` : ''}${kind === 'tooltip-custom' ? `,
         formatter: ({ data, color }) => \`<div style="color:\${color};font-weight:700">Custom Tooltip</div><div>\${data.label}: \${data.value}</div>\`` : ''}
-    },${hasUsageAnimation ? `
+    },${kind === 'real-time' ? `
+    animation: {
+        enabled: true,
+        duration: REALTIME_INTERVAL_MS,
+        easing: 'linear',
+        mode: 'update'
+    },` : hasUsageAnimation ? `
     animation: {
         enabled: true,
         duration: 820,

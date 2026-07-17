@@ -929,7 +929,7 @@ series: [
 
 ## Animation
 
-`animation` 옵션을 켜면 supported series가 enter animation으로 렌더링됩니다. 현재 기본 지원 renderer는 SVG line, Canvas line, WebGL line입니다. Demo의 SVG column, stacked column, plot point, radial, pie, doughnut 같은 custom series도 `context.animation.progress`를 사용해 scale, opacity, arc sweep 효과를 적용합니다.
+`animation` 옵션은 최초 series 등장과 `updateData()` 전환을 제어합니다. `mode: 'enter'`에서는 supported series가 enter animation으로 렌더링되고, `mode: 'update'`에서는 `number`/`time` 축 domain을 이전 화면에서 새 화면까지 보간합니다. 따라서 실시간 시계열은 수신 간격마다 튀지 않고 연속해서 흐릅니다. Demo의 SVG column, stacked column, plot point, radial, pie, doughnut 같은 custom series도 `context.animation.progress`를 사용해 scale, opacity, arc sweep 효과를 적용합니다.
 
 ```ts
 createKChart({
@@ -950,7 +950,7 @@ createKChart({
 }).render();
 ```
 
-대용량 WebGL 차트에서는 animation이 매 프레임 재렌더링을 발생시키므로 필요한 예제나 화면에서만 opt-in으로 켜는 것을 권장합니다.
+실시간 차트는 `duration`을 데이터 수신 간격과 같게 두고 `easing: 'linear'`, `mode: 'update'`를 사용합니다. 새 데이터가 전환 도중 도착하면 현재 화면 위치에서 다음 domain으로 이어집니다. Worker-backed Canvas/WebGL line은 메시지 큐 증가를 막기 위해 update transition을 자동으로 생략하고 수신 주기당 한 번만 렌더합니다. 대용량 차트에서는 필요한 화면에서만 animation을 켜고 downsampling을 함께 사용하는 것을 권장합니다.
 
 ## Spec Areas, Fixed Guide Lines, And Cursor Guide
 

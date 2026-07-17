@@ -138,6 +138,8 @@ export interface KChartSeriesTooltipResult<T = any> {
 export interface KChartSeries<T = any> {
     selector: string;
     displayName?: string;
+    /** Opt in only when repeated update frames are synchronous and inexpensive. */
+    supportsUpdateAnimation?: boolean;
     /** Let a series receive node/link pointer events instead of the core overlay. */
     pointerEvents?: 'core' | 'series';
     xField?: keyof T & string;

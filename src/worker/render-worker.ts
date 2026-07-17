@@ -87,9 +87,15 @@ export const startKChartRenderWorker = (
             return;
         }
 
-        entry.canvas.width = message.width;
-        entry.canvas.height = message.height;
-        context.clearRect(0, 0, message.width, message.height);
+        const width = Math.max(0, Math.round(message.width));
+        const height = Math.max(0, Math.round(message.height));
+        if (entry.canvas.width !== width) {
+            entry.canvas.width = width;
+        }
+        if (entry.canvas.height !== height) {
+            entry.canvas.height = height;
+        }
+        context.clearRect(0, 0, width, height);
         context.beginPath();
         context.lineCap = 'round';
         context.lineJoin = 'round';
@@ -117,8 +123,14 @@ export const startKChartRenderWorker = (
             return;
         }
 
-        entry.canvas.width = message.width;
-        entry.canvas.height = message.height;
+        const width = Math.max(0, Math.round(message.width));
+        const height = Math.max(0, Math.round(message.height));
+        if (entry.canvas.width !== width) {
+            entry.canvas.width = width;
+        }
+        if (entry.canvas.height !== height) {
+            entry.canvas.height = height;
+        }
 
         const program = resolveWorkerProgram(entry);
         const positionBuffer = resolveWorkerPositionBuffer(entry);
@@ -126,7 +138,7 @@ export const startKChartRenderWorker = (
             return;
         }
 
-        gl.viewport(0, 0, message.width, message.height);
+        gl.viewport(0, 0, width, height);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);

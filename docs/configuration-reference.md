@@ -39,7 +39,7 @@ createKChart({
 | `legend` | `KChartLegendConfiguration` | no | visible top legend | series 표시/숨김 범례 설정입니다. |
 | `tooltip` | `KChartTooltipConfiguration<T>` | no | basic tooltip | nearest point tooltip 설정입니다. |
 | `zoom` | `KChartZoomConfiguration<T>` | no | disabled | number/time 축 zoom, pan, 영역 선택 zoom 설정입니다. |
-| `animation` | `boolean \| KChartAnimationConfiguration` | no | disabled | series enter animation 설정입니다. 현재 SVG/Canvas/WebGL line 계열 renderer가 기본 지원합니다. |
+| `animation` | `boolean \| KChartAnimationConfiguration` | no | disabled | series enter animation과 연속 축의 data update transition을 설정합니다. |
 | `specAreas` | `KChartSpecAreaConfiguration[]` | no | `[]` | 기존 호환 필드입니다. 새 코드는 `createSpecAreaOption(...)` 사용을 권장합니다. |
 | `guideLines` | `KChartGuideLinesConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createGuideLineOption(...)` 사용을 권장합니다. |
 | `cursorGuide` | `KChartCursorGuideConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createCursorLineOption(...)` 사용을 권장합니다. |
@@ -103,7 +103,7 @@ createKChart({
 
 ## Animation Configuration
 
-차트 레벨 `animation`은 series renderer에 `animation.progress`를 전달합니다. `animation: true`로 기본 enter animation을 켤 수 있고, 세부 옵션으로 duration과 easing을 조절할 수 있습니다. 현재 1차 지원 대상은 `createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`입니다. Custom series에서는 `render(context)`의 `context.animation.progress`를 사용해 직접 애니메이션을 구현할 수 있습니다.
+차트 레벨 `animation`은 enter animation과 data update transition을 제어합니다. `animation: true`로 기본 enter animation을 켤 수 있고, 세부 옵션으로 duration과 easing을 조절할 수 있습니다. `mode: 'update'`에서는 `number`/`time` 축 domain을 이전 렌더와 새 렌더 사이에서 보간하므로 실시간 시계열이 갱신 주기마다 튀지 않고 연속해서 이동합니다. 새 update가 이전 transition 도중 도착하면 이전 RAF를 취소하고 현재 화면 위치부터 이어서 전환합니다.
 
 ```ts
 createKChart({
@@ -123,10 +123,39 @@ createKChart({
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `false` | animation을 켭니다. `animation: true`와 동일하게 사용할 수 있습니다. |
-| `duration` | `number` | `720` | enter animation 지속 시간(ms)입니다. |
+| `duration` | `number` | `720` | enter 또는 update transition 지속 시간(ms)입니다. 실시간 차트에서는 데이터 수신 주기와 같은 값을 권장합니다. |
 | `easing` | `'linear' \| 'easeOutCubic' \| 'easeInOutCubic'` | `easeOutCubic` | progress easing 함수입니다. |
-| `mode` | `'enter' \| 'update' \| 'both'` | `enter` | 현재는 `enter` animation을 지원합니다. `update`/`both`는 향후 data transition 확장을 위한 public contract입니다. |
+| `mode` | `'enter' \| 'update' \| 'both'` | `enter` | `enter`는 최초 series 등장, `update`는 `updateData()` 시 연속 축 domain 이동, `both`는 두 동작을 모두 사용합니다. |
 | `respectReducedMotion` | `boolean` | `true` | OS의 reduced motion 설정이 켜져 있으면 animation을 생략합니다. |
+
+실시간 시계열의 기본 패턴:
+
+```ts
+const intervalMs = 250;
+const chart = createKChart({
+    selector: '#chart',
+    data,
+    axes: [
+        { field: 'time', type: 'time', placement: 'bottom' },
+        { field: 'value', type: 'number', placement: 'left' }
+    ],
+    series,
+    animation: {
+        enabled: true,
+        duration: intervalMs,
+        easing: 'linear',
+        mode: 'update'
+    }
+});
+
+setInterval(() => {
+    data.push(readNextPoint());
+    if (data.length > 240) data.splice(0, data.length - 240);
+    chart.updateData(data);
+}, intervalMs);
+```
+
+화면이 백그라운드 탭에 있거나 OS reduced motion이 켜진 경우 transition이 생략될 수 있습니다. 스트림 데이터는 위 예제처럼 최대 개수를 유지하고, 화면을 제거할 때 interval과 `chart.destroy()`를 함께 정리해야 합니다.
 
 ## Zoom Configuration
 
@@ -167,6 +196,7 @@ createKChart({
 | --- | --- | --- |
 | `selector` | `string` | series의 DOM/canvas class, legend key, hidden key로 사용됩니다. 같은 chart 안에서 고유해야 합니다. |
 | `displayName` | `string` | legend와 tooltip에 표시할 이름입니다. 없으면 `selector`를 사용합니다. |
+| `supportsUpdateAnimation` | `boolean` | `true`인 동기 series만 chart-level `mode: 'update'`의 프레임 렌더에 참여합니다. 내장 SVG/Canvas/WebGL line은 동기 렌더일 때 자동 설정되며 Worker line은 큐 증가를 막기 위해 자동으로 비활성화됩니다. |
 | `pointerEvents` | `'core' \| 'series'` | 기본값은 `core`입니다. 노드/링크가 직접 hover·click을 처리하는 custom series는 `series`를 지정하면 코어 tooltip이 상위 group에서 이벤트를 함께 수신합니다. |
 | `xField` / `yField` | `keyof T & string` | 기본 tooltip, scale 선택, downsample에 쓰이는 field입니다. |
 | `color` | `string` | series 색상입니다. 없으면 chart `colors` 팔레트에서 할당됩니다. |
