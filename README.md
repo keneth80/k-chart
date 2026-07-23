@@ -100,7 +100,7 @@
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/keneth80/k-chart/main/docs/promotion/kchart-hybrid-rendering-60s-ko.mp4">
-    <img src="docs/promotion/video/scene-01.png" alt="Watch the KChart hybrid rendering video" width="100%" />
+    <img src="docs/promotion/kchart-hybrid-rendering-preview.gif" alt="Watch the KChart hybrid rendering video" width="100%" />
   </a>
 </p>
 
