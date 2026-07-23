@@ -96,6 +96,20 @@
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-three-wafer-basic?title=KChart%20Three.js%20Wafer&file=src/main.ts"><strong>Three.js Wafer</strong></a>
 </p>
 
+## Hybrid Rendering In 60 Seconds
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/keneth80/k-chart/main/docs/promotion/kchart-hybrid-rendering-60s-ko.mp4">
+    <img src="docs/promotion/video/scene-01.png" alt="Watch the KChart hybrid rendering video" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/keneth80/k-chart/main/docs/promotion/kchart-hybrid-rendering-60s-ko.mp4"><strong>Watch the 60-second video</strong></a>
+  ·
+  <a href="docs/promotion/hybrid-rendering-ko.md"><strong>Read the Korean technical article</strong></a>
+</p>
+
 ## Overview
 
 KChart는 TypeScript 기반 D3 하이브리드 차트 엔진입니다.
