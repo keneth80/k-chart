@@ -43,6 +43,10 @@
   ·
   <a href="docs/functional-api.md"><strong>API Guide</strong></a>
   ·
+  <a href="docs/ai/index.md"><strong>AI & Agent Guide</strong></a>
+  ·
+  <a href="llms.txt"><strong>llms.txt</strong></a>
+  ·
   <a href="packages/k-chart-three/README.md"><strong>Three.js Adapter</strong></a>
 </p>
 

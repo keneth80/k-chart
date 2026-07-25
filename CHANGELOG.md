@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.20.0 - 2026-07-25
+
+### Added
+
+- Added the provider-neutral `@keneth80/k-chart/ai` entry point with typed `ChartPlan` contracts, a generated JSON Schema, and the machine-readable KChart capability catalog.
+- Added `validateKChartAIPlan()` / `assertKChartAIPlan()` for strict capability, renderer, field-binding, option-compatibility, and JSON-safe settings validation.
+- Added `compileKChartAIPlan()` / `renderKChartAIPlan()` to convert validated plans into real KChart configurations without executing model-generated source.
+- Added trusted runtime settings and registered custom series compilers so applications can inject callbacks, GeoJSON, providers, credentials, and custom recipes outside the model trust boundary.
+- Added `llms.txt`, natural-language intent fixtures, agent guides, Cursor/Codex/Claude Code instructions, and reusable dashboard generation prompts.
+
+### Changed
+
+- Updated CI and package checks to validate generated AI metadata, 32 natural-language intent fixtures, compiler behavior, adapter credential stripping, and packaged AI exports.
+- Migrated the Next.js Playground AI flow to validated `ChartPlan` JSON with separate server/client feature flags; QA and Live remain disabled by default.
+
+### Package
+
+- Versioned the provider-neutral AI planning and compilation layer as `@keneth80/k-chart@1.20.0`.
+
 ## 1.19.0 - 2026-07-17
 
 ### Changed

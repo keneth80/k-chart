@@ -12,6 +12,7 @@
     },
     "include": [
         "src/index.ts",
+        "src/ai/index.ts",
         "src/kchart.ts",
         "src/types/**/*.d.ts"
     ],

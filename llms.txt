@@ -1,0 +1,37 @@
+# KChart
+
+> KChart is a functional TypeScript chart runtime that separates axes from series and lets SVG, Canvas, WebGL, Three.js, CesiumJS, and MapLibre visualizations share one composition model.
+
+KChart is published as `@keneth80/k-chart`. Prefer the beginner presets for common charts and the functional series API when a visualization needs custom rendering or mixed renderers.
+
+## Start here
+
+- [README](https://github.com/keneth80/k-chart/blob/main/README.md): installation, concepts, and runnable examples
+- [AI integration guide](https://github.com/keneth80/k-chart/blob/main/docs/ai/index.md): safe natural-language-to-chart workflow
+- [Chart selection guide](https://github.com/keneth80/k-chart/blob/main/docs/ai/chart-selection.md): choose chart types and renderers from data intent
+- [Agent usage guide](https://github.com/keneth80/k-chart/blob/main/docs/ai/agent-usage.md): Cursor, Codex, and Claude Code instructions
+- [Configuration reference](https://github.com/keneth80/k-chart/blob/main/docs/configuration-reference.md): core, axes, series, options, workers, and completion signals
+- [Functional API](https://github.com/keneth80/k-chart/blob/main/docs/functional-api.md): custom series and renderer injection
+
+## Machine-readable resources
+
+- [Capability catalog](https://github.com/keneth80/k-chart/blob/main/ai/catalog.json): supported presets, series, recipes, options, and adapters
+- [ChartPlan JSON Schema](https://github.com/keneth80/k-chart/blob/main/ai/chart-plan.schema.json): provider-neutral AI output contract
+- [Natural-language fixtures](https://github.com/keneth80/k-chart/blob/main/ai/examples/intent-to-config.jsonl): prompts paired with validated ChartPlans
+- [Dashboard prompt](https://github.com/keneth80/k-chart/blob/main/ai/prompts/dashboard-system.md): constraints for generating a KChart dashboard
+
+## Packages
+
+- `@keneth80/k-chart`: core, SVG, Canvas, WebGL, presets, workers, and options
+- `@keneth80/k-chart-three`: optional Three.js scene and wafer helpers
+- `@keneth80/k-chart-cesium`: optional CesiumJS globe and route adapter
+- `@keneth80/k-chart-maplibre`: optional MapLibre map and globe-drilldown adapter
+
+## Important constraints
+
+- Generate a declarative ChartPlan first. Validate it before compiling KChart configuration.
+- Do not execute model-generated JavaScript or TypeScript.
+- Use registered preset or formatter identifiers instead of raw callback source.
+- Choose SVG for rich DOM interaction, Canvas for frequent or large updates, and WebGL for very large line or point data.
+- Bound realtime buffers, destroy controllers on unmount, and await `whenRenderComplete()` before export or measurement.
+- Treat Cesium imagery, terrain, ion tokens, MapLibre styles, and third-party geographic data as user-supplied resources with their own terms.
