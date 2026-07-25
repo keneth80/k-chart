@@ -334,6 +334,25 @@ import {downsampleLTTB} from '@keneth80/k-chart/utils';
 import {startKChartRenderWorker} from '@keneth80/k-chart/worker';
 ```
 
+Applications that use only a small renderer subset can import concrete modules
+to avoid bundling unrelated charts and map data:
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core/create-kchart';
+import type {
+    KChartAxis,
+    KChartController,
+    KChartSeries
+} from '@keneth80/k-chart/core/contracts';
+import {createLineSeries} from '@keneth80/k-chart/series/svg-line';
+import {createCanvasLineSeries} from '@keneth80/k-chart/series/canvas-line';
+import {createWebglLineSeries} from '@keneth80/k-chart/series/webgl-line';
+```
+
+Use the root or category entry points when convenience matters more than bundle
+size. Use concrete module entry points in plugins and embedded applications
+where only a known renderer subset is needed.
+
 The core calls concrete renderers only through the
 `KChartSeries.render(context)` contract.
 

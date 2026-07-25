@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Added granular `core/*`, `series/*`, and `options/*` package exports so consumers can bundle only the renderers they use.
+- Documented bundle-focused imports for embedded applications and plugin packages.
+
+### Tests
+
+- Added package export resolution coverage for the core and line renderer entry points.
+
 ## 1.20.0 - 2026-07-25
 
 ### Added
