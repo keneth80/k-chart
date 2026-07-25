@@ -1,0 +1,19 @@
+---
+description: Use KChart public APIs and validated AI ChartPlans
+globs:
+  - "**/*chart*.ts"
+  - "**/*chart*.tsx"
+  - "src/ai/**/*.ts"
+alwaysApply: false
+---
+
+# KChart
+
+- Read `docs/ai/index.md`, `docs/ai/chart-selection.md`, and `ai/catalog.json`.
+- Use only factories exported by KChart public package entry points.
+- Treat `recipe.*` ids as compositions, not import names.
+- Validate provider output with `validateKChartAIPlan`.
+- Never evaluate model-generated JavaScript or TypeScript.
+- Keep realtime buffers bounded and destroy timers, workers, observers, and chart controllers.
+- Dynamically import browser-only Three.js, CesiumJS, and MapLibre adapters in SSR applications.
+- Run `npm run test:unit` after catalog, schema, series, or option changes.

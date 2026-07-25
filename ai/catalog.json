@@ -1,0 +1,2291 @@
+{
+  "version": 1,
+  "renderers": [
+    {
+      "id": "svg",
+      "displayName": "SVG",
+      "recommendedFor": [
+        "small and medium datasets",
+        "rich DOM interaction",
+        "crisp labels"
+      ],
+      "tradeoffs": [
+        "DOM cost grows with visible marks"
+      ]
+    },
+    {
+      "id": "canvas",
+      "displayName": "Canvas",
+      "recommendedFor": [
+        "large datasets",
+        "frequent updates",
+        "worker rendering"
+      ],
+      "tradeoffs": [
+        "marks are not individual DOM nodes"
+      ]
+    },
+    {
+      "id": "webgl",
+      "displayName": "WebGL",
+      "recommendedFor": [
+        "very large line or point data",
+        "GPU rendering"
+      ],
+      "tradeoffs": [
+        "requires WebGL support",
+        "custom interaction needs hit testing"
+      ]
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "preset.line",
+      "displayName": "Line chart preset",
+      "description": "Beginner-friendly single-series line chart with SVG, Canvas, or WebGL rendering.",
+      "apiName": "createLineChart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "time-series trends",
+        "ordered numeric trends",
+        "quick chart creation"
+      ],
+      "avoidWhen": [
+        "part-to-whole comparison",
+        "unordered categories with long labels"
+      ],
+      "rowCount": {
+        "idealMax": 1000000,
+        "note": "Choose Canvas or WebGL and enable LTTB for large data."
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "beginner",
+        "trend",
+        "time-series"
+      ],
+      "kind": "preset",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/presets",
+      "repositoryPath": "src/presets/index.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "preset.column",
+      "displayName": "Column chart preset",
+      "description": "Beginner-friendly categorical comparison chart.",
+      "apiName": "createColumnChart",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "category comparison",
+        "ranked values",
+        "small dashboards"
+      ],
+      "avoidWhen": [
+        "very high-cardinality categories",
+        "million-point data"
+      ],
+      "rowCount": {
+        "idealMax": 200
+      },
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "beginner",
+        "comparison"
+      ],
+      "kind": "preset",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/presets",
+      "repositoryPath": "src/presets/index.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "preset.pie",
+      "displayName": "Pie chart preset",
+      "description": "Beginner-friendly part-to-whole chart.",
+      "apiName": "createPieChart",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "label",
+          "description": "Slice label.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Non-negative slice value.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "part-to-whole with a few categories"
+      ],
+      "avoidWhen": [
+        "more than seven categories",
+        "negative values",
+        "precise comparison"
+      ],
+      "rowCount": {
+        "idealMax": 7
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "beginner",
+        "part-to-whole"
+      ],
+      "kind": "preset",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/presets",
+      "repositoryPath": "src/presets/index.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "preset.doughnut",
+      "displayName": "Doughnut chart preset",
+      "description": "Pie chart with a configurable center opening.",
+      "apiName": "createDoughnutChart",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "label",
+          "description": "Slice label.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Non-negative slice value.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "part-to-whole with a central KPI label"
+      ],
+      "avoidWhen": [
+        "more than seven categories",
+        "negative values"
+      ],
+      "rowCount": {
+        "idealMax": 7
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "beginner",
+        "part-to-whole"
+      ],
+      "kind": "preset",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/presets",
+      "repositoryPath": "src/presets/index.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.line.svg",
+      "displayName": "SVG line",
+      "description": "Crisp accessible line with optional curve, dots, animation, and LTTB.",
+      "apiName": "createLineSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "small and medium trends",
+        "interactive SVG overlays",
+        "publication-quality labels"
+      ],
+      "avoidWhen": [
+        "hundreds of thousands of visible points"
+      ],
+      "rowCount": {
+        "idealMax": 20000,
+        "supportedMax": 100000
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "trend",
+        "svg",
+        "time-series"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-line.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.line.canvas",
+      "displayName": "Canvas line",
+      "description": "Canvas line with LTTB and optional OffscreenCanvas worker rendering.",
+      "apiName": "createCanvasLineSeries",
+      "renderers": [
+        "canvas"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "large time series",
+        "frequent updates",
+        "worker rendering"
+      ],
+      "rowCount": {
+        "idealMax": 300000,
+        "supportedMax": 1000000
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "trend",
+        "canvas",
+        "large-data",
+        "worker"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/canvas-line.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.line.webgl",
+      "displayName": "WebGL line",
+      "description": "GPU line renderer for very large time-series datasets.",
+      "apiName": "createWebglLineSeries",
+      "renderers": [
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "million-point line data",
+        "many dense numeric traces"
+      ],
+      "rowCount": {
+        "idealMax": 1000000,
+        "note": "Use explicit axis domains and LTTB when the full density is not needed."
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "trend",
+        "webgl",
+        "large-data",
+        "gpu"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/webgl-line.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.area.svg",
+      "displayName": "SVG area",
+      "description": "Filled line chart for magnitude over an ordered domain.",
+      "apiName": "createAreaSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "magnitude over time",
+        "capacity and volume trends"
+      ],
+      "avoidWhen": [
+        "overlapping many opaque series"
+      ],
+      "rowCount": {
+        "idealMax": 10000
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "trend",
+        "area"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-area.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.bar.svg",
+      "displayName": "SVG bar",
+      "description": "Single-value bar series with configurable baseline and bar sizing.",
+      "apiName": "createBarSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "category comparison",
+        "positive and negative values"
+      ],
+      "rowCount": {
+        "idealMax": 200
+      },
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "comparison",
+        "bar"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-bar.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.column.grouped.svg",
+      "displayName": "SVG grouped column",
+      "description": "Multiple numeric fields displayed side by side for each category.",
+      "apiName": "createGroupedColumnSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "segments",
+          "description": "Numeric fields rendered within each category.",
+          "types": [
+            "number"
+          ],
+          "required": true,
+          "multiple": true
+        }
+      ],
+      "recommendedFor": [
+        "multi-series category comparison"
+      ],
+      "avoidWhen": [
+        "more than six segments per category"
+      ],
+      "rowCount": {
+        "idealMax": 100
+      },
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "comparison",
+        "multi-series",
+        "column"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-bar.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.scatter.svg",
+      "displayName": "SVG scatter",
+      "description": "Point chart for relationships between two numeric variables.",
+      "apiName": "createScatterSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "correlation",
+        "clusters",
+        "outlier inspection"
+      ],
+      "rowCount": {
+        "idealMax": 5000
+      },
+      "tags": [
+        "distribution",
+        "correlation"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-scatter.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.bubble.svg",
+      "displayName": "SVG bubble",
+      "description": "Scatter chart with a third numeric field encoded as point radius.",
+      "apiName": "createBubbleSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "radius",
+          "description": "Numeric magnitude encoded as radius.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "three-variable comparison"
+      ],
+      "rowCount": {
+        "idealMax": 1000
+      },
+      "tags": [
+        "distribution",
+        "bubble"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-scatter.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.point.canvas",
+      "displayName": "Canvas point",
+      "description": "Canvas point renderer for medium-to-large scatter data.",
+      "apiName": "createCanvasPointSeries",
+      "renderers": [
+        "canvas"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "dense point clouds",
+        "frequently updated scatter data"
+      ],
+      "rowCount": {
+        "idealMax": 100000
+      },
+      "tags": [
+        "distribution",
+        "canvas"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/canvas-point.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.point.webgl",
+      "displayName": "WebGL point",
+      "description": "Interleaved-buffer GPU point renderer.",
+      "apiName": "createWebglPointSeries",
+      "renderers": [
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "very large point clouds",
+        "GPU scatter rendering"
+      ],
+      "rowCount": {
+        "idealMax": 1000000
+      },
+      "tags": [
+        "distribution",
+        "webgl",
+        "large-data",
+        "gpu"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/webgl-point.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.candlestick.canvas",
+      "displayName": "Canvas candlestick",
+      "description": "OHLC financial chart with open-close or previous-close color modes.",
+      "apiName": "createCanvasCandlestickSeries",
+      "renderers": [
+        "canvas"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "open",
+          "description": "Opening price.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "high",
+          "description": "Highest price.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "low",
+          "description": "Lowest price.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "close",
+          "description": "Closing price.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "previousClose",
+          "description": "Previous close used by previous-close coloring.",
+          "types": [
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "financial OHLC data",
+        "stock price history"
+      ],
+      "rowCount": {
+        "idealMax": 10000
+      },
+      "tags": [
+        "financial",
+        "canvas",
+        "ohlc"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/canvas-candlestick.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.box-plot.svg",
+      "displayName": "SVG box plot",
+      "description": "Five-number summary with optional outliers.",
+      "apiName": "createBoxPlotSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "min",
+          "description": "Minimum or lower whisker.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "q1",
+          "description": "First quartile.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "median",
+          "description": "Median.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "q3",
+          "description": "Third quartile.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "max",
+          "description": "Maximum or upper whisker.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "outliers",
+          "description": "Optional array of outlier values.",
+          "types": [
+            "number-array"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "distribution summary",
+        "outlier comparison"
+      ],
+      "rowCount": {
+        "idealMax": 100
+      },
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "distribution",
+        "statistics"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-distribution.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.histogram.svg",
+      "displayName": "SVG histogram",
+      "description": "Pre-binned frequency distribution.",
+      "apiName": "createHistogramSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "binStart",
+          "description": "Bin start.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "binEnd",
+          "description": "Bin end.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Bin count or density.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "numeric frequency distribution"
+      ],
+      "rowCount": {
+        "idealMax": 200
+      },
+      "tags": [
+        "distribution",
+        "statistics"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-distribution.ts",
+      "browserOnly": true,
+      "compatibleOptions": [
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ]
+    },
+    {
+      "id": "series.treemap.svg",
+      "displayName": "SVG treemap",
+      "description": "Space-filling comparison of labeled values.",
+      "apiName": "createTreemapSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "label",
+          "description": "Tile label.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Tile area value.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "color",
+          "description": "Optional category or color value.",
+          "types": [
+            "string",
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "part-to-whole with many categories",
+        "portfolio composition"
+      ],
+      "rowCount": {
+        "idealMax": 500
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "hierarchy",
+        "part-to-whole"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-dashboard.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.gauge.svg",
+      "displayName": "SVG gauge",
+      "description": "Single KPI meter with a configurable range.",
+      "apiName": "createGaugeSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "value",
+          "description": "Current KPI value.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "label",
+          "description": "Optional KPI label.",
+          "types": [
+            "string"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "single KPI against a known range"
+      ],
+      "avoidWhen": [
+        "comparing many values"
+      ],
+      "rowCount": {
+        "idealMax": 1
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "dashboard",
+        "kpi"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-dashboard.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.waterfall.svg",
+      "displayName": "SVG waterfall",
+      "description": "Running-total bridge chart with positive, negative, and total bars.",
+      "apiName": "createWaterfallSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Increment or decrement.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "total",
+          "description": "Boolean or numeric total marker.",
+          "types": [
+            "boolean",
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "variance bridges",
+        "financial contribution analysis"
+      ],
+      "rowCount": {
+        "idealMax": 50
+      },
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "financial",
+        "comparison"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-dashboard.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.graph.svg",
+      "displayName": "SVG graph",
+      "description": "Force or circular node-link graph with selection and roaming.",
+      "apiName": "createGraphSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "source",
+          "description": "Source node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "target",
+          "description": "Target node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Edge weight.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "category",
+          "description": "Optional node category.",
+          "types": [
+            "string"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "relationships",
+        "dependencies",
+        "network topology"
+      ],
+      "rowCount": {
+        "idealMax": 2000
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "network",
+        "relationship"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-graph.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.tree.svg",
+      "displayName": "SVG tree",
+      "description": "Orthogonal or radial parent-child hierarchy with roaming.",
+      "apiName": "createTreeSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "id",
+          "description": "Node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "parent",
+          "description": "Parent node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "label",
+          "description": "Display label.",
+          "types": [
+            "string"
+          ]
+        },
+        {
+          "id": "value",
+          "description": "Optional node magnitude.",
+          "types": [
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "organization hierarchy",
+        "taxonomy",
+        "dependency tree"
+      ],
+      "rowCount": {
+        "idealMax": 2000
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "hierarchy",
+        "tree"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-tree.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.sankey.svg",
+      "displayName": "SVG Sankey",
+      "description": "Weighted flow between source and target stages.",
+      "apiName": "createSankeySeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "source",
+          "description": "Flow source id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "target",
+          "description": "Flow target id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "value",
+          "description": "Flow magnitude.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "category",
+          "description": "Optional node category.",
+          "types": [
+            "string"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "process flow",
+        "energy flow",
+        "conversion paths"
+      ],
+      "rowCount": {
+        "idealMax": 1000
+      },
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "flow",
+        "network"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-sankey.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.globe.svg",
+      "displayName": "SVG globe",
+      "description": "Draggable geographic globe with markers, zoom, and optional map drilldown.",
+      "apiName": "createSvgGlobeSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "latitude",
+          "description": "Latitude in degrees.",
+          "types": [
+            "latitude",
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "longitude",
+          "description": "Longitude in degrees.",
+          "types": [
+            "longitude",
+            "number"
+          ],
+          "required": true
+        },
+        {
+          "id": "label",
+          "description": "Marker label.",
+          "types": [
+            "string"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "global locations",
+        "interactive geographic storytelling"
+      ],
+      "rowCount": {
+        "idealMax": 1000
+      },
+      "compatibleOptions": [
+        "option.tooltip",
+        "option.animation",
+        "option.render-complete"
+      ],
+      "tags": [
+        "map",
+        "globe",
+        "geo"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-globe.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.geo-region-map.svg",
+      "displayName": "SVG region map",
+      "description": "GeoJSON/TopoJSON choropleth with labels, markers, bubbles, and zoom.",
+      "apiName": "createGeoRegionMapSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "regionKey",
+          "description": "Data key matched to a geographic feature.",
+          "types": [
+            "string"
+          ]
+        },
+        {
+          "id": "value",
+          "description": "Numeric value used for labels or color.",
+          "types": [
+            "number"
+          ]
+        },
+        {
+          "id": "color",
+          "description": "Explicit color field.",
+          "types": [
+            "string"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "regional comparison",
+        "choropleth maps",
+        "location markers"
+      ],
+      "rowCount": {
+        "idealMax": 5000
+      },
+      "compatibleOptions": [
+        "option.tooltip",
+        "option.animation",
+        "option.render-complete"
+      ],
+      "tags": [
+        "map",
+        "geo",
+        "choropleth"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-region-map.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.world-country-map.svg",
+      "displayName": "SVG world country map",
+      "description": "World-country convenience wrapper backed by bundled world-atlas data.",
+      "apiName": "createWorldCountryMapSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "regionKey",
+          "description": "Country id or key.",
+          "types": [
+            "string"
+          ]
+        },
+        {
+          "id": "value",
+          "description": "Country value.",
+          "types": [
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "country-level global comparison"
+      ],
+      "rowCount": {
+        "idealMax": 300
+      },
+      "compatibleOptions": [
+        "option.tooltip",
+        "option.animation",
+        "option.render-complete"
+      ],
+      "tags": [
+        "map",
+        "world",
+        "choropleth"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/svg-region-map.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "series.custom",
+      "displayName": "Custom functional series",
+      "description": "User-defined functional renderer with injected SVG, Canvas, WebGL, scales, and lifecycle.",
+      "apiName": "createCustomSeries",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": false
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": false
+        }
+      ],
+      "recommendedFor": [
+        "domain-specific visualization",
+        "hybrid rendering",
+        "unsupported visual marks"
+      ],
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "custom",
+        "functional",
+        "extension"
+      ],
+      "kind": "series",
+      "apiKind": "factory",
+      "importPath": "@keneth80/k-chart/series",
+      "repositoryPath": "src/series/custom.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "recipe.realtime.rolling-window",
+      "displayName": "Realtime rolling window",
+      "description": "A time-domain line updated in place while old points are evicted from a fixed-duration window.",
+      "apiName": "createLineSeries",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "y",
+          "description": "Numeric value rendered on the vertical axis.",
+          "types": [
+            "number"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "live telemetry",
+        "monitoring dashboards"
+      ],
+      "rowCount": {
+        "idealMax": 100000,
+        "note": "Bound retained points and reuse updateData to avoid unbounded memory growth."
+      },
+      "compatibleOptions": [
+        "option.downsample.lttb",
+        "option.grid",
+        "option.zoom",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "recipe",
+        "realtime",
+        "time-series"
+      ],
+      "examplePaths": [
+        "examples/realtime-time-series.ts"
+      ],
+      "kind": "recipe",
+      "apiKind": "recipe",
+      "importPath": "@keneth80/k-chart",
+      "repositoryPath": "src/series/svg-line.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "recipe.column.stacked",
+      "displayName": "Stacked column recipe",
+      "description": "Custom SVG recipe that stacks multiple numeric fields per category.",
+      "apiName": "createCustomSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "x",
+          "description": "Horizontal position, category, or timestamp.",
+          "types": [
+            "number",
+            "time",
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "segments",
+          "description": "Numeric fields stacked within each category.",
+          "types": [
+            "number"
+          ],
+          "required": true,
+          "multiple": true
+        }
+      ],
+      "recommendedFor": [
+        "part-to-whole comparison across categories"
+      ],
+      "compatibleOptions": [
+        "option.grid",
+        "option.cursor-line",
+        "option.guide-line",
+        "option.spec-area",
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "recipe",
+        "column",
+        "stacked"
+      ],
+      "kind": "recipe",
+      "apiKind": "recipe",
+      "importPath": "@keneth80/k-chart",
+      "repositoryPath": "src/series/custom.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "recipe.radial.custom",
+      "displayName": "Custom radial recipe",
+      "description": "Functional SVG radial metric composition.",
+      "apiName": "createCustomSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "label",
+          "description": "Metric label.",
+          "types": [
+            "string"
+          ]
+        },
+        {
+          "id": "value",
+          "description": "Metric value.",
+          "types": [
+            "number"
+          ],
+          "required": true,
+          "multiple": true
+        }
+      ],
+      "recommendedFor": [
+        "compact multi-metric dashboard summaries"
+      ],
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "recipe",
+        "radial"
+      ],
+      "kind": "recipe",
+      "apiKind": "recipe",
+      "importPath": "@keneth80/k-chart",
+      "repositoryPath": "src/series/custom.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "recipe.topology.custom",
+      "displayName": "Topology recipe",
+      "description": "Custom functional SVG node-group topology with relationship highlighting.",
+      "apiName": "createCustomSeries",
+      "renderers": [
+        "svg"
+      ],
+      "fieldRoles": [
+        {
+          "id": "source",
+          "description": "Source node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        },
+        {
+          "id": "target",
+          "description": "Target node id.",
+          "types": [
+            "string"
+          ],
+          "required": true
+        }
+      ],
+      "recommendedFor": [
+        "infrastructure topology",
+        "grouped dependency maps"
+      ],
+      "compatibleOptions": [
+        "option.legend",
+        "option.tooltip",
+        "option.animation",
+        "option.tooltip-note",
+        "option.render-complete"
+      ],
+      "tags": [
+        "recipe",
+        "topology",
+        "network"
+      ],
+      "kind": "recipe",
+      "apiKind": "recipe",
+      "importPath": "@keneth80/k-chart",
+      "repositoryPath": "src/series/custom.ts",
+      "browserOnly": true
+    },
+    {
+      "id": "option.grid",
+      "kind": "option",
+      "displayName": "Grid",
+      "description": "Axis-aligned plot grid.",
+      "apiKind": "config-property",
+      "apiName": "KChartConfiguration.grid",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "reading values across axes"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.legend",
+      "kind": "option",
+      "displayName": "Legend",
+      "description": "Selectable series legend.",
+      "apiKind": "config-property",
+      "apiName": "KChartConfiguration.legend",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "multi-series identification and visibility"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.tooltip",
+      "kind": "option",
+      "displayName": "Tooltip",
+      "description": "Core hover tooltip with optional formatter.",
+      "apiKind": "config-property",
+      "apiName": "KChartConfiguration.tooltip",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "point inspection"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.zoom",
+      "kind": "option",
+      "displayName": "Zoom",
+      "description": "Wheel, selection, and touch gesture zoom.",
+      "apiKind": "config-property",
+      "apiName": "KChartConfiguration.zoom",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "dense numeric or time domains"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.animation",
+      "kind": "option",
+      "displayName": "Animation",
+      "description": "Enter and update animation with reduced-motion support.",
+      "apiKind": "config-property",
+      "apiName": "KChartConfiguration.animation",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "state transitions",
+        "realtime updates"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.downsample.lttb",
+      "kind": "option",
+      "displayName": "LTTB downsampling",
+      "description": "Largest-Triangle-Three-Buckets reduction for dense lines.",
+      "apiKind": "config-property",
+      "apiName": "KChartSeries.downsample",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "large line datasets"
+      ],
+      "tags": [
+        "performance"
+      ],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "option.cursor-line",
+      "kind": "option",
+      "displayName": "Cursor line",
+      "description": "Pointer-following guide with x and value labels.",
+      "apiKind": "factory",
+      "apiName": "createCursorLineOption",
+      "importPath": "@keneth80/k-chart/options",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "cross-series value comparison"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/options/cursor-line.ts"
+    },
+    {
+      "id": "option.guide-line",
+      "kind": "option",
+      "displayName": "Fixed guide lines",
+      "description": "Fixed x or y reference lines with labels.",
+      "apiKind": "factory",
+      "apiName": "createGuideLineOption",
+      "importPath": "@keneth80/k-chart/options",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "thresholds",
+        "targets",
+        "events"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/options/guide-line.ts"
+    },
+    {
+      "id": "option.spec-area",
+      "kind": "option",
+      "displayName": "Specification area",
+      "description": "Highlighted ranges on numeric or time axes.",
+      "apiKind": "factory",
+      "apiName": "createSpecAreaOption",
+      "importPath": "@keneth80/k-chart/options",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "acceptable ranges",
+        "process stages"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/options/spec-area.ts"
+    },
+    {
+      "id": "option.tooltip-note",
+      "kind": "option",
+      "displayName": "Pinned tooltip note",
+      "description": "Draggable persistent tooltip annotations with notes.",
+      "apiKind": "factory",
+      "apiName": "createTooltipNoteOption",
+      "importPath": "@keneth80/k-chart/options",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "analysis notes",
+        "review workflows"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/options/tooltip-note.ts"
+    },
+    {
+      "id": "option.render-complete",
+      "kind": "option",
+      "displayName": "Render completion",
+      "description": "Promise and callback signal covering asynchronous renderer commits.",
+      "apiKind": "controller-method",
+      "apiName": "KChartController.whenRenderComplete",
+      "importPath": "@keneth80/k-chart",
+      "renderers": [
+        "svg",
+        "canvas",
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "benchmarking",
+        "export after paint",
+        "loading state"
+      ],
+      "tags": [],
+      "browserOnly": true,
+      "repositoryPath": "src/core/contracts.ts"
+    },
+    {
+      "id": "adapter.three.scene",
+      "kind": "adapter",
+      "apiKind": "factory",
+      "displayName": "Three.js adapter",
+      "description": "Optional Three.js scene and wafer visualization wrapper.",
+      "apiName": "createKThreeScene",
+      "importPath": "@keneth80/k-chart-three",
+      "packageName": "@keneth80/k-chart-three",
+      "renderers": [
+        "webgl"
+      ],
+      "fieldRoles": [],
+      "recommendedFor": [
+        "3D objects",
+        "wafer monitoring",
+        "custom 3D visualization"
+      ],
+      "tags": [
+        "adapter",
+        "three",
+        "3d"
+      ],
+      "repositoryPath": "packages/k-chart-three/src/index.ts",
+      "browserOnly": true,
+      "requires": [
+        "@keneth80/k-chart",
+        "three"
+      ]
+    },
+    {
+      "id": "adapter.cesium.globe",
+      "kind": "adapter",
+      "apiKind": "factory",
+      "displayName": "Cesium globe adapter",
+      "description": "Optional CesiumJS globe and route wrapper with user-supplied providers and tokens.",
+      "apiName": "createCesiumGlobe",
+      "importPath": "@keneth80/k-chart-cesium",
+      "packageName": "@keneth80/k-chart-cesium",
+      "renderers": [
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "latitude",
+          "description": "Route latitude.",
+          "types": [
+            "latitude",
+            "number"
+          ]
+        },
+        {
+          "id": "longitude",
+          "description": "Route longitude.",
+          "types": [
+            "longitude",
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "3D globe routes",
+        "terrain and imagery providers"
+      ],
+      "tags": [
+        "adapter",
+        "cesium",
+        "geo"
+      ],
+      "repositoryPath": "packages/k-chart-cesium/src/index.ts",
+      "browserOnly": true,
+      "requires": [
+        "@cesium/engine",
+        "@cesium/widgets",
+        "cesium"
+      ]
+    },
+    {
+      "id": "adapter.maplibre.flat-map",
+      "kind": "adapter",
+      "apiKind": "factory",
+      "displayName": "MapLibre adapter",
+      "description": "Optional real-map drilldown and place marker wrapper.",
+      "apiName": "createMapLibreFlatMap",
+      "importPath": "@keneth80/k-chart-maplibre",
+      "packageName": "@keneth80/k-chart-maplibre",
+      "renderers": [
+        "webgl"
+      ],
+      "fieldRoles": [
+        {
+          "id": "latitude",
+          "description": "Place latitude.",
+          "types": [
+            "latitude",
+            "number"
+          ]
+        },
+        {
+          "id": "longitude",
+          "description": "Place longitude.",
+          "types": [
+            "longitude",
+            "number"
+          ]
+        }
+      ],
+      "recommendedFor": [
+        "street-level maps",
+        "place search",
+        "globe-to-map drilldown"
+      ],
+      "tags": [
+        "adapter",
+        "maplibre",
+        "geo"
+      ],
+      "repositoryPath": "packages/k-chart-maplibre/src/index.ts",
+      "browserOnly": true,
+      "requires": [
+        "@keneth80/k-chart",
+        "maplibre-gl"
+      ]
+    }
+  ]
+}
