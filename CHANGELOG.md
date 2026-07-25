@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.21.0 - 2026-07-25
+
+### Changed
+
+- Added granular `core/*`, `series/*`, and `options/*` package exports so consumers can bundle only the renderers they use.
+- Documented bundle-focused imports for embedded applications and plugin packages.
+
+### Tests
+
+- Added package export resolution coverage for the core and line renderer entry points.
+
+### Package
+
+- Versioned granular renderer entry points as `@keneth80/k-chart@1.21.0`.
+
 ## 1.20.0 - 2026-07-25
 
 ### Added
