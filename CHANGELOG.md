@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.21.0 - 2026-07-25
 
 ### Changed
 
@@ -10,6 +10,10 @@
 ### Tests
 
 - Added package export resolution coverage for the core and line renderer entry points.
+
+### Package
+
+- Versioned granular renderer entry points as `@keneth80/k-chart@1.21.0`.
 
 ## 1.20.0 - 2026-07-25
 
