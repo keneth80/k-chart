@@ -26,6 +26,7 @@
         "outDir": "dist",
         "paths": {
           "@keneth80/k-chart": ["./src/index.ts"],
+          "@keneth80/k-chart/ai": ["./src/ai/index.ts"],
           "@keneth80/k-chart/core": ["./src/core/index.ts"],
           "@keneth80/k-chart/options": ["./src/options/index.ts"],
           "@keneth80/k-chart/presets": ["./src/presets/index.ts"],

@@ -18,6 +18,7 @@
   <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&label=npm&color=0ea5e9"></a>
   <a href="https://github.com/keneth80/k-chart/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/keneth80/k-chart?style=for-the-badge&color=22c55e"></a>
   <a href="https://k-chart-playground.vercel.app/"><img alt="Playground" src="https://img.shields.io/badge/Live_Playground-open-8b5cf6?style=for-the-badge"></a>
+  <a href="https://k-chart-bench.vercel.app/"><img alt="Benchmark" src="https://img.shields.io/badge/Live_Benchmark-view-f59e0b?style=for-the-badge"></a>
 </p>
 
 <p align="center">
@@ -36,9 +37,15 @@
 <p align="center">
   <a href="https://k-chart-playground.vercel.app/"><strong>Open Playground</strong></a>
   ·
+  <a href="https://k-chart-bench.vercel.app/"><strong>View Benchmark</strong></a>
+  ·
   <a href="#quick-start"><strong>Quick Start</strong></a>
   ·
   <a href="docs/functional-api.md"><strong>API Guide</strong></a>
+  ·
+  <a href="docs/ai/index.md"><strong>AI & Agent Guide</strong></a>
+  ·
+  <a href="llms.txt"><strong>llms.txt</strong></a>
   ·
   <a href="packages/k-chart-three/README.md"><strong>Three.js Adapter</strong></a>
 </p>
@@ -93,6 +100,20 @@
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-three-wafer-basic?title=KChart%20Three.js%20Wafer&file=src/main.ts"><strong>Three.js Wafer</strong></a>
 </p>
 
+## Hybrid Rendering In 60 Seconds
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/keneth80/k-chart/main/docs/promotion/kchart-hybrid-rendering-60s-ko.mp4">
+    <img src="docs/promotion/kchart-hybrid-rendering-preview.gif" alt="Watch the KChart hybrid rendering video" width="100%" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/keneth80/k-chart/main/docs/promotion/kchart-hybrid-rendering-60s-ko.mp4"><strong>Watch the 60-second video</strong></a>
+  ·
+  <a href="docs/promotion/hybrid-rendering-ko.md"><strong>Read the Korean technical article</strong></a>
+</p>
+
 ## Overview
 
 KChart는 TypeScript 기반 D3 하이브리드 차트 엔진입니다.
@@ -145,7 +166,7 @@ KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object�
 - 수천에서 수만 개의 point를 빠르게 그려야 하면 Canvas series를 사용합니다.
 - 더 큰 line/point 데이터나 잦은 viewport 변경이 있으면 WebGL series와 LTTB downsampling을 조합합니다.
 - 3D, 지도, 지구본은 optional adapter package로 분리해 필요한 화면에서만 로드합니다.
-- 수치 비교가 필요한 경우 playground example 기준으로 같은 dataset, 같은 viewport, 같은 browser에서 FPS, first render time, memory를 측정하는 benchmark를 추가할 수 있습니다.
+- 렌더링 성능 비교와 재현 조건은 [KChart Benchmark](https://k-chart-bench.vercel.app/)에서 확인할 수 있습니다. 결과를 해석할 때는 dataset, viewport, browser, 측정 종점과 각 라이브러리 설정을 함께 확인해야 합니다.
 
 ## Core Concept
 
@@ -251,6 +272,12 @@ npm install @keneth80/k-chart
 - Local playground URL: `http://127.0.0.1:9011`
 
 The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.
+
+## Benchmark
+
+- Live benchmark: [https://k-chart-bench.vercel.app/](https://k-chart-bench.vercel.app/)
+
+The benchmark publishes reproducible rendering measurements alongside the dataset size, browser environment, library versions, and measurement methodology. Use the methodology shown with each result when comparing KChart with other chart libraries.
 
 ## Local Development
 

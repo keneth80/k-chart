@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.19.0",
+    "version": "1.20.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -32,13 +32,23 @@
         "./worker": {
             "types": "./lib/worker/index.d.ts",
             "default": "./lib/worker/index.js"
-        }
+        },
+        "./ai": {
+            "types": "./lib/ai/index.d.ts",
+            "default": "./lib/ai/index.js"
+        },
+        "./ai/catalog.json": "./ai/catalog.json",
+        "./ai/chart-plan.schema.json": "./ai/chart-plan.schema.json",
+        "./llms.txt": "./llms.txt"
     },
     "files": [
         "lib/**/*",
         "README.md",
         "LICENSE",
         "CHANGELOG.md",
+        "llms.txt",
+        "ai/**/*",
+        "docs/ai/**/*",
         "docs/code-graph-handoff.md",
         "docs/configuration-reference.md",
         "docs/functional-api.md",
@@ -61,13 +71,17 @@
         "result": "lite-server -c lite-server-config.json",
         "build": "npm run build:lib && npm run build-demo",
         "build:lib": "tsc -p tsconfig.lib.json",
+        "ci:adapters": "npm ci --prefix packages/k-chart-three && npm ci --prefix packages/k-chart-cesium && npm ci --prefix packages/k-chart-maplibre",
+        "build:adapters": "npm run build --prefix packages/k-chart-three && npm run build --prefix packages/k-chart-cesium && npm run build --prefix packages/k-chart-maplibre",
+        "generate:ai": "npm run build:lib && node scripts/generate-ai-artifacts.cjs",
+        "check:ai": "npm run build:lib && node scripts/generate-ai-artifacts.cjs --check && node tests/ai-plan.test.cjs",
         "build-demo": "cross-env NODE_ENV=development webpack --mode development",
         "build-prod": "cross-env NODE_ENV=production webpack --mode production",
         "typecheck": "tsc --noEmit",
-        "test:unit": "npm run build:lib && node tests/domain.test.cjs && node tests/ticks.test.cjs && node tests/animation.test.cjs && node tests/render-complete.test.cjs && node tests/worker-webgl.test.cjs && node tests/worker-lifecycle.test.cjs && node tests/graph.test.cjs && node tests/tree.test.cjs && node tests/sankey.test.cjs",
+        "test:unit": "npm run build:lib && npm run build:adapters && node scripts/generate-ai-artifacts.cjs --check && node tests/ai-plan.test.cjs && node tests/ai-compiler.test.cjs && node tests/domain.test.cjs && node tests/ticks.test.cjs && node tests/animation.test.cjs && node tests/render-complete.test.cjs && node tests/worker-webgl.test.cjs && node tests/worker-lifecycle.test.cjs && node tests/graph.test.cjs && node tests/tree.test.cjs && node tests/sankey.test.cjs",
         "dev": "webpack-dev-server --host 127.0.0.1 --port 9003 --mode development",
         "prepublishOnly": "npm run typecheck",
-        "prepack": "npm run build:lib",
+        "prepack": "npm run generate:ai",
         "pack:dry": "npm pack --dry-run",
         "bundle-analyze": "webpack --profile --json > stats.json",
         "bundle-analyze-open": "webpack-bundle-analyzer stats.json --port=9900"
@@ -112,6 +126,7 @@
         "@types/highlight.js": "^9.12.4",
         "@types/object-hash": "^1.3.3",
         "@types/topojson-client": "^3.1.5",
+        "ajv": "^8.20.0",
         "babel-loader": "^10.1.1",
         "browser-sync-client": "^2.26.13",
         "cesium": "^1.142.0",
