@@ -5,6 +5,11 @@ const {
     applyAxisTickCount,
     resolveCategoricalTickValues
 } = require('../lib/core/ticks');
+const {
+    resolveAxisTitleAttributes,
+    resolveAxisTitleMargins,
+    resolveHorizontalAxisTitleTopSpace
+} = require('../lib/core/axis-title');
 
 const thirtyDays = Array.from({length: 30}, (_, index) => `2026-07-${String(index + 1).padStart(2, '0')}`);
 const sampledDays = resolveCategoricalTickValues('point', thirtyDays, 6);
@@ -139,5 +144,93 @@ const d3TimeAxis = axisBottom(d3TimeScale);
 applyAxisTickCount(d3TimeAxis, {type: 'time', tickCount: 5, scale: d3TimeScale});
 assert.deepEqual(d3TimeAxis.tickArguments(), [5], 'time axis should retain the D3 tick count hint');
 assert.equal(d3TimeAxis.tickValues(), null, 'time axis should not receive categorical tickValues');
+
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'left'},
+        {width: 640, height: 320}
+    ),
+    {x: -160, y: -36, transform: 'rotate(-90)', textAnchor: 'middle'},
+    'left axis titles should preserve the existing vertical layout by default'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'left', titleLayout: 'horizontal'},
+        {width: 640, height: 320}
+    ),
+    {x: 0, y: -12, transform: null, textAnchor: 'start'},
+    'left axis titles should support a readable horizontal layout'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'right', titleLayout: 'horizontal', titleOffset: 18},
+        {width: 640, height: 320}
+    ),
+    {x: 0, y: -18, transform: null, textAnchor: 'end'},
+    'right horizontal titles should use the configured offset and align inward'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'bottom', titleOffset: 42},
+        {width: 640, height: 320}
+    ),
+    {x: 320, y: 42, transform: null, textAnchor: 'middle'},
+    'horizontal axes should also honor titleOffset'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'top', titleOffset: Number.NaN},
+        {width: 640, height: 320}
+    ),
+    {x: 320, y: -24, transform: null, textAnchor: 'middle'},
+    'invalid offsets should fall back to the placement default'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'right', titleOffset: -8},
+        {width: 640, height: 320}
+    ),
+    {x: 160, y: 0, transform: 'rotate(90)', textAnchor: 'middle'},
+    'negative offsets should clamp to zero without changing vertical orientation'
+);
+assert.deepEqual(
+    resolveAxisTitleAttributes(
+        {placement: 'left', titleLayout: 'horizontal'},
+        {width: 640, height: 320},
+        {hasTopAxis: true, hasTopAxisTitle: true}
+    ),
+    {x: 0, y: -48, transform: null, textAnchor: 'start'},
+    'horizontal side titles should use a separate row above a titled top axis'
+);
+assert.deepEqual(
+    resolveAxisTitleMargins(
+        [
+            {field: 'x', type: 'number', placement: 'bottom', title: 'Time', titleOffset: 60},
+            {field: 'y', type: 'number', placement: 'left', title: 'Value', titleOffset: 52}
+        ],
+        {top: 24, right: 24, bottom: 36, left: 44}
+    ),
+    {top: 24, right: 24, bottom: 72, left: 64},
+    'large title offsets should automatically reserve enough outer margin'
+);
+assert.deepEqual(
+    resolveAxisTitleMargins(
+        [
+            {field: 'x', type: 'number', placement: 'top', title: 'Time'},
+            {field: 'y', type: 'number', placement: 'left', title: 'Value', titleLayout: 'horizontal'}
+        ],
+        {top: 24, right: 24, bottom: 36, left: 44}
+    ),
+    {top: 60, right: 24, bottom: 36, left: 44},
+    'horizontal side titles should reserve a distinct row above a titled top axis'
+);
+assert.equal(
+    resolveHorizontalAxisTitleTopSpace([
+        {field: 'x', type: 'number', placement: 'top'},
+        {field: 'y', type: 'number', placement: 'left', title: 'Value', titleLayout: 'horizontal'}
+    ]),
+    42,
+    'an untitled top axis should reserve tick clearance without a full title row'
+);
 
 console.log('ticks.test.cjs passed');

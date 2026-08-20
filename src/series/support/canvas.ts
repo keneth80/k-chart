@@ -29,15 +29,50 @@ interface KChartAsyncCanvasEntry {
     destroying?: boolean;
     terminated?: boolean;
     destroyTimer?: ReturnType<typeof setTimeout>;
-    pending: Map<number, {
-        resolve: () => void;
-        reject: () => void;
-    }>;
+    active?: KChartLineRenderJob;
+    queued?: KChartLineRenderJob;
+}
+
+interface KChartLineRenderWaiter {
+    resolve: () => void;
+    reject: (error?: unknown) => void;
+}
+
+interface KChartLineRenderJob {
+    message: KChartLineRenderPayload;
+    waiters: KChartLineRenderWaiter[];
 }
 
 const transferredCanvases = new WeakSet<HTMLCanvasElement>();
 const asyncCanvasEntries = new WeakMap<HTMLCanvasElement, KChartAsyncCanvasEntry>();
 let asyncCanvasId = 0;
+
+const resolveLineRenderJob = (job: KChartLineRenderJob | undefined): void => {
+    job?.waiters.splice(0).forEach((waiter) => waiter.resolve());
+};
+
+const rejectLineRenderJob = (
+    job: KChartLineRenderJob | undefined,
+    error?: unknown
+): void => {
+    job?.waiters.splice(0).forEach((waiter) => waiter.reject(error));
+};
+
+const dispatchLineRenderJob = (
+    entry: KChartAsyncCanvasEntry,
+    job: KChartLineRenderJob
+): void => {
+    entry.active = job;
+    try {
+        entry.worker.postMessage(job.message, [job.message.points.buffer]);
+    } catch (error) {
+        entry.active = undefined;
+        entry.failed = true;
+        rejectLineRenderJob(job, error);
+        rejectLineRenderJob(entry.queued, error);
+        entry.queued = undefined;
+    }
+};
 
 const terminateAsyncCanvasEntry = (entry: KChartAsyncCanvasEntry): void => {
     if (entry.terminated) {
@@ -48,8 +83,10 @@ const terminateAsyncCanvasEntry = (entry: KChartAsyncCanvasEntry): void => {
         clearTimeout(entry.destroyTimer);
         entry.destroyTimer = undefined;
     }
-    entry.pending.forEach((pending) => pending.reject());
-    entry.pending.clear();
+    rejectLineRenderJob(entry.active);
+    rejectLineRenderJob(entry.queued);
+    entry.active = undefined;
+    entry.queued = undefined;
     entry.worker.terminate();
 };
 
@@ -92,13 +129,16 @@ const getAsyncCanvasEntry = (
             canvasId,
             failed: false,
             requestId: 0,
-            pending: new Map()
+            active: undefined,
+            queued: undefined
         };
 
         worker.onerror = () => {
             entry.failed = true;
-            entry.pending.forEach((pending) => pending.reject());
-            entry.pending.clear();
+            rejectLineRenderJob(entry.active);
+            rejectLineRenderJob(entry.queued);
+            entry.active = undefined;
+            entry.queued = undefined;
             if (entry.destroying) {
                 terminateAsyncCanvasEntry(entry);
             }
@@ -112,12 +152,20 @@ const getAsyncCanvasEntry = (
             if (message?.type !== 'kchart:render-complete' || message.canvasId !== canvasId) {
                 return;
             }
-            const pending = entry.pending.get(message.requestId);
-            if (!pending) {
+            const active = entry.active;
+            if (!active || active.message.requestId !== message.requestId) {
                 return;
             }
-            entry.pending.delete(message.requestId);
-            pending.resolve();
+            entry.active = undefined;
+            resolveLineRenderJob(active);
+
+            const queued = entry.queued;
+            entry.queued = undefined;
+            if (queued && !entry.failed && !entry.destroying) {
+                dispatchLineRenderJob(entry, queued);
+            } else {
+                resolveLineRenderJob(queued);
+            }
         };
         worker.postMessage({
             type: 'kchart:init-canvas',
@@ -143,8 +191,10 @@ export const destroyAsyncCanvas = (canvas: HTMLCanvasElement): void => {
 
     entry.destroying = true;
     entry.failed = true;
-    entry.pending.forEach((pending) => pending.reject());
-    entry.pending.clear();
+    rejectLineRenderJob(entry.active);
+    rejectLineRenderJob(entry.queued);
+    entry.active = undefined;
+    entry.queued = undefined;
     asyncCanvasEntries.delete(canvas);
     // Give the worker a chance to delete its WebGL resources before the
     // terminate fallback stops it. The timeout preserves the previous
@@ -233,11 +283,31 @@ export const renderLineWithWorker = (
         renderer,
         ...payload
     };
+    let job: KChartLineRenderJob | undefined;
     const completion = new Promise<void>((resolve, reject) => {
-        entry.pending.set(requestId, {resolve, reject});
+        job = {
+            message,
+            waiters: [{resolve, reject}]
+        };
     });
-    // points.buffer is transferred to avoid copying large coordinate arrays.
-    // The request id lets the core expose a truthful render-complete signal.
-    entry.worker.postMessage(message, [message.points.buffer]);
+    if (!job) {
+        return completion;
+    }
+
+    if (entry.active) {
+        // A chart needs the newest visual state, not a replay of stale frames.
+        // Keep one active worker message and one latest queued frame. Waiters
+        // from superseded frames follow that newest frame so render completion
+        // still means the requested state has reached a committed visual.
+        if (entry.queued) {
+            job.waiters.unshift(...entry.queued.waiters.splice(0));
+        }
+        entry.queued = job;
+        return completion;
+    }
+
+    // points.buffer is transferred only when the job becomes active. A queued
+    // frame can therefore be replaced without filling the worker message queue.
+    dispatchLineRenderJob(entry, job);
     return completion;
 };

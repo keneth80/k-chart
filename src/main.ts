@@ -1,7 +1,6 @@
 import './style.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-import { buildModuleUrl, TileMapServiceImageryProvider } from 'cesium';
 import '../packages/k-chart-maplibre/src/style.css';
 import '../packages/k-chart-cesium/src/style.css';
 import '../packages/k-chart-three/src/style.css';
@@ -452,7 +451,15 @@ const setupCesiumDemo = async (): Promise<void> => {
     if (!chartRoot) {
         return;
     }
-    const {createCesiumGlobe} = await import('../packages/k-chart-cesium/src');
+    // Cesium and its optional adapter are loaded only when this example is
+    // selected. Ordinary SVG/Canvas/WebGL users do not download the runtime.
+    const [
+        {buildModuleUrl, TileMapServiceImageryProvider},
+        {createCesiumGlobe}
+    ] = await Promise.all([
+        import('cesium'),
+        import('../packages/k-chart-cesium/src')
+    ]);
     if (activeKind !== 'cesium-route') {
         return;
     }
@@ -2413,48 +2420,57 @@ const createUsageSnippet = (kind: DemoKind): string => {
     if (kind === 'cesium-route') {
         return `import "cesium/Build/Cesium/Widgets/widgets.css";
 import "@keneth80/k-chart-cesium/style.css";
-import * as Cesium from "cesium";
-import { createCesiumGlobe } from "@keneth80/k-chart-cesium";
 
-const globe = createCesiumGlobe({
-    container: "#chart-div",
-    cesiumBaseUrl: "/cesium/",
-    imageryProvider: await Cesium.TileMapServiceImageryProvider.fromUrl(
-        Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
-    ),
-    attribution: "Natural Earth II texture from CesiumJS assets",
-    initialView: {
-        lon: 165,
-        lat: 14,
-        height: 28_000_000
-    },
-    realisticAtmosphere: {
-        baseColor: "#0b2d59",
-        atmosphereLightIntensity: 8,
-        skyAtmosphereLightIntensity: 10,
-        skyAtmosphereSaturationShift: 0.02
-    }
-});
+async function mountCesiumRoute() {
+    const [Cesium, { createCesiumGlobe }] = await Promise.all([
+        import("cesium"),
+        import("@keneth80/k-chart-cesium")
+    ]);
 
-globe.addRoute({
-    id: "pacific-route",
-    name: "Seoul to San Francisco",
-    data: [
-        { label: "Seoul", time: "2026-06-22T00:00:00Z", lat: 37.5665, lon: 126.978, altitude: 120000 },
-        { label: "Tokyo", time: "2026-06-22T01:00:00Z", lat: 35.6762, lon: 139.6503, altitude: 240000 },
-        { label: "Honolulu", time: "2026-06-22T04:00:00Z", lat: 21.3099, lon: -157.8581, altitude: 360000 },
-        { label: "San Francisco", time: "2026-06-22T07:00:00Z", lat: 37.7749, lon: -122.4194, altitude: 120000 }
-    ],
-    color: "#5db8ff",
-    showSamples: true,
-    flyToOnAdd: false,
-    animation: {
-        enabled: true,
-        speed: 2400,
-        trailSeconds: 10800,
-        loop: true
-    }
-});`;
+    const globe = createCesiumGlobe({
+        container: "#chart-div",
+        cesiumBaseUrl: "/cesium/",
+        imageryProvider: await Cesium.TileMapServiceImageryProvider.fromUrl(
+            Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")
+        ),
+        attribution: "Natural Earth II texture from CesiumJS assets",
+        initialView: {
+            lon: 165,
+            lat: 14,
+            height: 28_000_000
+        },
+        realisticAtmosphere: {
+            baseColor: "#0b2d59",
+            atmosphereLightIntensity: 8,
+            skyAtmosphereLightIntensity: 10,
+            skyAtmosphereSaturationShift: 0.02
+        }
+    });
+
+    globe.addRoute({
+        id: "pacific-route",
+        name: "Seoul to San Francisco",
+        data: [
+            { label: "Seoul", time: "2026-06-22T00:00:00Z", lat: 37.5665, lon: 126.978, altitude: 120000 },
+            { label: "Tokyo", time: "2026-06-22T01:00:00Z", lat: 35.6762, lon: 139.6503, altitude: 240000 },
+            { label: "Honolulu", time: "2026-06-22T04:00:00Z", lat: 21.3099, lon: -157.8581, altitude: 360000 },
+            { label: "San Francisco", time: "2026-06-22T07:00:00Z", lat: 37.7749, lon: -122.4194, altitude: 120000 }
+        ],
+        color: "#5db8ff",
+        showSamples: true,
+        flyToOnAdd: false,
+        animation: {
+            enabled: true,
+            speed: 2400,
+            trailSeconds: 10800,
+            loop: true
+        }
+    });
+
+    return globe;
+}
+
+void mountCesiumRoute();`;
     }
     const selected = examples.find((example) => example.kind === kind);
     const isUsageGlobeMap = isGlobeMapExample(kind);

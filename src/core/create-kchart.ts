@@ -21,6 +21,11 @@ import {
 } from './domain';
 import {applyAxisTickCount} from './ticks';
 import {interpolateResolvedScales} from './animation';
+import {
+    resolveAxisTitleAttributes,
+    resolveAxisTitleMargins,
+    resolveHorizontalAxisTitleTopSpace
+} from './axis-title';
 
 export * from './contracts';
 import type {
@@ -311,18 +316,33 @@ const resolveEffectiveMargin = <T = any>(
     size: KChartSize,
     baseMargin: KChartMargin
 ): KChartMargin => {
+    const axisMargin = resolveAxisTitleMargins(config.axes, baseMargin);
+    const horizontalAxisTitleTopSpace = resolveHorizontalAxisTitleTopSpace(config.axes);
     const legend = config.legend;
     const hasTopLegend = legend?.visible !== false && legend?.placement !== 'right' && legend?.placement !== 'bottom' && config.series.length > 0;
     const titleVisible = hasTitleText(config);
     const topOptionLabelsVisible = hasTopOptionLabels(config);
 
     if (!hasTopLegend && titleVisible) {
-        return baseMargin;
+        if (horizontalAxisTitleTopSpace === 0) {
+            return axisMargin;
+        }
+        const chartTitleFontSize = typeof config.title?.fontSize === 'number'
+            ? config.title.fontSize
+            : 14;
+        const chartTitleRowBottom = 28 + chartTitleFontSize + 8;
+        return {
+            ...axisMargin,
+            top: Math.max(
+                axisMargin.top,
+                chartTitleRowBottom + horizontalAxisTitleTopSpace
+            )
+        };
     }
 
     const itemWidth = 148;
     const itemHeight = 22;
-    const availableLegendWidth = Math.max(itemWidth, size.width - baseMargin.left - baseMargin.right);
+    const availableLegendWidth = Math.max(itemWidth, size.width - axisMargin.left - axisMargin.right);
     const legendColumns = Math.max(1, Math.floor(availableLegendWidth / itemWidth));
     const legendRows = hasTopLegend ? Math.ceil(config.series.length / legendColumns) : 0;
     const legendY = titleVisible
@@ -331,16 +351,22 @@ const resolveEffectiveMargin = <T = any>(
     const legendHeight = legendRows > 0 ? legendRows * itemHeight : 0;
     const optionLabelLift = topOptionLabelsVisible ? 18 : 0;
     const gap = topOptionLabelsVisible ? 12 : 18;
-    const requiredTop = Math.ceil(legendY + legendHeight + optionLabelLift + gap);
+    const requiredTop = Math.ceil(
+        legendY
+        + legendHeight
+        + optionLabelLift
+        + gap
+        + horizontalAxisTitleTopSpace
+    );
 
     if (!titleVisible || topOptionLabelsVisible) {
         return {
-            ...baseMargin,
-            top: Math.max(defaultMargin.top, requiredTop)
+            ...axisMargin,
+            top: Math.max(axisMargin.top, requiredTop)
         };
     }
 
-    return baseMargin;
+    return axisMargin;
 };
 
 const resolveContainer = (
@@ -516,6 +542,11 @@ const renderAxes = <T = any>(state: KChartState<T>): void => {
         .attr('class', 'kchart-axes')
         .attr('transform', `translate(${state.margin.left}, ${state.margin.top})`);
 
+    const hasTopAxis = state.scales.some((scale) => scale.visible !== false && scale.placement === 'top');
+    const hasTopAxisTitle = state.scales.some((scale) =>
+        scale.visible !== false && scale.placement === 'top' && Boolean(scale.title)
+    );
+
     state.scales.forEach((scale: KChartResolvedScale<T>) => {
         const axisGroup = axisLayer.selectAll<SVGGElement, KChartResolvedScale<T>>(`g.kchart-axis-${scale.placement}`)
             .data(scale.visible === false ? [] : [scale])
@@ -539,15 +570,21 @@ const renderAxes = <T = any>(state: KChartState<T>): void => {
             .attr('transform', resolveAxisTransform(scale.placement, state.plotSize))
             .call(axisFactory as any);
 
-        renderAxisTitle(axisGroup, scale, state.plotSize);
+        renderAxisTitle(axisGroup, scale, state.plotSize, hasTopAxis, hasTopAxisTitle);
     });
 };
 
 const renderAxisTitle = <T = any>(
     axisGroup: Selection<SVGGElement, KChartResolvedScale<T>, any, any>,
     scale: KChartResolvedScale<T>,
-    plotSize: KChartSize
+    plotSize: KChartSize,
+    hasTopAxis: boolean,
+    hasTopAxisTitle: boolean
 ): void => {
+    const attributes = resolveAxisTitleAttributes(scale, plotSize, {
+        hasTopAxis,
+        hasTopAxisTitle
+    });
     const title = axisGroup.selectAll<SVGTextElement, KChartResolvedScale<T>>('text.kchart-axis-title')
         .data(scale.title ? [scale] : [])
         .join('text')
@@ -555,18 +592,13 @@ const renderAxisTitle = <T = any>(
         .style('fill', '#9fb1bf')
         .style('font-size', '12px')
         .style('font-weight', 600)
-        .style('text-anchor', 'middle')
+        .style('text-anchor', attributes.textAnchor)
         .text(scale.title ?? '');
 
-    if (scale.placement === 'bottom') {
-        title.attr('x', plotSize.width / 2).attr('y', 34).attr('transform', null);
-    } else if (scale.placement === 'top') {
-        title.attr('x', plotSize.width / 2).attr('y', -24).attr('transform', null);
-    } else if (scale.placement === 'left') {
-        title.attr('x', -plotSize.height / 2).attr('y', -36).attr('transform', 'rotate(-90)');
-    } else {
-        title.attr('x', plotSize.height / 2).attr('y', -36).attr('transform', 'rotate(90)');
-    }
+    title
+        .attr('x', attributes.x)
+        .attr('y', attributes.y)
+        .attr('transform', attributes.transform);
 };
 
 const resolveAxisTransform = (
