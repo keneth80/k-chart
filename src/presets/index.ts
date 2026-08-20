@@ -31,6 +31,8 @@ export interface KChartSimpleAxisOption<T = any> {
     domain?: Array<string | number | Date>;
     domainFields?: Array<keyof T & string>;
     padding?: number;
+    titleLayout?: KChartAxis<T>['titleLayout'];
+    titleOffset?: number;
     tickCount?: number;
     tickFormat?: (value: any) => string;
 }

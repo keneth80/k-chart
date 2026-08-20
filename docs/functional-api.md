@@ -142,6 +142,22 @@ axes: [
 
 `tickCount`를 생략하거나 domain 길이 이상으로 지정한 `point`/`string` 축은 모든 tick을 표시합니다. 여러 category가 있는 축에서 `tickCount: 1`은 첫 값과 마지막 값을 보존하기 위해 2개 라벨로 처리됩니다. `number`와 `time` 축의 `tickCount`는 기존처럼 D3 tick 생성에 전달되는 개수 힌트이며 실제 표시 개수와 정확히 일치하지 않을 수 있습니다.
 
+Y축 제목은 기본적으로 기존 호환성을 위해 세로로 표시됩니다. 짧은 한글 제목이나 좁은 대시보드 패널에서는 `titleLayout: 'horizontal'`로 가독성을 높이고 `titleOffset`으로 축선과의 간격을 조절할 수 있습니다.
+
+```ts
+axes: [
+    {field: 'date', type: 'time', placement: 'bottom'},
+    {
+        field: 'count',
+        type: 'number',
+        placement: 'left',
+        title: '연결',
+        titleLayout: 'horizontal',
+        titleOffset: 12
+    }
+]
+```
+
 ## Built-In BI / Distribution Series
 
 대시보드에서 자주 필요한 분포, 구성, KPI, 누적 흐름 차트도 class-free factory로 사용할 수 있습니다.
