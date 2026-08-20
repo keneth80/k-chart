@@ -21,11 +21,36 @@ Cesium also requires `Workers`, `ThirdParty`, `Assets`, and `Widgets` from
 `node_modules/cesium/Build/Cesium` to be served by the application. Set
 `CESIUM_BASE_URL` to the public directory containing those folders.
 
+## Bundle loading
+
+`@keneth80/k-chart` does not depend on Cesium, and its default/core/series
+exports do not import the Cesium runtime. Installing this adapter also does not
+place Cesium in an application bundle unless the adapter is imported. Prefer a
+dynamic import for route-level or panel-level loading so Cesium is emitted as
+separate async chunks that are downloaded only when the globe is opened:
+
+```ts
+const [Cesium, {createCesiumGlobe}] = await Promise.all([
+  import("cesium"),
+  import("@keneth80/k-chart-cesium")
+]);
+```
+
+Static imports of `cesium` or `@keneth80/k-chart-cesium` can place the Cesium
+runtime in the initial application chunk. Merely using KChart SVG, Canvas, or
+WebGL chart series does not. The adapter CSS can remain a normal application
+style import; the large JavaScript runtime is still loaded separately.
+
 ## Animated route
 
 ```ts
-import { buildModuleUrl, TileMapServiceImageryProvider } from "cesium";
-import { createCesiumGlobe } from "@keneth80/k-chart-cesium";
+const [
+  {buildModuleUrl, TileMapServiceImageryProvider},
+  {createCesiumGlobe}
+] = await Promise.all([
+  import("cesium"),
+  import("@keneth80/k-chart-cesium")
+]);
 
 const globe = createCesiumGlobe({
   container: "#chart",

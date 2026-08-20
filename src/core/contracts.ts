@@ -3,6 +3,7 @@ import type {ZoomTransform} from 'd3-zoom';
 
 export type KChartScaleType = 'number' | 'time' | 'string' | 'point';
 export type KChartPlacement = 'top' | 'right' | 'bottom' | 'left';
+export type KChartAxisTitleLayout = 'vertical' | 'horizontal';
 export type KChartTextAlign = 'left' | 'center' | 'right';
 export type KChartLegendPlacement = 'top' | 'right' | 'bottom';
 export type KChartZoomDirection = 'x' | 'y' | 'xy';
@@ -24,6 +25,8 @@ export interface KChartAxis<T = any> {
     visible?: boolean;
     padding?: number;
     title?: string;
+    titleLayout?: KChartAxisTitleLayout;
+    titleOffset?: number;
     tickCount?: number;
     tickFormat?: (value: any) => string;
 }

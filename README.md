@@ -136,28 +136,6 @@ KChart는 완성형 대시보드 차트만 제공하는 라이브러리라기보
 | Part-to-whole analysis | `createTreemapSeries(...)`로 동일 metric의 구성 비중을 사각형 면적으로 비교합니다. |
 | Flow analysis | `createSankeySeries(...)`로 단계별 흐름의 상대적인 크기와 이탈 지점을 표현합니다. |
 
-### Size And Capability Snapshot
-
-아래 수치는 2026-07-01 기준 package footprint입니다. KChart는 현재 저장소에서 `npm pack --dry-run`으로 측정했고, 다른 패키지는 npm registry의 `dist.unpackedSize`를 사용했습니다. 실제 app bundle size는 bundler, tree-shaking, import 방식, CSS/asset 포함 여부에 따라 달라지므로, 절대 성능 순위가 아니라 package footprint를 비교하기 위한 참고값입니다.
-
-| Package | Version | npm unpacked size | Primary renderer model | WebGL path |
-| --- | ---: | ---: | --- | --- |
-| `@keneth80/k-chart` | `1.9.0` | `1.1 MB` | SVG + Canvas + WebGL functional series | Built-in line/point WebGL series |
-| `chart.js` | `4.5.1` | `5.89 MiB` | Canvas chart components | Not a core renderer target |
-| `plotly.js-dist-min` | `3.6.0` | `4.62 MiB` | Prebuilt Plotly distribution | WebGL trace families |
-| `echarts` | `6.1.0` | `57.50 MiB` | Canvas/SVG chart platform | Extension-oriented GL use cases |
-| `highcharts` | `13.0.0` | `68.12 MiB` | SVG chart platform | Boost/module-oriented large data path |
-
-Reproduce the package size numbers:
-
-```bash
-npm pack --dry-run
-npm view chart.js@latest version dist.unpackedSize
-npm view plotly.js-dist-min@latest version dist.unpackedSize
-npm view echarts@latest version dist.unpackedSize
-npm view highcharts@latest version dist.unpackedSize
-```
-
 ### Performance Positioning
 
 KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object에 넣기”가 아니라, 데이터 양과 표현 방식에 맞춰 renderer를 선택하는 것입니다.
@@ -166,7 +144,7 @@ KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object�
 - 수천에서 수만 개의 point를 빠르게 그려야 하면 Canvas series를 사용합니다.
 - 더 큰 line/point 데이터나 잦은 viewport 변경이 있으면 WebGL series와 LTTB downsampling을 조합합니다.
 - 3D, 지도, 지구본은 optional adapter package로 분리해 필요한 화면에서만 로드합니다.
-- 렌더링 성능 비교와 재현 조건은 [KChart Benchmark](https://k-chart-bench.vercel.app/)에서 확인할 수 있습니다. 결과를 해석할 때는 dataset, viewport, browser, 측정 종점과 각 라이브러리 설정을 함께 확인해야 합니다.
+- 재현 가능한 렌더링 측정 결과와 조건은 [KChart Benchmark](https://k-chart-bench.vercel.app/)에서 확인할 수 있습니다.
 
 ## Core Concept
 
@@ -277,7 +255,7 @@ The playground demonstrates the React wrapper, chart examples, configuration edi
 
 - Live benchmark: [https://k-chart-bench.vercel.app/](https://k-chart-bench.vercel.app/)
 
-The benchmark publishes reproducible rendering measurements alongside the dataset size, browser environment, library versions, and measurement methodology. Use the methodology shown with each result when comparing KChart with other chart libraries.
+The benchmark publishes reproducible KChart rendering measurements alongside the dataset size, browser environment, runtime version, and measurement methodology.
 
 ## Local Development
 
@@ -634,6 +612,14 @@ CesiumJS is Apache-2.0 licensed, while Cesium ion and third-party map, terrain,
 satellite, place-search, or 3D Tiles services have separate terms. Do not
 hard-code private provider keys in reusable library code, and keep Cesium/provider
 credits and copyright notices visible.
+
+Cesium is not a dependency of the main `@keneth80/k-chart` package, so users
+who import only core, SVG, Canvas, or WebGL chart modules do not include the
+Cesium runtime in their application bundle. Load both `cesium` and
+`@keneth80/k-chart-cesium` with `import()` when the globe route or panel opens
+to keep Cesium in separate on-demand chunks. A static Cesium import can place
+that runtime in the initial application bundle even when the globe is not yet
+visible.
 
 Detailed Cesium usage, asset deployment, provider/license notes, and first-view
 camera tips are documented in

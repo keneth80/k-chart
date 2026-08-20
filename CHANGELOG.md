@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.22.0 - 2026-08-20
+
+### Added
+
+- Added `titleLayout` and `titleOffset` axis options, including readable horizontal Y-axis titles and automatic title-aware margins that avoid chart-title, legend, and top-axis overlap.
+
+### Changed
+
+- Bounded OffscreenCanvas line-render traffic to one active request and one newest queued frame, preventing stale high-frequency Canvas/WebGL updates from accumulating in the worker queue while preserving render-completion semantics.
+- Updated the Cesium route demo and usage guide to load the optional Cesium runtime and adapter together on demand as asynchronous chunks, and documented that normal KChart chart imports do not include Cesium.
+
 ## 1.21.0 - 2026-07-25
 
 ### Changed

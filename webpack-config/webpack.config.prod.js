@@ -21,10 +21,18 @@ module.exports = merge(commonConfig, {
         emitOnErrors: false,
         splitChunks: {
             cacheGroups: {
+                cesium: {
+                  test: /[\\/]node_modules[\\/](?:@cesium|cesium)[\\/]/,
+                  name: 'cesium',
+                  chunks: 'async',
+                  priority: 20,
+                  enforce: true
+                },
                 commons: {
                   test: /[\\/]node_modules[\\/]/,
                   name: 'vendors',
-                  chunks: 'all'
+                  chunks: 'initial',
+                  priority: 10
                 }
             }
         },
