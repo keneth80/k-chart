@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart Grouped Column Basic</title>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="intro">
+        <p class="eyebrow">Revenue mix</p>
+        <h1>Quarterly channel revenue</h1>
+        <p>Revenue in USD millions across direct, partner, and marketplace channels.</p>
+      </header>
+      <section class="chart-panel">
+        <div class="data-key" aria-label="Series colors">
+          <span><i style="--key-color:#38bdf8"></i>Direct</span>
+          <span><i style="--key-color:#34d399"></i>Partner</span>
+          <span><i style="--key-color:#fbbf24"></i>Marketplace</span>
+        </div>
+        <div id="chart"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
