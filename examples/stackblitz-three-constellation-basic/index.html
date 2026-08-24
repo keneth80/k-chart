@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#060b14" />
+    <title>KChart Three.js Aries</title>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="intro">
+        <p class="eyebrow">KChart Three adapter</p>
+        <h1>Aries constellation</h1>
+        <p class="lede">Explore the ram's brightest stars in an interactive Three.js scene.</p>
+      </header>
+
+      <section class="constellation-panel" aria-label="Interactive Aries constellation">
+        <div class="panel-meta">
+          <div>
+            <span class="catalog-label">IAU constellation</span>
+            <strong>ARI / The Ram</strong>
+          </div>
+          <div class="sky-key" aria-hidden="true">
+            <span></span>
+            Northern sky
+          </div>
+        </div>
+
+        <div id="scene" class="scene-host"></div>
+
+        <div class="interaction-bar">
+          <p id="star-status" aria-live="polite">Drag to orbit. Scroll to zoom. Select a star.</p>
+          <p class="interaction-hint">5 stars / 4 links</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
