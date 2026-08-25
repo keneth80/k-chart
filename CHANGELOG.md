@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.23.0 - 2026-08-25
+
+### Added
+
+- Added the remaining StackBlitz-ready starters for area, grouped and
+  horizontal bars, scatter, bubble, box plot, histogram, gauge, waterfall,
+  and the Three.js constellation example.
 
 ### Changed
 
