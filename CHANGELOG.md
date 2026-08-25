@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.23.0 - 2026-08-25
+
+### Added
+
+- Added the remaining StackBlitz-ready starters for area, grouped and
+  horizontal bars, scatter, bubble, box plot, histogram, gauge, waterfall,
+  and the Three.js constellation example.
+
+### Changed
+
+- Coalesced wheel and drag zoom rendering to the latest state once per
+  animation frame, preventing repeated full-series projection while preserving
+  immediate zoom callbacks and a final render at gesture end.
+
+### Tests
+
+- Added zoom scheduling lifecycle coverage, including overlapping gesture
+  boundaries and authoritative-render cancellation. Three 60-second 300k-point
+  S3 runs completed with zero long tasks; the final reviewed build recorded a
+  50 ms worst frame, down from the previously published multi-second stall.
+
 ## 1.22.0 - 2026-08-20
 
 ### Added
