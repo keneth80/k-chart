@@ -159,6 +159,90 @@ const defaultAnimationContext: KChartAnimationContext = {
 
 const animationCancellation = new WeakMap<object, () => void>();
 
+type ZoomFrameRequester = (callback: (timestamp: number) => void) => number;
+type ZoomFrameCanceller = (frame: number) => void;
+
+export const createZoomRenderScheduler = (
+    renderLatest: () => void,
+    requestFrame: ZoomFrameRequester | undefined = typeof globalThis.requestAnimationFrame === 'function'
+        ? (callback) => globalThis.requestAnimationFrame(callback)
+        : undefined,
+    cancelFrame: ZoomFrameCanceller | undefined = typeof globalThis.cancelAnimationFrame === 'function'
+        ? (frame) => globalThis.cancelAnimationFrame(frame)
+        : undefined
+) => {
+    let scheduledFrame: number | undefined;
+    let renderPending = false;
+    let destroyed = false;
+
+    const cancel = (): void => {
+        if (scheduledFrame !== undefined) {
+            cancelFrame?.(scheduledFrame);
+        }
+        scheduledFrame = undefined;
+        renderPending = false;
+    };
+
+    const flush = (): void => {
+        if (destroyed || !renderPending) {
+            return;
+        }
+        if (scheduledFrame !== undefined) {
+            cancelFrame?.(scheduledFrame);
+        }
+        scheduledFrame = undefined;
+        renderPending = false;
+        renderLatest();
+    };
+
+    return {
+        start(): void {
+            // Keep a frame queued by a gesture that ended just before this one
+            // began. The callback reads current state, so the same frame can
+            // safely paint the newest transform without dropping either input.
+        },
+        schedule(): void {
+            if (destroyed) {
+                return;
+            }
+            renderPending = true;
+            if (scheduledFrame !== undefined) {
+                return;
+            }
+            if (!requestFrame) {
+                flush();
+                return;
+            }
+            // Zoom input can outpace painting, so retain only the latest state per frame.
+            scheduledFrame = requestFrame(() => {
+                scheduledFrame = undefined;
+                flush();
+            });
+        },
+        end(): void {
+            flush();
+        },
+        cancel,
+        destroy(): void {
+            cancel();
+            destroyed = true;
+        }
+    };
+};
+
+type ZoomRenderScheduler = ReturnType<typeof createZoomRenderScheduler>;
+
+const zoomRenderSchedulers = new WeakMap<object, ZoomRenderScheduler>();
+
+const getZoomRenderScheduler = <T = any>(state: KChartState<T>): ZoomRenderScheduler => {
+    let scheduler = zoomRenderSchedulers.get(state);
+    if (!scheduler) {
+        scheduler = createZoomRenderScheduler(() => render(state));
+        zoomRenderSchedulers.set(state, scheduler);
+    }
+    return scheduler;
+};
+
 const now = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
     : Date.now();
@@ -944,6 +1028,7 @@ const resolveZoomedAxes = <T = any>(
 };
 
 const resetZoom = <T = any>(state: KChartState<T>): void => {
+    zoomRenderSchedulers.get(state)?.cancel();
     state.zoomTransform = zoomIdentity;
     state.axes = cloneAxes(state.initialAxes);
     state.baseAxes = cloneAxes(state.initialAxes);
@@ -1070,6 +1155,7 @@ const applySelectionZoom = <T = any>(state: KChartState<T>): void => {
         axes: state.axes
     };
     state.config.zoom?.onZoom?.(nextZoom);
+    zoomRenderSchedulers.get(state)?.cancel();
     render(state);
 };
 
@@ -1152,6 +1238,9 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                 }
                 return false;
             })
+            .on('start', () => {
+                getZoomRenderScheduler(state).start();
+            })
             .on('zoom', (event: D3ZoomEvent<any, unknown>) => {
                 state.zoomTransform = event.transform;
                 const nextZoom = resolveZoomedAxes(state, event.transform);
@@ -1161,7 +1250,10 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                     axes: state.axes
                 };
                 zoomConfig?.onZoom?.(nextZoom);
-                render(state);
+                getZoomRenderScheduler(state).schedule();
+            })
+            .on('end', () => {
+                zoomRenderSchedulers.get(state)?.end();
             });
 
         eventTarget.call(zoomBehavior as any);
@@ -1874,6 +1966,9 @@ export const createKChart = <T = any>(
 
     const controller: KChartController<T> = {
         render() {
+            // Explicit renders are authoritative. Discard a queued zoom paint
+            // so it cannot immediately restart/cancel an update animation.
+            zoomRenderSchedulers.get(state)?.cancel();
             render(state);
             return controller;
         },
@@ -1881,6 +1976,7 @@ export const createKChart = <T = any>(
             return state.renderCompletion.promise;
         },
         updateData(data: T[]) {
+            zoomRenderSchedulers.get(state)?.cancel();
             const previousScales = state.scales;
             state.data = data;
             state.config = {
@@ -1891,6 +1987,7 @@ export const createKChart = <T = any>(
             return controller;
         },
         updateAxes(axes: KChartAxis<T>[]) {
+            zoomRenderSchedulers.get(state)?.cancel();
             state.axes = cloneAxes(axes);
             state.initialAxes = cloneAxes(axes);
             state.baseAxes = cloneAxes(axes);
@@ -1922,6 +2019,7 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         destroy() {
+            getZoomRenderScheduler(state).destroy();
             cancelSeriesAnimation(state);
             state.series.forEach((series: KChartSeries<T>) => {
                 if (series.destroy) {
