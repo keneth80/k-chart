@@ -80,6 +80,43 @@ export interface KChartColumnChartOptions<T = any> extends KChartSimpleBaseOptio
     barRatio?: number;
 }
 
+export interface KChartPieSliceLabelContext<T = any> {
+    data: T;
+    datum: T;
+    label: string;
+    value: number;
+    total: number;
+    percentage: number;
+    index: number;
+    color: string;
+}
+
+export type KChartPieSliceLabelFormatter<T = any> = (
+    context: KChartPieSliceLabelContext<T>
+) => string | string[];
+
+export interface KChartPieLeaderLineConfiguration {
+    visible?: boolean;
+    color?: string;
+    width?: number;
+    length?: number;
+}
+
+export interface KChartPieLabelCollisionConfiguration {
+    minGap?: number;
+    padding?: number;
+}
+
+export interface KChartPieSliceLabelOptions<T = any> {
+    visible?: boolean;
+    position?: 'radial' | 'outside';
+    formatter?: KChartPieSliceLabelFormatter<T>;
+    leaderLine?: boolean | KChartPieLeaderLineConfiguration;
+    minPercentage?: number;
+    maxVisible?: number;
+    collision?: boolean | KChartPieLabelCollisionConfiguration;
+}
+
 export interface KChartPieChartOptions<T = any> extends KChartSimpleBaseOptions<T> {
     label: keyof T & string;
     value: keyof T & string;
@@ -87,6 +124,7 @@ export interface KChartPieChartOptions<T = any> extends KChartSimpleBaseOptions<
     innerRadiusRatio?: number;
     palette?: string[];
     labelVisible?: boolean;
+    sliceLabel?: KChartPieSliceLabelFormatter<T> | KChartPieSliceLabelOptions<T>;
 }
 
 export type KChartSimpleBuildOptions<T = any> = Partial<KChartConfiguration<T>> & {
@@ -274,10 +312,12 @@ const createPiePresetSeries = <T = any>(
         innerRadiusRatio?: number;
         palette?: string[];
         labelVisible?: boolean;
+        sliceLabel?: KChartPieSliceLabelFormatter<T> | KChartPieSliceLabelOptions<T>;
     } = {}
 ): KChartSeries<T> => {
     type Segment = {
         point: T;
+        index: number;
         label: string;
         value: number;
         startAngle: number;
@@ -295,6 +335,7 @@ const createPiePresetSeries = <T = any>(
             const angle = value / total * Math.PI * 2;
             const segment: Segment = {
                 point,
+                index,
                 label: String(point[labelField]),
                 value,
                 startAngle: cursor,
@@ -326,6 +367,177 @@ const createPiePresetSeries = <T = any>(
         return `M${outerStartX},${outerStartY} A${outerRadius},${outerRadius} 0 ${largeArcFlag} 1 ${outerEndX},${outerEndY} L${innerEndX},${innerEndY} A${innerRadius},${innerRadius} 0 ${largeArcFlag} 0 ${innerStartX},${innerStartY} Z`;
     };
 
+    type LabelLayout = {
+        segment: Segment;
+        context: KChartPieSliceLabelContext<T>;
+        lines: string[];
+        side: -1 | 1;
+        x: number;
+        y: number;
+        targetY: number;
+        halfHeight: number;
+    };
+
+    const clamp = (value: number, minimum: number, maximum: number): number => Math.min(
+        maximum,
+        Math.max(minimum, value)
+    );
+
+    const resolveSliceLabelOption = (): KChartPieSliceLabelOptions<T> => typeof option.sliceLabel === 'function'
+        ? {formatter: option.sliceLabel}
+        : option.sliceLabel ?? {};
+
+    const estimateLabelWidth = (lines: string[]): number => Math.max(
+        0,
+        ...lines.map((line) => Array.from(line).reduce((width, character) => (
+            width + (character.charCodeAt(0) > 0xff ? 11 : 6.5)
+        ), 0))
+    );
+
+    const resolveLabelLayouts = (
+        segments: Segment[],
+        total: number,
+        centerX: number,
+        centerY: number,
+        outerRadius: number,
+        plotSize: KChartSize
+    ): LabelLayout[] => {
+        const labelOption = resolveSliceLabelOption();
+        const position = labelOption.position ?? 'radial';
+        const configuredMinPercentage = Number(labelOption.minPercentage ?? 0);
+        const minPercentage = Number.isFinite(configuredMinPercentage)
+            ? Math.max(0, configuredMinPercentage)
+            : 0;
+        const configuredMaxVisible = Number(labelOption.maxVisible);
+        const maxVisible = Number.isFinite(configuredMaxVisible)
+            ? Math.max(0, Math.floor(configuredMaxVisible))
+            : undefined;
+        const leaderLine = typeof labelOption.leaderLine === 'object'
+            ? labelOption.leaderLine
+            : {};
+        const leaderLength = Math.max(0, leaderLine.length ?? 18);
+        const collision = typeof labelOption.collision === 'object'
+            ? labelOption.collision
+            : {};
+        const collisionEnabled = labelOption.collision !== false;
+        const minGap = Math.max(0, collision.minGap ?? 16);
+        const padding = Math.max(0, collision.padding ?? 8);
+        let contexts = segments
+            .map((segment): KChartPieSliceLabelContext<T> => ({
+                data: segment.point,
+                datum: segment.point,
+                label: segment.label,
+                value: segment.value,
+                total,
+                percentage: total > 0 ? segment.value / total * 100 : 0,
+                index: segment.index,
+                color: segment.color
+            }))
+            .filter((context) => context.percentage >= minPercentage);
+
+        if (maxVisible !== undefined && contexts.length > maxVisible) {
+            contexts = contexts
+                .sort((left, right) => right.percentage - left.percentage || left.index - right.index)
+                .slice(0, maxVisible)
+                .sort((left, right) => left.index - right.index);
+        }
+
+        const layouts = contexts.map((context): LabelLayout => {
+            const segment = segments[context.index];
+            const midAngle = (segment.startAngle + segment.endAngle) / 2;
+            const side: -1 | 1 = Math.cos(midAngle) < 0 ? -1 : 1;
+            const labelRadius = position === 'outside'
+                ? outerRadius + leaderLength + 10
+                : outerRadius + 28;
+            const [radialX, radialY] = pointOnCircle(centerX, centerY, labelRadius, midAngle);
+            const output = labelOption.formatter?.(context)
+                ?? `${context.label} ${Math.round(context.percentage)}%`;
+            const outputLines = (Array.isArray(output) ? output : [output]).map(String);
+            const lines = outputLines.length > 0 ? outputLines : [''];
+            const estimatedWidth = estimateLabelWidth(lines);
+            const rawX = centerX + side * labelRadius;
+            const outsideX = side > 0
+                ? Math.max(4, Math.min(rawX, plotSize.width - estimatedWidth - 4))
+                : Math.min(plotSize.width - 4, Math.max(rawX, estimatedWidth + 4));
+            const halfHeight = Math.max(11, lines.length * 12.1) / 2;
+
+            return {
+                segment,
+                context,
+                lines,
+                side,
+                x: position === 'outside'
+                    ? outsideX
+                    : radialX,
+                y: radialY,
+                targetY: radialY,
+                halfHeight
+            };
+        });
+
+        if (position !== 'outside') {
+            return layouts;
+        }
+
+        for (const side of [-1, 1] as const) {
+            const sideLayouts = layouts
+                .filter((layout) => layout.side === side)
+                .sort((left, right) => left.targetY - right.targetY);
+
+            if (!collisionEnabled) {
+                sideLayouts.forEach((layout) => {
+                    layout.y = clamp(
+                        layout.targetY,
+                        padding + layout.halfHeight,
+                        Math.max(padding + layout.halfHeight, plotSize.height - padding - layout.halfHeight)
+                    );
+                });
+                continue;
+            }
+
+            const totalLabelHeight = sideLayouts.reduce(
+                (height, layout) => height + layout.halfHeight * 2,
+                0
+            );
+            const availableGapHeight = Math.max(0, plotSize.height - padding * 2 - totalLabelHeight);
+            const gap = sideLayouts.length > 1
+                ? Math.min(minGap, availableGapHeight / (sideLayouts.length - 1))
+                : 0;
+            sideLayouts.forEach((layout, index) => {
+                const minimumY = padding + layout.halfHeight;
+                const maximumY = Math.max(
+                    minimumY,
+                    plotSize.height - padding - layout.halfHeight
+                );
+                const previous = sideLayouts[index - 1];
+                layout.y = Math.max(
+                    clamp(layout.targetY, minimumY, maximumY),
+                    index === 0
+                        ? minimumY
+                        : previous.y + previous.halfHeight + layout.halfHeight + gap
+                );
+            });
+
+            if (sideLayouts.length > 0) {
+                const lastLayout = sideLayouts[sideLayouts.length - 1];
+                lastLayout.y = Math.min(
+                    lastLayout.y,
+                    plotSize.height - padding - lastLayout.halfHeight
+                );
+                for (let index = sideLayouts.length - 2; index >= 0; index -= 1) {
+                    const current = sideLayouts[index];
+                    const next = sideLayouts[index + 1];
+                    sideLayouts[index].y = Math.min(
+                        current.y,
+                        next.y - next.halfHeight - current.halfHeight - gap
+                    );
+                }
+            }
+        }
+
+        return layouts;
+    };
+
     return createCustomSeries<T>({
         selector,
         displayName: option.displayName ?? String(valueField),
@@ -338,7 +550,7 @@ const createPiePresetSeries = <T = any>(
             const innerRadius = outerRadius * (option.innerRadiusRatio ?? 0);
             const progress = animation.enabled ? animation.progress : 1;
             const segments = createSegments(data);
-            const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+            const total = segments.reduce((sum, segment) => sum + segment.value, 0);
             const visibleSegments = segments.map((segment) => ({
                 ...segment,
                 endAngle: segment.startAngle + (segment.endAngle - segment.startAngle) * progress
@@ -355,24 +567,84 @@ const createPiePresetSeries = <T = any>(
                 .style('stroke-width', 2)
                 .style('stroke-opacity', progress);
 
-            if (option.labelVisible === false) {
+            const labelOption = resolveSliceLabelOption();
+            const labelsVisible = labelOption.visible ?? option.labelVisible ?? true;
+            if (!labelsVisible) {
                 group.selectAll(`text.${selector}-label`).remove();
+                group.selectAll(`polyline.${selector}-label-line`).remove();
                 return;
             }
 
-            group.selectAll<SVGTextElement, Segment>(`text.${selector}-label`)
-                .data(segments)
+            const labelLayouts = resolveLabelLayouts(
+                segments,
+                total,
+                centerX,
+                centerY,
+                outerRadius,
+                plotSize
+            );
+            const position = labelOption.position ?? 'radial';
+            const leaderLine = typeof labelOption.leaderLine === 'object'
+                ? labelOption.leaderLine
+                : {};
+            const leaderLineVisible = position === 'outside'
+                && labelOption.leaderLine !== false
+                && leaderLine.visible !== false;
+            const leaderLength = Math.max(0, leaderLine.length ?? 18);
+
+            group.selectAll<SVGPolylineElement, LabelLayout>(`polyline.${selector}-label-line`)
+                .data(leaderLineVisible ? labelLayouts : [])
+                .join('polyline')
+                .attr('class', `${selector}-label-line`)
+                .attr('points', (layout) => {
+                    const midAngle = (layout.segment.startAngle + layout.segment.endAngle) / 2;
+                    const start = pointOnCircle(centerX, centerY, outerRadius + 2, midAngle);
+                    const elbow = pointOnCircle(
+                        centerX,
+                        centerY,
+                        outerRadius + leaderLength * 0.65,
+                        midAngle
+                    );
+                    const endX = layout.x - layout.side * 6;
+                    return `${start[0]},${start[1]} ${elbow[0]},${elbow[1]} ${endX},${layout.y}`;
+                })
+                .style('fill', 'none')
+                .style('stroke', (layout) => leaderLine.color ?? layout.context.color)
+                .style('stroke-width', leaderLine.width ?? 1)
+                .style('stroke-opacity', progress);
+
+            const labelSelection = group.selectAll<SVGTextElement, LabelLayout>(`text.${selector}-label`)
+                .data(labelLayouts)
                 .join('text')
                 .attr('class', `${selector}-label`)
-                .attr('x', (segment) => pointOnCircle(centerX, centerY, outerRadius + 28, (segment.startAngle + segment.endAngle) / 2)[0])
-                .attr('y', (segment) => pointOnCircle(centerX, centerY, outerRadius + 28, (segment.startAngle + segment.endAngle) / 2)[1])
-                .attr('text-anchor', 'middle')
+                .attr('data-index', (layout) => layout.context.index)
+                .attr('x', (layout) => layout.x)
+                .attr('y', (layout) => layout.y)
+                .attr('text-anchor', (layout) => position === 'outside'
+                    ? layout.side > 0 ? 'start' : 'end'
+                    : 'middle')
                 .attr('dominant-baseline', 'middle')
                 .style('fill', 'rgba(231, 244, 255, 0.86)')
                 .style('font-size', '11px')
                 .style('font-weight', 700)
                 .style('opacity', progress)
-                .text((segment) => `${segment.label} ${Math.round(segment.value / total * 100)}%`);
+                .text((layout) => layout.lines.length === 1 ? layout.lines[0] : '');
+
+            labelSelection
+                .filter((layout) => layout.lines.length > 1)
+                .selectAll<SVGTSpanElement, {text: string; x: number; index: number; count: number}>('tspan')
+                .data((layout) => layout.lines.map((text, index) => ({
+                    text,
+                    x: layout.x,
+                    index,
+                    count: layout.lines.length
+                })))
+                .join('tspan')
+                .attr('x', (line) => line.x)
+                .attr('dy', (line) => line.index === 0
+                    ? `${-(line.count - 1) * 0.55}em`
+                    : '1.1em')
+                .text((line) => line.text);
         },
         tooltip({data, plotSize, seriesGroup, mouseX, mouseY}) {
             const centerX = plotSize.width / 2;

@@ -615,6 +615,120 @@ pre > code {
     min-height: 520px;
 }
 
+.container-chart.doughnut-scroll-chart {
+    min-height: 500px;
+    container-type: inline-size;
+}
+
+.doughnut-scroll-legend {
+    position: absolute;
+    z-index: 4;
+    top: 82px;
+    right: 18px;
+    bottom: 22px;
+    width: 246px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px 10px 12px 14px;
+    overflow: hidden;
+    border: 1px solid rgba(215, 228, 238, 0.18);
+    border-radius: 7px;
+    background: rgba(13, 20, 29, 0.9);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: var(--metal-1);
+}
+
+.doughnut-scroll-legend-list:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: -2px;
+}
+
+.doughnut-scroll-legend header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding-right: 6px;
+}
+
+.doughnut-scroll-legend header strong {
+    font-size: 12px;
+}
+
+.doughnut-scroll-legend header span {
+    color: var(--metal-3);
+    font-size: 10px;
+}
+
+.doughnut-scroll-legend-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: rgba(148, 163, 184, 0.6) rgba(148, 163, 184, 0.08);
+    scrollbar-width: thin;
+}
+
+.doughnut-scroll-legend-list::-webkit-scrollbar {
+    width: 7px;
+}
+
+.doughnut-scroll-legend-list::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.06);
+}
+
+.doughnut-scroll-legend-list::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 7px;
+    background: rgba(148, 163, 184, 0.58);
+    background-clip: padding-box;
+}
+
+.doughnut-scroll-legend-item {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    min-height: 34px;
+    padding: 4px 8px 4px 2px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.doughnut-scroll-legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.doughnut-scroll-legend-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--metal-2);
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.doughnut-scroll-legend-metric {
+    color: var(--metal-1);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 679px) {
+    .doughnut-scroll-legend {
+        top: auto;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        width: auto;
+        height: 220px;
+    }
+}
+
 .container-chart.tree-chart {
     height: 520px;
     min-height: 520px;

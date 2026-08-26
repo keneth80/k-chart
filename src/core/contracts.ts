@@ -746,6 +746,21 @@ export interface KChartGeoRegionMapZoomConfiguration {
     scaleExtent?: [number, number];
 }
 
+export interface KChartGeoRegionMapColorLegendConfiguration {
+    visible?: boolean;
+    title?: string;
+    position?: 'bottom-left' | 'bottom-center' | 'bottom-right';
+    domain?: [number, number];
+    colors?: string[];
+    labels?: string[];
+    width?: number;
+    height?: number;
+    offset?: number;
+    backgroundFill?: string;
+    borderColor?: string;
+    textColor?: string;
+}
+
 export interface KChartGeoRegionMapMarkerClickContext {
     marker: KChartGeoRegionMapMarker;
     event: MouseEvent;
@@ -807,6 +822,7 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     hoverStroke?: string;
     hoverStrokeWidth?: number;
     zoom?: boolean | KChartGeoRegionMapZoomConfiguration;
+    colorLegend?: boolean | KChartGeoRegionMapColorLegendConfiguration;
     labels?: boolean | KChartGeoRegionMapLabelConfiguration<T>;
     bubbles?: KChartGeoRegionMapBubble[];
     markers?: KChartGeoRegionMapMarker[];

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="KChart custom SVG doughnut chart with formatted outside labels and a scrollable HTML legend."
+    />
+    <title>KChart Scrollable Doughnut Legend</title>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">KChart · Custom SVG</p>
+        <h1>서비스 운영 현황</h1>
+        <p>함수로 조합한 외곽 라벨과 독립적인 스크롤 범례로 많은 카테고리를 탐색합니다.</p>
+      </header>
+
+      <section class="dashboard-card" aria-label="서비스 워크로드 구성 차트">
+        <div class="chart-region">
+          <div id="chart"></div>
+        </div>
+
+        <aside class="legend-panel" aria-labelledby="legend-title">
+          <header class="legend-header">
+            <div>
+              <p class="legend-kicker">최근 24시간</p>
+              <h2 id="legend-title">서비스별 활성 세션</h2>
+            </div>
+            <span class="legend-count" id="legend-count"></span>
+          </header>
+          <div class="legend-scroll" tabindex="0" aria-label="서비스 범례 스크롤 영역">
+            <ul id="legend-list" class="legend-list"></ul>
+          </div>
+          <footer class="legend-footer">
+            <span>단위</span>
+            <strong>세션</strong>
+          </footer>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.25.0 - 2026-08-27
+
+### Added
+
+- Added configurable pie and doughnut `sliceLabel` formatters with access to
+  the original datum, value, total, percentage, index, and segment color.
+- Added outside slice labels with leader lines, minimum-percentage and
+  maximum-count filtering, multi-line output, collision spacing, and plot-bound
+  clamping.
+- Added continuous value coloring and a fixed color legend for SVG region maps,
+  including configurable domains, palettes, labels, placement, and styling.
+- Added StackBlitz-ready world activity map and scrollable doughnut legend
+  examples.
+
+### Changed
+
+- Documented how to combine formatted outside doughnut labels with a separately
+  scrollable detail legend for dense category sets.
+
+### Tests
+
+- Added regression coverage for region-map color domains and legends, pie label
+  formatter contexts, filtering, collision layout, leader lines, and legacy
+  label visibility.
+
 ## 1.24.1 - 2026-08-26
 
 ### Changed
