@@ -904,6 +904,24 @@ createWorldCountryMapSeries<Country>({
 });
 ```
 
+`colorLegend`를 사용하면 `valueField`의 숫자 값을 연속 색상으로 변환하고, 지도 확대와 무관하게 고정되는 범례를 함께 표시할 수 있습니다. `colorField` 또는 `fill`을 명시하면 기존 사용자 지정 색상이 우선합니다. `domain`을 생략하면 현재 데이터의 최솟값과 최댓값을 사용합니다.
+
+```ts
+createWorldCountryMapSeries<Country>({
+    selector: 'world-activity',
+    dataKey: 'name',
+    valueField: 'activity',
+    colorLegend: {
+        visible: true,
+        title: '국가별 활동 지수',
+        position: 'bottom-left',
+        domain: [0, 100],
+        colors: ['#274c77', '#2a9d8f', '#e9c46a', '#e76f51'],
+        labels: ['낮음', '보통', '높음', '매우 높음']
+    }
+});
+```
+
 지도 위에 좌표 기반 강조 요소가 필요하면 `bubbles`와 `markers`를 함께 사용할 수 있습니다. 둘 다 일반적인 위도/경도 값을 사용하며 내부에서 `projection([lon, lat])`로 화면 좌표를 계산합니다. `bubbles`는 지도 위 원형 분포/규모 표현에 적합하고, `markers`는 사진 썸네일, 라벨, 핀 형태의 지점 표시를 제공합니다. `imageUrl`에는 일반 이미지 URL이나 `data:image/...` URI를 넣을 수 있습니다. 마커별 `onClick`을 지정하면 원본 marker, 화면 좌표, mouse event를 받아 팝업이나 상세 이동을 연결할 수 있습니다.
 
 ```ts
@@ -944,6 +962,7 @@ createWorldCountryMapSeries<Country>({
 
 - [Korea Region Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-korea-region-map-basic?title=KChart%20Korea%20Region%20Map&file=src/main.ts)
 - [World Country Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts)
+- [World Activity Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts)
 - [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
 
 ## Display Options
@@ -969,6 +988,33 @@ createKChart({
 ```
 
 The default tooltip shows the active series name and nearest x/y values. Provide `tooltip.formatter` for custom HTML/text.
+
+Pie and doughnut presets accept `sliceLabel` when labels need domain-specific text or an outside layout. The formatter receives the original datum together with the computed label, value, total, percentage, index, and segment color. Returning an array renders a multi-line SVG label.
+
+```ts
+createDoughnutChart({
+    selector: '#chart',
+    data: services,
+    label: 'label',
+    value: 'value',
+    innerRadiusRatio: 0.58,
+    sliceLabel: {
+        position: 'outside',
+        formatter: ({data, percentage}) =>
+            `${data.category} · ${percentage.toFixed(1)}%`,
+        leaderLine: {visible: true, length: 16},
+        minPercentage: 2.2,
+        maxVisible: 12,
+        collision: {minGap: 22, padding: 8}
+    }
+});
+```
+
+`minPercentage` and `maxVisible` keep dense outside labels readable; filtered slices remain in the chart and tooltip. Keep every category in the scrollable detail legend described below.
+
+When one custom series has many internal categories, such as doughnut segments, keep its detailed legend separate from KChart's series legend. Set `legend.visible: false`, reserve chart margin for an HTML legend, and apply `overflow-y: auto` to a fixed-height list. The list can then scroll without moving or resizing the SVG plot; on narrow screens, place the same list below the chart.
+
+Full example: [Scrollable Doughnut Legend StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-doughnut-scroll-legend?title=KChart%20Scrollable%20Doughnut%20Legend&file=src/main.ts)
 
 ### Pinned Tooltip Notes
 
