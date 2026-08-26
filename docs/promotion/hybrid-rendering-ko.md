@@ -11,7 +11,6 @@ KChart는 셋 중 하나를 고르는 대신, **축과 scale을 공통 코어가
 > KChart는 SVG, Canvas, WebGL을 한 차트에서 조합하고 같은 scale을 공유하는 TypeScript 기반 함수형 시각화 런타임이다.
 
 - Playground: <https://k-chart-playground.vercel.app/>
-- Benchmark: <https://k-chart-bench.vercel.app/>
 - GitHub: <https://github.com/keneth80/k-chart>
 
 ## 왜 렌더러를 분리했나
@@ -188,16 +187,6 @@ KChart는 모든 데이터를 무조건 WebGL로 보내지 않는다. 데이터 
 | 축은 SVG, 대량 시리즈는 GPU | SVG + WebGL |
 | 업무 전용 표현 추가 | Custom series |
 
-## 성능 수치는 재현 조건과 함께 봐야 한다
-
-차트 성능은 데이터 형태, renderer 설정, animation, viewport, 브라우저와 측정 종점에 따라 달라진다. 그래서 단일 숫자를 라이브러리 전체의 절대 순위로 사용하면 안 된다.
-
-KChart Benchmark는 데이터 크기, 라이브러리 버전, 실행 환경과 반복 측정값을 함께 공개한다.
-
-- <https://k-chart-bench.vercel.app/>
-
-벤치마크는 홍보 문구를 증명하기 위한 장식이 아니라, 병목을 찾고 다음 최적화를 결정하기 위한 도구로 사용한다.
-
 ## 마무리
 
 KChart의 하이브리드 렌더링은 세 가지 렌더러를 한꺼번에 자랑하기 위한 기능이 아니다. **좌표 계산과 표현을 분리해 데이터 규모와 업무 요구에 맞는 렌더러를 선택하는 구조**다.
@@ -212,4 +201,3 @@ npm install @keneth80/k-chart
 
 - Playground: <https://k-chart-playground.vercel.app/>
 - GitHub: <https://github.com/keneth80/k-chart>
-

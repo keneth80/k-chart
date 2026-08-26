@@ -6,7 +6,7 @@
 - 화면: 1280×720, 16:9
 - 오디오: 없음
 - 전달 방식: 큰 자막 + 실제 Playground 화면 + 부드러운 확대/전환
-- CTA: Playground, Benchmark, GitHub
+- CTA: Playground, GitHub
 
 ## 장면
 
@@ -24,6 +24,4 @@
 KChart는 축과 scale을 코어에서 계산하고 SVG, Canvas, WebGL renderer가 같은 좌표계를 공유합니다. 데이터 크기와 interaction 요구에 맞춰 renderer를 선택하거나 한 차트에서 함께 사용할 수 있습니다.
 
 - Playground: https://k-chart-playground.vercel.app/
-- Benchmark: https://k-chart-bench.vercel.app/
 - GitHub: https://github.com/keneth80/k-chart
-

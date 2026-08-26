@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.24.0 - 2026-08-26
+
+### Added
+
+- Added the `rangeNavigator` configuration and
+  `createRangeNavigatorOption()` factory for number/time axes, providing a
+  compact overview chart with a draggable D3 brush selection.
+- Added a GitHub Contributors-style weekly commit example with columns, a
+  right-side contribution axis, and an interactive bottom range navigator.
+
+### Changed
+
+- Reserved navigator-aware bottom margins only for supported continuous axes
+  and preserved a minimum axis footer for labels and titles.
+- Kept the selected navigator range synchronized across data updates,
+  including reversed, partially overlapping, disjoint, and endpoint-touching
+  domains.
+
+### Fixed
+
+- Kept grouped endpoint columns inside the plot by clamping their complete
+  rendered width, including minimum bar widths and segment gaps.
+- Prevented callback-triggered updates or destruction from scheduling a stale
+  duplicate navigator render.
+
+### Tests
+
+- Added range normalization, pixel conversion, data-domain reconciliation,
+  navigator layout, and dense grouped-column geometry regression coverage.
+
 ## 1.23.0 - 2026-08-25
 
 ### Added

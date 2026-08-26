@@ -936,6 +936,25 @@ export interface KChartGuideLinesConfiguration {
     y?: KChartFixedGuideLine[];
 }
 
+export type KChartRangeNavigatorValue = number | Date;
+export type KChartRangeNavigatorRange = [
+    KChartRangeNavigatorValue,
+    KChartRangeNavigatorValue
+];
+
+export interface KChartRangeNavigatorConfiguration<T = any> {
+    visible?: boolean;
+    height?: number;
+    gap?: number;
+    xField?: keyof T & string;
+    yField?: keyof T & string;
+    stroke?: string;
+    fill?: string;
+    selectionFill?: string;
+    handleFill?: string;
+    onRangeChange?: (range: KChartRangeNavigatorRange) => void;
+}
+
 export interface KChartSpecAreaOption {
     type: 'spec-area';
     visible?: boolean;
@@ -953,6 +972,12 @@ export interface KChartCursorLineOption {
     type: 'cursor-line';
     visible?: boolean;
     config?: KChartCursorGuideConfiguration;
+}
+
+export interface KChartRangeNavigatorOption<T = any> {
+    type: 'range-navigator';
+    visible?: boolean;
+    config?: KChartRangeNavigatorConfiguration<T>;
 }
 
 export interface KChartTooltipNote<T = any> {
@@ -989,6 +1014,7 @@ export type KChartOption<T = any> =
     | KChartSpecAreaOption
     | KChartGuideLineOption
     | KChartCursorLineOption
+    | KChartRangeNavigatorOption<T>
     | KChartTooltipNoteOption<T>;
 
 export interface KChartConfiguration<T = any> {
@@ -1010,6 +1036,7 @@ export interface KChartConfiguration<T = any> {
     cursorGuide?: KChartCursorGuideConfiguration;
     guideLine?: KChartCursorGuideConfiguration;
     guideLines?: KChartGuideLinesConfiguration;
+    rangeNavigator?: KChartRangeNavigatorConfiguration<T>;
     options?: KChartOption<T>[];
     animation?: boolean | KChartAnimationConfiguration;
     onRenderComplete?: (event: KChartRenderCompleteEvent) => void;

@@ -21,13 +21,11 @@ KChart의 코어는 축, scale, layout을 계산합니다. 실제 시리즈는 �
 4. LTTB, Worker, 실시간 데이터의 역할
 5. 커스텀 시각화를 함수로 확장하는 구조
 
-라이브 예제와 재현 가능한 벤치마크도 함께 공개하고 있습니다.
+라이브 예제와 사용 문서도 함께 공개하고 있습니다.
 
 Playground: https://k-chart-playground.vercel.app/
-Benchmark: https://k-chart-bench.vercel.app/
 GitHub: https://github.com/keneth80/k-chart
 
 직접 사용해 보시고 API나 구조에서 불편한 점을 Issue로 남겨주시면 다음 개선에 반영하겠습니다.
 
 #TypeScript #DataVisualization #WebGL #Canvas #SVG #D3js #OpenSource #Frontend #KChart
-
