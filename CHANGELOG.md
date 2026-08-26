@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.24.1 - 2026-08-26
+
+### Changed
+
+- Added an internal numeric-field LTTB fast path that reads `xField` and
+  `yField` values directly, avoiding millions of accessor closure calls for
+  large object-array datasets.
+- Kept Date, string, nullish, mixed-value, and custom-accessor downsampling on
+  the existing conversion path without changing the public API.
+
+### Tests
+
+- Added exact point-reference equivalence coverage for numeric and generic
+  LTTB paths, including thresholds, ties, non-finite values, sparse data, and
+  custom accessor precedence.
+- Added package export coverage to keep the optimized dispatch pipeline an
+  internal implementation detail.
+
 ## 1.24.0 - 2026-08-26
 
 ### Added
