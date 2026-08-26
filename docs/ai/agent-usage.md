@@ -65,7 +65,7 @@ For local exceptions that must not be committed, use the tool's supported local 
 
 Use `.cursor/rules/*.mdc`; `.cursorrules` is legacy. A KChart rule should be focused, auto-attached to chart files where possible, and reference this guide plus `ai/catalog.json`.
 
-The repository includes `.cursor/rules/kchart.mdc` as a starting point.
+Consumer projects can add their own Cursor rule when they use Cursor. KChart does not ship editor-specific project configuration in the library repository.
 
 ## Verification checklist
 
