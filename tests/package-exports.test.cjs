@@ -13,5 +13,10 @@ assert.equal(typeof createLineSeries, 'function');
 assert.equal(typeof createCanvasLineSeries, 'function');
 assert.equal(typeof createWebglLineSeries, 'function');
 assert.equal(typeof createRangeNavigatorOption, 'function');
+assert.throws(
+    () => require('@keneth80/k-chart/internal/downsample'),
+    (error) => error?.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED',
+    'numeric LTTB dispatch must remain an internal implementation detail'
+);
 
 console.log('Granular package export tests passed.');
