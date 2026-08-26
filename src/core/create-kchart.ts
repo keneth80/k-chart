@@ -24,11 +24,8 @@ import {
 } from '../options/tooltip-note';
 import {isCanvasTransferred} from '../series/support/canvas';
 import {resolveScalePosition} from '../series/support/scale';
-import {downsampleLTTB} from '../utils/downsample-lttb';
-import {
-    resolveAxisDomain,
-    resolveDownsampleAccessor
-} from './domain';
+import {resolveSeriesRenderData} from '../internal/downsample';
+import {resolveAxisDomain} from './domain';
 import {applyAxisTickCount} from './ticks';
 import {interpolateResolvedScales} from './animation';
 import {
@@ -52,8 +49,6 @@ import type {
     KChartMargin,
     KChartSize,
     KChartResolvedScale,
-    KChartDownsampleContext,
-    KChartDownsampleConfiguration,
     KChartAnimationConfiguration,
     KChartAnimationContext,
     KChartAnimationEasing,
@@ -724,56 +719,6 @@ const resolveAxisTransform = (
     }
 
     return 'translate(0, 0)';
-};
-
-const resolveDownsampleThreshold = <T = any>(
-    downsample: boolean | KChartDownsampleConfiguration<T>,
-    context: KChartDownsampleContext<T>
-): number => {
-    if (typeof downsample === 'boolean') {
-        return Math.max(3, Math.floor(context.plotSize.width));
-    }
-
-    if (typeof downsample.threshold === 'function') {
-        return downsample.threshold(context);
-    }
-
-    return downsample.threshold ?? Math.max(3, Math.floor(context.plotSize.width));
-};
-
-const resolveSeriesRenderData = <T = any>(
-    state: KChartState<T>,
-    series: KChartSeries<T>,
-    xScale?: KChartResolvedScale<T>,
-    yScale?: KChartResolvedScale<T>
-): T[] => {
-    const downsample = series.downsample;
-
-    if (!downsample || (typeof downsample !== 'boolean' && downsample.enabled === false)) {
-        return state.data;
-    }
-
-    const xAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.xField, xScale, state.data)
-        : downsample.xAccessor ?? resolveDownsampleAccessor(series.xField, xScale, state.data);
-    const yAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.yField, yScale, state.data)
-        : downsample.yAccessor ?? resolveDownsampleAccessor(series.yField, yScale, state.data);
-
-    if (!xAccessor || !yAccessor) {
-        return state.data;
-    }
-
-    const context: KChartDownsampleContext<T> = {
-        data: state.data,
-        plotSize: state.plotSize,
-        series,
-        xField: series.xField,
-        yField: series.yField
-    };
-    const threshold = resolveDownsampleThreshold(downsample, context);
-
-    return downsampleLTTB(state.data, threshold, xAccessor, yAccessor);
 };
 
 const renderTitle = <T = any>(state: KChartState<T>): void => {
@@ -1777,7 +1722,7 @@ const renderSeries = <T = any>(
             .data([series])
             .join('g')
             .attr('class', `${series.selector}-group`);
-        const renderData = resolveSeriesRenderData(state, series, xScale, yScale);
+        const renderData = resolveSeriesRenderData(state.data, state.plotSize, series, xScale, yScale);
 
         series.render({
             ...state.layers,
