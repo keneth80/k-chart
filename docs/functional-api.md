@@ -1015,6 +1015,11 @@ createKChart({
         createCursorLineOption({
             valueFormat: (value: number) => Number(value).toFixed(1)
         }),
+        createRangeNavigatorOption<Point>({
+            xField: 'time',
+            yField: 'value',
+            height: 56
+        }),
         createTooltipNoteOption<Point>({
             maxNotes: 8,
             onChange: (notes) => console.info(notes)
@@ -1023,7 +1028,7 @@ createKChart({
 });
 ```
 
-기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드도 호환됩니다. 새 코드에서는 option factory 사용을 권장합니다.
+`createRangeNavigatorOption(...)`은 number/time x축의 전체 overview와 brush를 추가합니다. 같은 설정을 `rangeNavigator` 직접 필드로 지정해도 됩니다. 기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드도 호환됩니다. 새 코드에서는 option factory 사용을 권장합니다.
 
 ## Custom Series
 

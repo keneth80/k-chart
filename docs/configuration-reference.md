@@ -28,7 +28,7 @@ createKChart({
 | `data` | `T[]` | yes | - | 차트 전체 데이터입니다. 모든 series와 axis domain 계산이 이 배열을 기준으로 동작합니다. |
 | `axes` | `KChartAxis<T>[]` | yes | - | x/y/top/right scale과 axis 정의입니다. |
 | `series` | `KChartSeries<T>[]` | yes | - | 렌더링할 series 목록입니다. |
-| `options` | `KChartOption<T>[]` | no | `[]` | spec area, guide line, cursor line, tooltip note 등 plugin형 옵션입니다. |
+| `options` | `KChartOption<T>[]` | no | `[]` | spec area, guide line, cursor line, range navigator, tooltip note 등 plugin형 옵션입니다. |
 | `width` | `number` | no | container width or `320` | 전체 SVG/canvas width입니다. |
 | `height` | `number` | no | container height or `240` | 전체 SVG/canvas height입니다. |
 | `margin` | `Partial<KChartMargin>` | no | `{ top: 24, right: 24, bottom: 36, left: 44 }` | plot 영역 바깥 여백입니다. title, top legend, option label이 있으면 top margin은 자동 보정될 수 있습니다. |
@@ -39,6 +39,7 @@ createKChart({
 | `legend` | `KChartLegendConfiguration` | no | visible top legend | series 표시/숨김 범례 설정입니다. |
 | `tooltip` | `KChartTooltipConfiguration<T>` | no | basic tooltip | nearest point tooltip 설정입니다. |
 | `zoom` | `KChartZoomConfiguration<T>` | no | disabled | number/time 축 zoom, pan, 영역 선택 zoom 설정입니다. |
+| `rangeNavigator` | `KChartRangeNavigatorConfiguration<T>` | no | disabled | 전체 number/time x축 개요와 하단 brush를 표시하고 선택 구간을 메인 차트에 반영합니다. |
 | `animation` | `boolean \| KChartAnimationConfiguration` | no | disabled | series enter animation과 연속 축의 data update transition을 설정합니다. |
 | `specAreas` | `KChartSpecAreaConfiguration[]` | no | `[]` | 기존 호환 필드입니다. 새 코드는 `createSpecAreaOption(...)` 사용을 권장합니다. |
 | `guideLines` | `KChartGuideLinesConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createGuideLineOption(...)` 사용을 권장합니다. |
@@ -205,6 +206,41 @@ setInterval(() => {
 | `enabled` | `boolean` | `true` | touch gesture zoom 입력을 켭니다. |
 | `devices` | `'pc' \| 'mobile' \| 'all'` | `mobile` | 어떤 입력 장치에서 반응할지 정합니다. |
 | `minTouches` | `number` | `1` | gesture 처리에 필요한 최소 touch 수입니다. |
+
+## Range Navigator Configuration
+
+`rangeNavigator`는 전체 number/time x축을 작은 overview로 유지하고, 하단 brush에서 선택한 구간만 메인 차트에 표시합니다. 문자열/point 축에서는 렌더링하지 않습니다. 필요한 하단 여백은 `height + gap`만큼 자동 확보됩니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `visible` | `boolean` | `true` | navigator 표시 여부입니다. |
+| `xField` | `keyof T & string` | 첫 number/time 가로축 | overview와 선택 domain에 사용할 x field입니다. |
+| `yField` | `keyof T & string` | 첫 series y field | overview 선/영역에 사용할 y field입니다. |
+| `height` | `number` | `52` | overview와 brush의 높이(px), 최소 24입니다. |
+| `gap` | `number` | `14` | 메인 plot 아래와 navigator 사이 간격(px)입니다. |
+| `stroke` / `fill` | `string` | blue theme | overview 선과 영역 색상입니다. |
+| `selectionFill` / `handleFill` | `string` | theme defaults | 선택 영역과 양쪽 handle 색상입니다. |
+| `onRangeChange` | `(range) => void` | - | 사용자가 brush를 놓은 뒤 선택된 `[min, max]` domain을 받습니다. time 축에서는 `Date` 값입니다. |
+
+```ts
+createKChart({
+    data: weeklyCommits,
+    axes: [
+        {field: 'week', type: 'time', placement: 'bottom'},
+        {field: 'commits', type: 'number', placement: 'right'}
+    ],
+    series: [createGroupedColumnSeries({
+        selector: 'commits',
+        xField: 'week',
+        segments: [{field: 'commits', color: '#2f81f7'}]
+    })],
+    rangeNavigator: {
+        xField: 'week',
+        yField: 'commits',
+        height: 58
+    }
+});
+```
 
 ## Series Common Contract
 

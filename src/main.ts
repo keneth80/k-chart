@@ -37,6 +37,7 @@ import {
     createCustomSeries,
     createGuideLineOption,
     createGraphSeries,
+    createGroupedColumnSeries,
     createKChart,
     createLineSeries,
     createSankeySeries,
@@ -74,6 +75,7 @@ type DemoKind =
     | 'canvas-bigdata-line'
     | 'webgl-large-line'
     | 'column'
+    | 'contributor-activity'
     | 'stacked-column'
     | 'plot'
     | 'area'
@@ -119,6 +121,27 @@ const baseData: DemoPoint[] = [
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
+
+const contributorActivityData: DemoPoint[] = [8, 20, 37, 9, 19, 10, 4, 5, 0, 0, 0, 0, 2, 0]
+    .map((commits, index) => {
+        const time = new Date(Date.UTC(2026, 4, 23 + index * 7));
+        return {
+            label: time.toISOString().slice(0, 10),
+            time,
+            x: index,
+            value: commits,
+            volume: 0,
+            extra: 0,
+            radius: 0,
+            category: 'Commits'
+        };
+    });
+
+const formatContributorTick = (value: number | Date): string => new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+}).format(value instanceof Date ? value : new Date(value));
 
 const graphData: DemoPoint[] = [
     { label: 'Browser → API', source: 'Browser', target: 'API Gateway', metric: 46, x: 0, value: 46, volume: 0, extra: 0, radius: 0, category: 'Client' },
@@ -385,6 +408,7 @@ const examples: ExampleMeta[] = [
     { kind: 'canvas-bigdata-line', title: 'Canvas BigData line renderer', dataLabel: '50k points' },
     { kind: 'webgl-large-line', title: 'WebGL BigData line renderer', dataLabel: '120k points' },
     { kind: 'column', title: 'SVG column renderer' },
+    { kind: 'contributor-activity', title: 'Contributor activity navigator', dataLabel: 'weekly commits' },
     { kind: 'stacked-column', title: 'SVG stacked column renderer' },
     { kind: 'plot', title: 'SVG plot renderer' },
     { kind: 'area', title: 'SVG area renderer' },
@@ -1452,6 +1476,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'real-time') {
         return createRealtimeData();
     }
+    if (kind === 'contributor-activity') {
+        return contributorActivityData;
+    }
     if (kind === 'graph') {
         return graphData;
     }
@@ -1491,6 +1518,26 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
             { field: 'value', type: 'number' as const, placement: 'left' as const, min: 0, max: 72, title: 'Value' }
+        ];
+    }
+    if (kind === 'contributor-activity') {
+        return [
+            {
+                field: 'time',
+                type: 'time' as const,
+                placement: 'bottom' as const,
+                tickCount: 6,
+                tickFormat: formatContributorTick
+            },
+            {
+                field: 'value',
+                type: 'number' as const,
+                placement: 'right' as const,
+                min: 0,
+                max: 40,
+                tickCount: 4,
+                title: 'Contributions'
+            }
         ];
     }
     if (kind === 'stacked-column') {
@@ -1571,6 +1618,17 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'column') {
         return [svgColumnSeries('demo-column', 'value', '#5db8ff')];
+    }
+    if (kind === 'contributor-activity') {
+        return [createGroupedColumnSeries<DemoPoint>({
+            selector: 'demo-contributor-activity',
+            displayName: 'Commits',
+            xField: 'time',
+            segments: [{field: 'value', color: '#2f81f7'}],
+            groupWidthRatio: 0.68,
+            radius: 2,
+            opacity: 0.94
+        })];
     }
     if (kind === 'stacked-column') {
         return [stackedColumnSeries];
@@ -1928,6 +1986,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         || kind === 'multi-options'
         || kind === 'plot'
         || kind === 'column'
+        || kind === 'contributor-activity'
         || kind === 'stacked-column'
         || kind === 'circle'
         || kind === 'radial'
@@ -1982,7 +2041,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         grid: {
             visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isThreeScene && !isRadial,
-            x: false,
+            x: kind === 'contributor-activity',
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
             dasharray: '2 6'
@@ -2000,6 +2059,17 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? ({ data: item, color }) => `<div style="color:${color};font-weight:700">Custom Tooltip</div><div>${item.label}: ${item.value} / ${item.volume}</div>`
                     : undefined
         },
+        rangeNavigator: kind === 'contributor-activity' ? {
+            visible: true,
+            height: 58,
+            gap: 14,
+            xField: 'time',
+            yField: 'value',
+            stroke: '#2f81f7',
+            fill: 'rgba(47, 129, 247, 0.18)',
+            selectionFill: 'rgba(88, 166, 255, 0.2)',
+            handleFill: '#dbeafe'
+        } : undefined,
         zoom: hasInteractiveZoom ? {
             enabled: true,
             mode: kind === 'canvas-candlestick' ? 'wheel' : 'both',
@@ -2417,6 +2487,53 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'contributor-activity') {
+        return `import {
+    createGroupedColumnSeries,
+    createKChart
+} from '@keneth80/k-chart';
+
+const weeklyCommits = [8, 20, 37, 9, 19, 10, 4, 5, 0, 0, 0, 0, 2, 0]
+    .map((commits, index) => ({
+        week: new Date(Date.UTC(2026, 4, 23 + index * 7)),
+        commits
+    }));
+
+createKChart({
+    selector: '#chart',
+    data: weeklyCommits,
+    axes: [
+        {
+            field: 'week',
+            type: 'time',
+            placement: 'bottom',
+            tickCount: 6
+        },
+        {
+            field: 'commits',
+            type: 'number',
+            placement: 'right',
+            min: 0,
+            title: 'Contributions'
+        }
+    ],
+    series: [createGroupedColumnSeries({
+        selector: 'weekly-commits',
+        displayName: 'Commits',
+        xField: 'week',
+        segments: [{field: 'commits', color: '#2f81f7'}]
+    })],
+    rangeNavigator: {
+        visible: true,
+        xField: 'week',
+        yField: 'commits',
+        height: 58,
+        gap: 14,
+        stroke: '#2f81f7',
+        fill: 'rgba(47, 129, 247, 0.18)'
+    }
+}).render();`;
+    }
     if (kind === 'cesium-route') {
         return `import "cesium/Build/Cesium/Widgets/widgets.css";
 import "@keneth80/k-chart-cesium/style.css";
