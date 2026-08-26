@@ -48,6 +48,7 @@ import {
     createTooltipNoteOption,
     createWebglLineSeries,
     createWebglPointSeries,
+    createWorldCountryMapSeries,
     KChartAxis,
     KChartController,
     KChartOption,
@@ -90,6 +91,7 @@ type DemoKind =
     | 'topology'
     | 'three-constellation'
     | 'three-wafer'
+    | 'world-activity-map'
     | 'globe-map'
     | 'globe-map-drilldown'
     | 'cesium-route'
@@ -100,6 +102,7 @@ type DemoKind =
     | 'radial'
     | 'pie'
     | 'doughnut'
+    | 'doughnut-scroll-legend'
     | 'graph'
     | 'sankey'
     | 'tree'
@@ -121,6 +124,33 @@ const baseData: DemoPoint[] = [
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
+
+const scrollableDoughnutData: DemoPoint[] = [
+    ['검색', 184],
+    ['메시지', 162],
+    ['스토리지', 139],
+    ['분석', 126],
+    ['결제', 112],
+    ['협업', 98],
+    ['자동화', 86],
+    ['보안', 77],
+    ['콘텐츠', 69],
+    ['고객지원', 61],
+    ['개발도구', 54],
+    ['마케팅', 47],
+    ['인사관리', 39],
+    ['회계', 33],
+    ['교육', 27],
+    ['기타', 21]
+].map(([label, value], index) => ({
+    label: String(label),
+    x: index + 1,
+    value: Number(value),
+    volume: Number(value),
+    extra: index,
+    radius: 6,
+    category: String(label)
+}));
 
 const contributorActivityData: DemoPoint[] = [8, 20, 37, 9, 19, 10, 4, 5, 0, 0, 0, 0, 2, 0]
     .map((commits, index) => {
@@ -229,6 +259,21 @@ const globeData: DemoPoint[] = [
     { label: 'London', x: -0.1276, value: 51.5072, volume: 1, extra: 1, radius: 5, category: 'Europe', lat: 51.5072, lon: -0.1276, url: 'https://en.wikipedia.org/wiki/London' },
     { label: 'Sydney', x: 151.2093, value: -33.8688, volume: 1, extra: 1, radius: 5, category: 'Oceania', lat: -33.8688, lon: 151.2093, url: 'https://en.wikipedia.org/wiki/Sydney' },
     { label: 'Sao Paulo', x: -46.6333, value: -23.5505, volume: 1, extra: 1, radius: 5, category: 'South America', lat: -23.5505, lon: -46.6333, url: 'https://en.wikipedia.org/wiki/S%C3%A3o_Paulo' }
+];
+
+const worldActivityData: DemoPoint[] = [
+    { label: 'South Korea', x: 0, value: 92, volume: 0, extra: 0, radius: 0, category: 'Asia' },
+    { label: 'Japan', x: 0, value: 84, volume: 0, extra: 0, radius: 0, category: 'Asia' },
+    { label: 'China', x: 0, value: 78, volume: 0, extra: 0, radius: 0, category: 'Asia' },
+    { label: 'India', x: 0, value: 71, volume: 0, extra: 0, radius: 0, category: 'Asia' },
+    { label: 'Australia', x: 0, value: 63, volume: 0, extra: 0, radius: 0, category: 'Oceania' },
+    { label: 'United States of America', x: 0, value: 88, volume: 0, extra: 0, radius: 0, category: 'North America' },
+    { label: 'Canada', x: 0, value: 66, volume: 0, extra: 0, radius: 0, category: 'North America' },
+    { label: 'Brazil', x: 0, value: 58, volume: 0, extra: 0, radius: 0, category: 'South America' },
+    { label: 'France', x: 0, value: 73, volume: 0, extra: 0, radius: 0, category: 'Europe' },
+    { label: 'Germany', x: 0, value: 76, volume: 0, extra: 0, radius: 0, category: 'Europe' },
+    { label: 'United Kingdom', x: 0, value: 69, volume: 0, extra: 0, radius: 0, category: 'Europe' },
+    { label: 'South Africa', x: 0, value: 46, volume: 0, extra: 0, radius: 0, category: 'Africa' }
 ];
 
 const cesiumRouteData: KChartCesiumRoutePoint[] = [
@@ -398,6 +443,7 @@ const largeWebglGuideLines = [
 
 let chart: KChartController<DemoPoint> | null = null;
 let activeKind: DemoKind = 'line';
+let scrollableDoughnutCompactLayout = false;
 let realtimeTimer: number | undefined;
 
 const examples: ExampleMeta[] = [
@@ -426,6 +472,7 @@ const examples: ExampleMeta[] = [
     { kind: 'topology', title: 'Topology renderer' },
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
+    { kind: 'world-activity-map', title: '글로벌 시장 활동 현황', dataLabel: 'country activity index' },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Realtime time-series line', dataLabel: '250ms sliding window' },
@@ -433,6 +480,7 @@ const examples: ExampleMeta[] = [
     { kind: 'radial', title: 'Custom SVG radial renderer' },
     { kind: 'pie', title: 'Custom SVG pie renderer' },
     { kind: 'doughnut', title: 'Custom SVG doughnut renderer' },
+    { kind: 'doughnut-scroll-legend', title: '디지털 서비스 이용 분포', dataLabel: 'scrollable segment legend' },
     { kind: 'graph', title: 'SVG graph relationship renderer', dataLabel: 'force + circular layout' },
     { kind: 'sankey', title: 'SVG Sankey flow renderer', dataLabel: 'source → target metric' },
     { kind: 'tree', title: 'SVG organization tree renderer', dataLabel: 'id → parent hierarchy' },
@@ -835,16 +883,68 @@ const createRadialMetricSeries = (
 };
 
 const piePalette = ['#5db8ff', '#56d08f', '#f3b45b', '#d876ff', '#ff6b8a', '#72e4ff'];
+const scrollableDoughnutPalette = [
+    '#2dd4bf', '#38bdf8', '#818cf8', '#a78bfa',
+    '#e879f9', '#fb7185', '#fb923c', '#facc15',
+    '#a3e635', '#4ade80', '#22d3ee', '#60a5fa',
+    '#c084fc', '#f472b6', '#f97316', '#94a3b8'
+];
 
-const createPieSeries = (selector: string, displayName: string, innerRadiusRatio = 0): KChartSeries<DemoPoint> => {
+interface PieSeriesOptions {
+    palette?: string[];
+    showLabels?: boolean;
+    centerTitle?: string;
+    valueSuffix?: string;
+    valueLabel?: string;
+    shareLabel?: string;
+    sliceLabel?: {
+        visible?: boolean;
+        formatter?: (context: {
+            data: DemoPoint;
+            label: string;
+            value: number;
+            total: number;
+            percentage: number;
+            index: number;
+            color: string;
+        }) => string;
+        leaderLine?: boolean;
+        radialLength?: number;
+        horizontalLength?: number;
+        minGap?: number;
+        minPercentage?: number;
+        maxVisible?: number;
+    };
+}
+
+const createPieSeries = (
+    selector: string,
+    displayName: string,
+    innerRadiusRatio = 0,
+    options: PieSeriesOptions = {}
+): KChartSeries<DemoPoint> => {
     type PieSegment = {
         point: DemoPoint;
+        index: number;
         value: number;
         startAngle: number;
         endAngle: number;
         color: string;
     };
 
+    type PieLabelLayout = {
+        segment: PieSegment;
+        text: string;
+        side: -1 | 1;
+        startX: number;
+        startY: number;
+        elbowX: number;
+        elbowY: number;
+        labelX: number;
+        labelY: number;
+    };
+
+    const segmentPalette = options.palette?.length ? options.palette : piePalette;
     const pointOnCircle = (centerX: number, centerY: number, radius: number, angle: number): [number, number] => [
         centerX + Math.cos(angle) * radius,
         centerY + Math.sin(angle) * radius
@@ -859,10 +959,11 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
             const angle = (value / total) * Math.PI * 2;
             const segment = {
                 point,
+                index,
                 value,
                 startAngle: cursor,
                 endAngle: cursor + angle,
-                color: piePalette[index % piePalette.length]
+                color: segmentPalette[index % segmentPalette.length]
             };
             cursor += angle;
             return segment;
@@ -924,28 +1025,102 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                 .style('stroke-opacity', progress)
                 .style('filter', 'drop-shadow(0 0 10px rgba(93, 184, 255, 0.12))');
 
-            group.selectAll<SVGTextElement, PieSegment>(`text.${selector}-label`)
-                .data(segments)
+            const labelOption = options.sliceLabel;
+            const labelsVisible = labelOption?.visible ?? options.showLabels !== false;
+            const radialLength = labelOption?.radialLength ?? 18;
+            const horizontalLength = labelOption?.horizontalLength ?? 40;
+            const minGap = labelOption?.minGap ?? 20;
+            const edgePadding = 8;
+            let labelSegments = labelsVisible
+                ? segments.filter((segment) => segment.value / total * 100 >= (labelOption?.minPercentage ?? 0))
+                : [];
+
+            if (labelOption?.maxVisible !== undefined && labelSegments.length > labelOption.maxVisible) {
+                const visibleIndexes = new Set(labelSegments
+                    .slice()
+                    .sort((left, right) => right.value - left.value)
+                    .slice(0, Math.max(0, labelOption.maxVisible))
+                    .map((segment) => segment.index));
+                labelSegments = labelSegments.filter((segment) => visibleIndexes.has(segment.index));
+            }
+
+            const labelLayouts: PieLabelLayout[] = labelSegments.map((segment) => {
+                const midAngle = (segment.startAngle + segment.endAngle) / 2;
+                const side: -1 | 1 = Math.cos(midAngle) >= 0 ? 1 : -1;
+                const [startX, startY] = pointOnCircle(centerX, centerY, outerRadius + 3, midAngle);
+                const [elbowX, elbowY] = pointOnCircle(centerX, centerY, outerRadius + radialLength, midAngle);
+                const percentage = segment.value / total * 100;
+                const labelX = side > 0
+                    ? Math.min(plotSize.width - edgePadding, centerX + outerRadius + radialLength + horizontalLength)
+                    : Math.max(edgePadding, centerX - outerRadius - radialLength - horizontalLength);
+
+                return {
+                    segment,
+                    text: labelOption?.formatter?.({
+                        data: segment.point,
+                        label: segment.point.label,
+                        value: segment.value,
+                        total,
+                        percentage,
+                        index: segment.index,
+                        color: segment.color
+                    }) ?? `${segment.point.label} ${Math.round(percentage)}%`,
+                    side,
+                    startX,
+                    startY,
+                    elbowX,
+                    elbowY,
+                    labelX,
+                    labelY: elbowY
+                };
+            });
+
+            ([-1, 1] as const).forEach((side) => {
+                const sideLayouts = labelLayouts
+                    .filter((layout) => layout.side === side)
+                    .sort((left, right) => left.labelY - right.labelY);
+                const minY = edgePadding + 6;
+                const maxY = plotSize.height - edgePadding - 6;
+
+                sideLayouts.forEach((layout, index) => {
+                    layout.labelY = Math.max(layout.labelY, index === 0 ? minY : sideLayouts[index - 1].labelY + minGap);
+                });
+                for (let index = sideLayouts.length - 1; index >= 0; index -= 1) {
+                    const nextY = index === sideLayouts.length - 1 ? maxY : sideLayouts[index + 1].labelY - minGap;
+                    sideLayouts[index].labelY = Math.min(sideLayouts[index].labelY, nextY);
+                }
+            });
+
+            group.selectAll<SVGPathElement, PieLabelLayout>(`path.${selector}-leader`)
+                .data(labelOption?.leaderLine === false ? [] : labelLayouts, (layout) => String(layout.segment.index))
+                .join('path')
+                .attr('class', `${selector}-leader`)
+                .attr('d', (layout) => {
+                    const lineEndX = layout.labelX - layout.side * 7;
+                    return `M${layout.startX},${layout.startY} L${layout.elbowX},${layout.elbowY} L${lineEndX},${layout.labelY}`;
+                })
+                .style('fill', 'none')
+                .style('stroke', (layout) => layout.segment.color)
+                .style('stroke-width', 1.2)
+                .style('stroke-opacity', 0.72 * progress);
+
+            group.selectAll<SVGTextElement, PieLabelLayout>(`text.${selector}-label`)
+                .data(labelLayouts, (layout) => String(layout.segment.index))
                 .join('text')
                 .attr('class', `${selector}-label`)
-                .attr('x', (segment) => {
-                    const angle = (segment.startAngle + segment.endAngle) / 2;
-                    return pointOnCircle(centerX, centerY, outerRadius + 28, angle)[0];
-                })
-                .attr('y', (segment) => {
-                    const angle = (segment.startAngle + segment.endAngle) / 2;
-                    return pointOnCircle(centerX, centerY, outerRadius + 28, angle)[1];
-                })
-                .attr('text-anchor', 'middle')
+                .attr('x', (layout) => layout.labelX)
+                .attr('y', (layout) => layout.labelY)
+                .attr('text-anchor', (layout) => layout.side > 0 ? 'start' : 'end')
                 .attr('dominant-baseline', 'middle')
-                .style('fill', 'rgba(231, 244, 255, 0.86)')
+                .style('fill', 'rgba(239, 248, 255, 0.9)')
                 .style('font-size', '11px')
                 .style('font-weight', 700)
                 .style('opacity', progress)
-                .text((segment) => `${segment.point.label} ${Math.round((segment.value / total) * 100)}%`);
+                .text((layout) => layout.text);
 
             if (innerRadius > 0) {
-                const centerLabel = group.selectAll<SVGTextElement, string>('text.demo-doughnut-center').data(['Total']);
+                const centerTitle = options.centerTitle ?? 'Total';
+                const centerLabel = group.selectAll<SVGTextElement, string>('text.demo-doughnut-center').data([centerTitle]);
                 centerLabel.join('text')
                     .attr('class', 'demo-doughnut-center')
                     .attr('x', centerX)
@@ -955,7 +1130,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                     .style('font-size', '13px')
                     .style('font-weight', 800)
                     .style('opacity', progress)
-                    .text('Total');
+                    .text(centerTitle);
                 group.selectAll<SVGTextElement, number>('text.demo-doughnut-total')
                     .data([total])
                     .join('text')
@@ -966,7 +1141,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                     .style('fill', 'rgba(231, 244, 255, 0.72)')
                     .style('font-size', '12px')
                     .style('opacity', progress)
-                    .text((value) => value.toFixed(0));
+                    .text((value) => `${value.toFixed(0)}${options.valueSuffix ?? ''}`);
             }
         },
         tooltip({ data, plotSize, seriesGroup, mouseX, mouseY }) {
@@ -1006,7 +1181,7 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                 y,
                 distance: 0,
                 color: segment.color,
-                html: `<strong style="color:${segment.color}">${segment.point.label}</strong><br/>value: ${segment.value.toFixed(1)}<br/>share: ${Math.round((segment.value / total) * 100)}%`
+                html: `<strong style="color:${segment.color}">${segment.point.label}</strong><br/>${options.valueLabel ?? 'value'}: ${segment.value.toFixed(0)}${options.valueSuffix ?? ''}<br/>${options.shareLabel ?? 'share'}: ${((segment.value / total) * 100).toFixed(1)}%`
             };
         },
         clearTooltip({ seriesGroup }) {
@@ -1015,6 +1190,53 @@ const createPieSeries = (selector: string, displayName: string, innerRadiusRatio
                 .style('stroke', '#101720');
         }
     });
+};
+
+const renderScrollableDoughnutLegend = (): void => {
+    if (!chartRoot) return;
+
+    const total = scrollableDoughnutData.reduce((sum, point) => sum + Number(point.value), 0);
+    const legend = document.createElement('aside');
+    legend.className = 'doughnut-scroll-legend';
+    legend.setAttribute('aria-label', '서비스별 월간 이용량');
+
+    const header = document.createElement('header');
+    const title = document.createElement('strong');
+    title.textContent = '서비스별 월간 이용량';
+    const unit = document.createElement('span');
+    unit.textContent = '단위: 천 회';
+    header.append(title, unit);
+    legend.append(header);
+
+    const list = document.createElement('div');
+    list.className = 'doughnut-scroll-legend-list';
+    list.setAttribute('role', 'list');
+    list.setAttribute('aria-label', '서비스별 이용량과 비중');
+    list.tabIndex = 0;
+    scrollableDoughnutData.forEach((point, index) => {
+        const row = document.createElement('div');
+        row.className = 'doughnut-scroll-legend-item';
+        row.setAttribute('role', 'listitem');
+
+        const swatch = document.createElement('span');
+        swatch.className = 'doughnut-scroll-legend-swatch';
+        const segmentColor = scrollableDoughnutPalette[index % scrollableDoughnutPalette.length];
+        swatch.style.backgroundColor = segmentColor;
+        swatch.style.color = segmentColor;
+
+        const name = document.createElement('span');
+        name.className = 'doughnut-scroll-legend-name';
+        name.textContent = point.label;
+
+        const metric = document.createElement('span');
+        metric.className = 'doughnut-scroll-legend-metric';
+        metric.textContent = `${Number(point.value).toLocaleString()} · ${(Number(point.value) / total * 100).toFixed(1)}%`;
+
+        row.append(swatch, name, metric);
+        list.append(row);
+    });
+    legend.append(list);
+    chartRoot.append(legend);
 };
 
 const topologySeries = createCustomSeries<DemoPoint>({
@@ -1479,6 +1701,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'contributor-activity') {
         return contributorActivityData;
     }
+    if (kind === 'doughnut-scroll-legend') {
+        return scrollableDoughnutData;
+    }
     if (kind === 'graph') {
         return graphData;
     }
@@ -1490,6 +1715,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     }
     if (kind === 'treemap') {
         return treemapData;
+    }
+    if (kind === 'world-activity-map') {
+        return worldActivityData;
     }
     if (isGlobeMapExample(kind)) {
         return globeData;
@@ -1511,7 +1739,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'graph' || kind === 'sankey' || kind === 'tree' || kind === 'treemap') {
+    if (isGlobeMapExample(kind) || kind === 'world-activity-map' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'doughnut-scroll-legend' || kind === 'graph' || kind === 'sankey' || kind === 'tree' || kind === 'treemap') {
         return [];
     }
     if (kind === 'column') {
@@ -1579,6 +1807,42 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
 };
 
 const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
+    if (kind === 'world-activity-map') {
+        return [createWorldCountryMapSeries<DemoPoint>({
+            selector: 'demo-world-activity-map',
+            displayName: 'Market activity',
+            dataKey: 'label',
+            valueField: 'value',
+            fitPadding: 34,
+            backgroundFill: 'rgba(9, 15, 24, 0.72)',
+            missingFill: 'rgba(112, 132, 151, 0.22)',
+            stroke: 'rgba(225, 236, 246, 0.5)',
+            strokeWidth: 0.55,
+            hoverStroke: '#ffffff',
+            hoverStrokeWidth: 1.5,
+            colorLegend: {
+                visible: true,
+                title: '국가별 활동 지수',
+                position: 'bottom-left',
+                domain: [0, 100],
+                colors: ['#274c77', '#2a9d8f', '#e9c46a', '#e76f51'],
+                labels: ['낮음', '보통', '높음', '매우 높음'],
+                width: 280
+            },
+            zoom: {
+                enabled: true,
+                wheel: true,
+                pan: true,
+                scaleExtent: [1, 8],
+                controls: {visible: true, x: 10, y: 12, step: 0.3}
+            },
+            tooltip: {
+                formatter: ({label, data}) => data
+                    ? `<strong>${label}</strong><br/>활동 지수: ${data.value}<br/>권역: ${data.category}`
+                    : `<strong>${label}</strong><br/>집계 데이터 없음`
+            }
+        })];
+    }
     if (kind === 'canvas-line' || kind === 'canvas-bigdata-line') {
         const prefix = `demo-${kind}`;
         const asyncRender = kind === 'canvas-bigdata-line' ? asyncLineRender : undefined;
@@ -1722,6 +1986,25 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'doughnut') {
         return [createPieSeries('demo-doughnut', 'Doughnut', 0.56)];
+    }
+    if (kind === 'doughnut-scroll-legend') {
+        return [createPieSeries('demo-doughnut-scroll', 'Service usage', 0.58, {
+            palette: scrollableDoughnutPalette,
+            centerTitle: '월간 합계',
+            valueSuffix: 'K',
+            valueLabel: '이용량',
+            shareLabel: '비중',
+            sliceLabel: {
+                visible: true,
+                leaderLine: true,
+                minPercentage: 2.2,
+                maxVisible: 12,
+                minGap: 22,
+                radialLength: 16,
+                horizontalLength: 34,
+                formatter: ({ data, percentage }) => `${data.category} · ${percentage.toFixed(1)}%`
+            }
+        })];
     }
     if (kind === 'multi-options' || kind === 'update-series') {
         return [
@@ -1979,7 +2262,10 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isThreeConstellation = kind === 'three-constellation';
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
-    const isRadial = kind === 'radial' || kind === 'pie' || kind === 'doughnut';
+    const isWorldActivityMap = kind === 'world-activity-map';
+    const isScrollableDoughnut = kind === 'doughnut-scroll-legend';
+    const isCompactScrollableDoughnut = isScrollableDoughnut && (chartRoot?.clientWidth ?? 760) < 680;
+    const isRadial = kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isScrollableDoughnut;
     const hasSeriesAnimation = kind === 'line'
         || kind === 'canvas-line'
         || kind === 'webgl-line'
@@ -1992,6 +2278,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         || kind === 'radial'
         || kind === 'pie'
         || kind === 'doughnut'
+        || kind === 'doughnut-scroll-legend'
         || kind === 'sankey'
         || kind === 'treemap';
     const hasFlowAnimation = hasSeriesAnimation || isSankey;
@@ -2014,7 +2301,9 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                 ? 520
             : isThreeScene
                 ? 520
-            : chartRoot?.clientHeight || 420,
+            : isScrollableDoughnut
+                ? isCompactScrollableDoughnut ? 650 : 500
+                : chartRoot?.clientHeight || 420,
         margin: kind === 'axis-custom-margin'
             ? { top: 82, right: 76, bottom: 70, left: 86 }
             : kind === 'topology'
@@ -2029,18 +2318,22 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? { top: 72, right: 24, bottom: 24, left: 24 }
                 : isThreeScene
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
-                : isGlobeMap
+                : isGlobeMap || isWorldActivityMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
+                    : isScrollableDoughnut
+                        ? isCompactScrollableDoughnut
+                            ? { top: 72, right: 20, bottom: 264, left: 20 }
+                            : { top: 72, right: 286, bottom: 24, left: 24 }
                     : kind === 'webgl-large-line'
                         ? { top: 170, right: 28, bottom: 44, left: 52 }
                         : { top: 104, right: 28, bottom: 44, left: 52 },
         title: kind === 'topology' ? undefined : {
             text: examples.find((example) => example.kind === kind)?.title ?? 'KChart Example',
-            align: 'left',
+            align: isWorldActivityMap || isScrollableDoughnut ? 'center' : 'left',
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isThreeScene && !isRadial,
+            visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isThreeScene && !isRadial,
             x: kind === 'contributor-activity',
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -2048,7 +2341,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isThreeScene,
+            visible: kind !== 'topology' && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isScrollableDoughnut && !isThreeScene,
             placement: 'top'
         },
         tooltip: {
@@ -2092,12 +2385,34 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                 easing: 'easeOutCubic',
                 mode: 'enter'
             } : undefined,
-        axes: isTopology || isGraph || isSankey || isTree || isTreemap || isThreeScene ? [] : createAxes(kind),
+        axes: isTopology || isGraph || isSankey || isTree || isTreemap || isWorldActivityMap || isThreeScene ? [] : createAxes(kind),
         series: createSeries(kind)
     });
 };
 
 const createSeriesSnippet = (kind: DemoKind): string => {
+    if (kind === 'world-activity-map') {
+        return `createWorldCountryMapSeries({
+    selector: 'world-activity-map',
+    dataKey: 'name',
+    valueField: 'activity',
+    missingFill: 'rgba(112, 132, 151, 0.22)',
+    colorLegend: {
+        visible: true,
+        title: '국가별 활동 지수',
+        position: 'bottom-left',
+        domain: [0, 100],
+        colors: ['#274c77', '#2a9d8f', '#e9c46a', '#e76f51'],
+        labels: ['낮음', '보통', '높음', '매우 높음']
+    },
+    zoom: {
+        enabled: true,
+        wheel: true,
+        pan: true,
+        controls: { visible: true }
+    }
+})`;
+    }
     if (kind === 'column') {
         return `createCustomSeries({
     selector: 'demo-column',
@@ -2442,6 +2757,26 @@ createCustomSeries({
     }
 })`;
     }
+    if (kind === 'doughnut-scroll-legend') {
+        return `createDoughnutChart({
+    selector: '#chart',
+    data: services,
+    label: 'label',
+    value: 'value',
+    sliceLabel: {
+        position: 'outside',
+        formatter: ({ data, percentage }) =>
+            \`${'${data.category}'} · ${'${percentage.toFixed(1)}'}%\`,
+        leaderLine: { visible: true, length: 16 },
+        minPercentage: 2.2,
+        maxVisible: 12,
+        collision: { minGap: 22 }
+    }
+});
+
+// Keep the complete category list in a fixed-height HTML legend.
+// Its overflow-y: auto list scrolls independently from the SVG.`;
+    }
     if (kind === 'pie' || kind === 'doughnut') {
         return `createCustomSeries({
     selector: 'demo-${kind}',
@@ -2487,6 +2822,117 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'doughnut-scroll-legend') {
+        return `import { createDoughnutChart } from '@keneth80/k-chart';
+
+const palette = [
+    '#2dd4bf', '#38bdf8', '#818cf8', '#a78bfa',
+    '#e879f9', '#fb7185', '#fb923c', '#facc15',
+    '#a3e635', '#4ade80', '#22d3ee', '#60a5fa',
+    '#c084fc', '#f472b6', '#f97316', '#94a3b8'
+];
+const services = [
+    ['검색', 184], ['메시지', 162], ['스토리지', 139], ['분석', 126],
+    ['결제', 112], ['협업', 98], ['자동화', 86], ['보안', 77],
+    ['콘텐츠', 69], ['고객지원', 61], ['개발도구', 54], ['마케팅', 47],
+    ['인사관리', 39], ['회계', 33], ['교육', 27], ['기타', 21]
+].map(([label, value], index) => ({
+    label,
+    category: \`서비스 ${'${index + 1}'} · ${'${label}'}\`,
+    value,
+    color: palette[index]
+}));
+
+createDoughnutChart({
+    selector: '#chart',
+    data: services,
+    label: 'label',
+    value: 'value',
+    palette,
+    innerRadiusRatio: 0.58,
+    margin: { top: 72, right: 286, bottom: 24, left: 24 },
+    title: { text: '디지털 서비스 이용 분포', align: 'center' },
+    grid: { visible: false },
+    legend: { visible: false },
+    sliceLabel: {
+        visible: true,
+        position: 'outside',
+        formatter: ({ data, percentage }) =>
+            \`${'${data.category}'} · ${'${percentage.toFixed(1)}'}%\`,
+        leaderLine: { visible: true, length: 16 },
+        minPercentage: 2.2,
+        maxVisible: 12,
+        collision: { minGap: 22, padding: 8 }
+    }
+});
+
+// Keep the detailed legend in an independent HTML panel. This lets the list
+// scroll without changing the SVG plot geometry.
+const legend = document.querySelector('#service-legend');
+legend.innerHTML = services.map((item) =>
+    '<div class="legend-item">' + item.label + ' · ' + item.value + 'K</div>'
+).join('');
+
+// .service-legend { max-height: 320px; overflow-y: auto; }`;
+    }
+    if (kind === 'world-activity-map') {
+        return `import {
+    createKChart,
+    createWorldCountryMapSeries
+} from '@keneth80/k-chart';
+
+const countryActivity = [
+    { name: 'South Korea', activity: 92, region: 'Asia' },
+    { name: 'Japan', activity: 84, region: 'Asia' },
+    { name: 'China', activity: 78, region: 'Asia' },
+    { name: 'India', activity: 71, region: 'Asia' },
+    { name: 'United States of America', activity: 88, region: 'North America' },
+    { name: 'Brazil', activity: 58, region: 'South America' },
+    { name: 'Germany', activity: 76, region: 'Europe' },
+    { name: 'South Africa', activity: 46, region: 'Africa' }
+];
+
+createKChart({
+    selector: '#chart-div',
+    data: countryActivity,
+    margin: { top: 74, right: 20, bottom: 20, left: 20 },
+    title: { text: '글로벌 시장 활동 현황', align: 'center' },
+    grid: { visible: false },
+    legend: { visible: false },
+    tooltip: { visible: true },
+    axes: [],
+    series: [createWorldCountryMapSeries({
+        selector: 'world-activity-map',
+        dataKey: 'name',
+        valueField: 'activity',
+        fitPadding: 34,
+        backgroundFill: 'rgba(9, 15, 24, 0.72)',
+        missingFill: 'rgba(112, 132, 151, 0.22)',
+        stroke: 'rgba(225, 236, 246, 0.5)',
+        strokeWidth: 0.55,
+        colorLegend: {
+            visible: true,
+            title: '국가별 활동 지수',
+            position: 'bottom-left',
+            domain: [0, 100],
+            colors: ['#274c77', '#2a9d8f', '#e9c46a', '#e76f51'],
+            labels: ['낮음', '보통', '높음', '매우 높음']
+        },
+        zoom: {
+            enabled: true,
+            wheel: true,
+            pan: true,
+            scaleExtent: [1, 8],
+            controls: { visible: true }
+        },
+        tooltip: {
+            formatter: ({ label, data }) => data
+                ? '<strong>' + label + '</strong><br/>활동 지수: ' + data.activity + '<br/>권역: ' + data.region
+                : '<strong>' + label + '</strong><br/>집계 데이터 없음'
+        }
+    })]
+}).render();`;
+    }
     if (kind === 'contributor-activity') {
         return `import {
     createGroupedColumnSeries,
@@ -3145,6 +3591,8 @@ const renderExample = (kind: DemoKind): void => {
     }
 
     activeKind = kind;
+    scrollableDoughnutCompactLayout = kind === 'doughnut-scroll-legend'
+        && (chartRoot.clientWidth || 760) < 680;
     chart?.destroy();
     cesiumController?.destroy();
     cesiumController = undefined;
@@ -3160,12 +3608,16 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('sankey-chart', kind === 'sankey');
     chartRoot.classList.toggle('tree-chart', kind === 'tree');
     chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
+    chartRoot.classList.toggle('doughnut-scroll-chart', kind === 'doughnut-scroll-legend');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
     if (kind === 'cesium-route') {
         chart = null;
         void setupCesiumDemo();
     } else {
         chart = createDemoChart(kind).render();
+        if (kind === 'doughnut-scroll-legend') {
+            renderScrollableDoughnutLegend();
+        }
         startExampleBehavior(kind);
     }
 
@@ -3221,8 +3673,17 @@ const setupThemeButtons = (): void => {
 };
 
 window.addEventListener('resize', () => {
+    const chartWidth = chartRoot?.clientWidth || 760;
+    const nextScrollableDoughnutCompactLayout = activeKind === 'doughnut-scroll-legend'
+        && chartWidth < 680;
+    if (activeKind === 'doughnut-scroll-legend'
+        && nextScrollableDoughnutCompactLayout !== scrollableDoughnutCompactLayout) {
+        renderExample(activeKind);
+        return;
+    }
+
     chart?.resize({
-        width: chartRoot?.clientWidth || 760,
+        width: chartWidth,
         height: chartRoot?.clientHeight || 420
     });
     mapLibreController?.resize();

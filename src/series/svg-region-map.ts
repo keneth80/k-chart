@@ -2,6 +2,7 @@ import {
     geoMercator,
     geoPath
 } from 'd3-geo';
+import {scaleLinear} from 'd3-scale';
 import {
     zoom,
     zoomIdentity,
@@ -11,6 +12,7 @@ import {feature as topojsonFeature} from 'topojson-client';
 import worldCountries110m from 'world-atlas/countries-110m.json';
 import type {
     KChartGeoRegionMapBubble,
+    KChartGeoRegionMapColorLegendConfiguration,
     KChartGeoRegionMapContext,
     KChartGeoRegionMapLabelConfiguration,
     KChartGeoRegionMapMarker,
@@ -38,6 +40,15 @@ const defaultRegionPalette = [
     '#9b5de5'
 ];
 
+const defaultRegionLegendPalette = [
+    '#274c77',
+    '#2a9d8f',
+    '#e9c46a',
+    '#e76f51'
+];
+
+let regionLegendSequence = 0;
+
 type RegionRenderDatum<T> = KChartGeoRegionMapContext<T> & {
     centroid: [number, number];
 };
@@ -55,6 +66,21 @@ type ResolvedRegionZoom = {
     pan: boolean;
     controls: ResolvedRegionZoomControls;
     scaleExtent: [number, number];
+};
+
+type ResolvedRegionColorLegend = {
+    visible: boolean;
+    title: string;
+    position: 'bottom-left' | 'bottom-center' | 'bottom-right';
+    domain: [number, number];
+    colors: string[];
+    labels: string[];
+    width: number;
+    height: number;
+    offset: number;
+    backgroundFill: string;
+    borderColor: string;
+    textColor: string;
 };
 
 const normalizeGeoFeatures = (
@@ -184,6 +210,90 @@ const resolveRegionZoom = (
     };
 };
 
+export const resolveRegionColorLegend = <T = any>(
+    configuration: boolean | KChartGeoRegionMapColorLegendConfiguration | undefined,
+    regions: Array<RegionRenderDatum<T>>,
+    plotWidth: number
+): ResolvedRegionColorLegend => {
+    const options = typeof configuration === 'object' ? configuration : {};
+    const visible = configuration === true || options.visible === true;
+    const configuredDomain = options.domain;
+    let min = configuredDomain ? Number(configuredDomain[0]) : 0;
+    let max = configuredDomain ? Number(configuredDomain[1]) : 1;
+
+    // Disabled or explicitly bounded legends must not add another full data scan.
+    if (visible && !configuredDomain) {
+        let hasValue = false;
+        for (const region of regions) {
+            if (region.value === null || region.value === undefined) continue;
+            const value = Number(region.value);
+            if (!Number.isFinite(value)) continue;
+            if (!hasValue) {
+                min = value;
+                max = value;
+                hasValue = true;
+            } else {
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+    }
+
+    if (!Number.isFinite(min)) min = 0;
+    if (!Number.isFinite(max)) max = 1;
+    if (min > max) [min, max] = [max, min];
+    if (min === max) max = min + 1;
+
+    const colors = (options.colors ?? defaultRegionLegendPalette).filter(Boolean);
+    const resolvedColors = colors.length >= 2
+        ? colors
+        : [colors[0] ?? defaultRegionLegendPalette[0], colors[0] ?? defaultRegionLegendPalette[1]];
+    const defaultLabels = [
+        String(Math.round(min)),
+        String(Math.round((min + max) / 2)),
+        String(Math.round(max))
+    ];
+    const offset = Math.min(
+        Math.max(0, options.offset ?? 16),
+        Math.max(0, plotWidth / 2)
+    );
+    const availableWidth = Math.max(0, plotWidth - offset * 2);
+    const width = Math.min(Math.max(80, options.width ?? 260), availableWidth);
+    const requestedLabels = options.labels?.length ? options.labels : defaultLabels;
+    const labels = width < 160 && requestedLabels.length > 2
+        ? [requestedLabels[0], requestedLabels[requestedLabels.length - 1]]
+        : requestedLabels;
+
+    return {
+        visible,
+        title: options.title ?? 'Value range',
+        position: options.position ?? 'bottom-left',
+        domain: [min, max],
+        colors: resolvedColors,
+        labels,
+        width,
+        height: Math.max(64, options.height ?? 78),
+        offset,
+        backgroundFill: options.backgroundFill ?? 'rgba(16, 23, 33, 0.88)',
+        borderColor: options.borderColor ?? 'rgba(226, 236, 249, 0.24)',
+        textColor: options.textColor ?? '#edf3f8'
+    };
+};
+
+const createLegendColorScale = (
+    legend: ResolvedRegionColorLegend
+): ((value: number) => string) => {
+    const [min, max] = legend.domain;
+    const colorDomain = legend.colors.map((_color, index) =>
+        min + (max - min) * (index / Math.max(1, legend.colors.length - 1))
+    );
+    const scale = scaleLinear<string>()
+        .domain(colorDomain)
+        .range(legend.colors)
+        .clamp(true);
+    return (value: number): string => scale(value);
+};
+
 const clampNumber = (
     value: number,
     min: number,
@@ -247,7 +357,8 @@ const getMarkerLabelAnchor = (
 
 const resolveRegionFill = <T = any>(
     context: KChartGeoRegionMapContext<T>,
-    configuration: KChartGeoRegionMapSeriesConfiguration<T>
+    configuration: KChartGeoRegionMapSeriesConfiguration<T>,
+    legendColorScale?: (value: number) => string
 ): string => {
     if (context.data && configuration.colorField) {
         const color = context.data[configuration.colorField];
@@ -260,6 +371,10 @@ const resolveRegionFill = <T = any>(
     }
     if (typeof configuration.fill === 'string') {
         return configuration.fill;
+    }
+    const numericValue = Number(context.value);
+    if (context.data && legendColorScale && Number.isFinite(numericValue)) {
+        return legendColorScale(numericValue);
     }
     if (!context.data) {
         return configuration.missingFill ?? 'rgba(142, 160, 173, 0.24)';
@@ -321,6 +436,8 @@ export const createGeoRegionMapSeries = <T = any>(
     configuration: KChartGeoRegionMapSeriesConfiguration<T>
 ): KChartSeries<T> => {
     let regionZoomTransform: ZoomTransform = zoomIdentity;
+    let legendColorScale: ((value: number) => string) | undefined;
+    const legendGradientId = `kchart-region-map-gradient-${++regionLegendSequence}`;
 
     const getLocalPoint = (x: number, y: number): [number, number] => [
         (x - regionZoomTransform.x) / regionZoomTransform.k,
@@ -387,6 +504,8 @@ export const createGeoRegionMapSeries = <T = any>(
                 centroid
             };
         });
+        const colorLegend = resolveRegionColorLegend(configuration.colorLegend, regions, width);
+        legendColorScale = colorLegend.visible ? createLegendColorScale(colorLegend) : undefined;
 
         group.selectAll<SVGRectElement, [number, number]>('rect.kchart-region-map-background')
             .data(configuration.backgroundFill ? [[width, height]] : [])
@@ -407,7 +526,7 @@ export const createGeoRegionMapSeries = <T = any>(
             .join('path')
             .attr('class', configuration.selector)
             .attr('d', (item) => path(item.feature) ?? '')
-            .style('fill', (item) => resolveRegionFill(item, configuration))
+            .style('fill', (item) => resolveRegionFill(item, configuration, legendColorScale))
             .style('fill-opacity', (item) => resolveRegionOpacity(item, configuration))
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2)
@@ -419,6 +538,89 @@ export const createGeoRegionMapSeries = <T = any>(
                     event
                 });
             });
+
+        const legendGroup = overlayGroup.selectAll<SVGGElement, unknown>(`g.${configuration.selector}-color-legend`)
+            .data(colorLegend.visible ? [undefined] : [])
+            .join('g')
+            .attr('class', `${configuration.selector}-color-legend`)
+            .style('pointer-events', 'none');
+
+        if (colorLegend.visible) {
+            const legendX = colorLegend.position === 'bottom-center'
+                ? (width - colorLegend.width) / 2
+                : colorLegend.position === 'bottom-right'
+                    ? width - colorLegend.width - colorLegend.offset
+                    : colorLegend.offset;
+            const legendY = Math.max(colorLegend.offset, height - colorLegend.height - colorLegend.offset);
+            const barX = Math.min(14, colorLegend.width * 0.12);
+            const barY = 34;
+            const barWidth = Math.max(0, colorLegend.width - barX * 2);
+
+            legendGroup.attr('transform', `translate(${legendX}, ${legendY})`);
+            legendGroup.selectAll<SVGRectElement, unknown>('rect.kchart-region-map-color-legend-background')
+                .data([undefined])
+                .join('rect')
+                .attr('class', 'kchart-region-map-color-legend-background')
+                .attr('width', colorLegend.width)
+                .attr('height', colorLegend.height)
+                .attr('rx', 7)
+                .style('fill', colorLegend.backgroundFill)
+                .style('stroke', colorLegend.borderColor)
+                .style('stroke-width', 1);
+
+            const legendDefs = legendGroup.selectAll<SVGDefsElement, unknown>('defs')
+                .data([undefined])
+                .join('defs');
+            const gradient = legendDefs.selectAll<SVGLinearGradientElement, unknown>(`linearGradient#${legendGradientId}`)
+                .data([undefined])
+                .join('linearGradient')
+                .attr('id', legendGradientId)
+                .attr('x1', '0%')
+                .attr('x2', '100%')
+                .attr('y1', '0%')
+                .attr('y2', '0%');
+            gradient.selectAll<SVGStopElement, string>('stop')
+                .data(colorLegend.colors)
+                .join('stop')
+                .attr('offset', (_color, index) => `${index / Math.max(1, colorLegend.colors.length - 1) * 100}%`)
+                .attr('stop-color', (color) => color);
+
+            legendGroup.selectAll<SVGTextElement, unknown>('text.kchart-region-map-color-legend-title')
+                .data([undefined])
+                .join('text')
+                .attr('class', 'kchart-region-map-color-legend-title')
+                .attr('x', barX)
+                .attr('y', 20)
+                .style('fill', colorLegend.textColor)
+                .style('font-size', colorLegend.width < 160 ? '10px' : '12px')
+                .style('font-weight', 800)
+                .text(colorLegend.width >= 96 ? colorLegend.title : '');
+
+            legendGroup.selectAll<SVGRectElement, unknown>('rect.kchart-region-map-color-legend-bar')
+                .data([undefined])
+                .join('rect')
+                .attr('class', 'kchart-region-map-color-legend-bar')
+                .attr('x', barX)
+                .attr('y', barY)
+                .attr('width', barWidth)
+                .attr('height', 10)
+                .attr('rx', 5)
+                .style('fill', `url(#${legendGradientId})`);
+
+            legendGroup.selectAll<SVGTextElement, string>('text.kchart-region-map-color-legend-label')
+                .data(colorLegend.labels)
+                .join('text')
+                .attr('class', 'kchart-region-map-color-legend-label')
+                .attr('x', (_label, index) => barX + barWidth * (index / Math.max(1, colorLegend.labels.length - 1)))
+                .attr('y', barY + 27)
+                .attr('text-anchor', (_label, index) => index === 0 ? 'start' : index === colorLegend.labels.length - 1 ? 'end' : 'middle')
+                .style('fill', colorLegend.textColor)
+                .style('font-size', '10px')
+                .style('font-weight', 700)
+                .text((label) => label);
+
+            legendGroup.raise();
+        }
 
         const labelConfiguration = resolveLabels(configuration.labels);
         const labelItems = labelConfiguration.visible ? regions
@@ -735,7 +937,7 @@ export const createGeoRegionMapSeries = <T = any>(
         let active: RegionRenderDatum<T> | undefined;
         const [localMouseX, localMouseY] = getLocalPoint(mouseX, mouseY);
         seriesGroup.selectAll<SVGPathElement, RegionRenderDatum<T>>(`path.${configuration.selector}`)
-            .style('fill', (item) => resolveRegionFill(item, configuration))
+            .style('fill', (item) => resolveRegionFill(item, configuration, legendColorScale))
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2)
             .each(function findHit(item) {
@@ -752,7 +954,7 @@ export const createGeoRegionMapSeries = <T = any>(
             .filter((item) => item.key === active?.key)
             .style('fill', typeof configuration.hoverFill === 'function'
                 ? configuration.hoverFill(active)
-                : configuration.hoverFill ?? resolveRegionFill(active, configuration))
+                : configuration.hoverFill ?? resolveRegionFill(active, configuration, legendColorScale))
             .style('stroke', configuration.hoverStroke ?? '#ffffff')
             .style('stroke-width', configuration.hoverStrokeWidth ?? Math.max(2, configuration.strokeWidth ?? 1.2));
 
@@ -762,18 +964,19 @@ export const createGeoRegionMapSeries = <T = any>(
             x: tooltipX,
             y: tooltipY,
             distance: 0,
-            color: resolveRegionFill(active, configuration),
+            color: resolveRegionFill(active, configuration, legendColorScale),
             html: createTooltipHtml(active, configuration)
         };
     },
     clearTooltip({seriesGroup}) {
         seriesGroup.selectAll<SVGPathElement, RegionRenderDatum<T>>(`path.${configuration.selector}`)
-            .style('fill', (item) => resolveRegionFill(item, configuration))
+            .style('fill', (item) => resolveRegionFill(item, configuration, legendColorScale))
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2);
     },
     destroy({overlayGroup}) {
         overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
+        overlayGroup.selectAll(`g.${configuration.selector}-color-legend`).remove();
     }
     });
 };
