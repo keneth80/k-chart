@@ -7,6 +7,16 @@ import {resolveCursorGuide} from '../options/cursor-line';
 import {renderGuideLines} from '../options/guide-line';
 import {renderSpecAreas, resolveSpecAreas} from '../options/spec-area';
 import {
+    destroyRangeNavigator,
+    RANGE_NAVIGATOR_MINIMUM_AXIS_FOOTER,
+    renderRangeNavigator,
+    reconcileRangeNavigatorRange,
+    resolveRangeNavigatorAxis,
+    resolveRangeNavigatorConfiguration,
+    resolveRangeNavigatorDataDomain,
+    resolveRangeNavigatorLayout
+} from '../options/range-navigator';
+import {
     destroyTooltipNotes,
     pinTooltipNote,
     renderTooltipNotes,
@@ -58,6 +68,7 @@ import type {
     KChartGestureZoomConfiguration,
     KChartZoomConfiguration,
     KChartGuideLinesConfiguration,
+    KChartRangeNavigatorRange,
     KChartConfiguration,
     KChartState,
     KChartController,
@@ -158,6 +169,7 @@ const defaultAnimationContext: KChartAnimationContext = {
 };
 
 const animationCancellation = new WeakMap<object, () => void>();
+const destroyedCharts = new WeakSet<object>();
 
 type ZoomFrameRequester = (callback: (timestamp: number) => void) => number;
 type ZoomFrameCanceller = (frame: number) => void;
@@ -400,7 +412,21 @@ const resolveEffectiveMargin = <T = any>(
     size: KChartSize,
     baseMargin: KChartMargin
 ): KChartMargin => {
-    const axisMargin = resolveAxisTitleMargins(config.axes, baseMargin);
+    const resolvedAxisMargin = resolveAxisTitleMargins(config.axes, baseMargin);
+    const rangeNavigator = resolveRangeNavigatorConfiguration(config);
+    const hasRangeNavigator = Boolean(rangeNavigator)
+        && rangeNavigator?.visible !== false
+        && Boolean(resolveRangeNavigatorAxis(config.axes, rangeNavigator?.xField));
+    const axisMargin = hasRangeNavigator
+        ? {
+            ...resolvedAxisMargin,
+            bottom: Math.max(
+                resolvedAxisMargin.bottom,
+                RANGE_NAVIGATOR_MINIMUM_AXIS_FOOTER
+            )
+                + resolveRangeNavigatorLayout(rangeNavigator).reservedSpace
+        }
+        : resolvedAxisMargin;
     const horizontalAxisTitleTopSpace = resolveHorizontalAxisTitleTopSpace(config.axes);
     const legend = config.legend;
     const hasTopLegend = legend?.visible !== false && legend?.placement !== 'right' && legend?.placement !== 'bottom' && config.series.length > 0;
@@ -1821,6 +1847,136 @@ const renderSeriesWithAnimation = <T = any>(state: KChartState<T>): void => {
     tick(startedAt);
 };
 
+const toRangeNavigatorRange = (
+    domain: Array<string | number | Date>
+): KChartRangeNavigatorRange | undefined => {
+    if (domain.length < 2) {
+        return undefined;
+    }
+    const first = domain[0];
+    const last = domain[domain.length - 1];
+    if ((typeof first !== 'number' && !(first instanceof Date))
+        || (typeof last !== 'number' && !(last instanceof Date))) {
+        return undefined;
+    }
+    return [first, last];
+};
+
+const renderRangeNavigatorForState = <T = any>(state: KChartState<T>): void => {
+    const configuration = resolveRangeNavigatorConfiguration(state.config);
+    if (!configuration || configuration.visible === false) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    // The navigator owns a full-data scale. The active chart axis may hold a
+    // narrower brush or zoom domain, so using it for the overview would make
+    // the mini chart collapse to the selected window.
+    const initialAxis = resolveRangeNavigatorAxis(state.initialAxes, configuration.xField);
+    const activeAxis = resolveRangeNavigatorAxis(state.axes, configuration.xField);
+    if (!initialAxis || !activeAxis || (initialAxis.type !== 'number' && initialAxis.type !== 'time')) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    const configuredDomain = initialAxis.domain?.length
+        || initialAxis.min !== undefined
+        || initialAxis.max !== undefined
+        ? toRangeNavigatorRange(resolveAxisDomain(initialAxis, state.data))
+        : undefined;
+    const fullDomain = configuredDomain ?? resolveRangeNavigatorDataDomain(
+        state.data,
+        initialAxis.field,
+        initialAxis.type
+    );
+    const selectedRange = toRangeNavigatorRange(resolveAxisDomain(activeAxis, state.data));
+    if (!fullDomain || !selectedRange) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    renderRangeNavigator(state, {
+        xAxis: initialAxis,
+        fullDomain,
+        selectedRange,
+        onRangeChange: (range) => {
+            getZoomRenderScheduler(state).cancel();
+            state.axes = state.axes.map((axis) => axis === activeAxis
+                ? {
+                    ...axis,
+                    domain: [...range],
+                    min: undefined,
+                    max: undefined
+                }
+                : axis);
+            // Wheel zoom starts from the navigator selection, while
+            // initialAxes remains the reset/full-data source of truth.
+            state.baseAxes = cloneAxes(state.axes);
+            state.zoomTransform = zoomIdentity;
+            state.config = {
+                ...state.config,
+                axes: state.axes
+            };
+            const renderIdBeforeCallback = state.renderCompletion.renderId;
+            configuration.onRangeChange?.(range);
+            if (destroyedCharts.has(state as object)
+                || state.renderCompletion.renderId !== renderIdBeforeCallback) {
+                return;
+            }
+            render(state);
+        }
+    });
+};
+
+const reconcileRangeNavigatorSelectionForData = <T = any>(state: KChartState<T>): void => {
+    const configuration = resolveRangeNavigatorConfiguration(state.config);
+    if (!configuration || configuration.visible === false) {
+        return;
+    }
+    const initialAxis = resolveRangeNavigatorAxis(state.initialAxes, configuration.xField);
+    const activeAxis = resolveRangeNavigatorAxis(state.axes, configuration.xField);
+    if (!initialAxis || !activeAxis || !activeAxis.domain?.length
+        || (initialAxis.type !== 'number' && initialAxis.type !== 'time')) {
+        return;
+    }
+
+    const configuredDomain = initialAxis.domain?.length
+        || initialAxis.min !== undefined
+        || initialAxis.max !== undefined
+        ? toRangeNavigatorRange(resolveAxisDomain(initialAxis, state.data))
+        : undefined;
+    const fullDomain = configuredDomain ?? resolveRangeNavigatorDataDomain(
+        state.data,
+        initialAxis.field,
+        initialAxis.type
+    );
+    const selectedRange = toRangeNavigatorRange(activeAxis.domain);
+    if (!fullDomain || !selectedRange) {
+        return;
+    }
+    const nextRange = reconcileRangeNavigatorRange(
+        selectedRange,
+        fullDomain,
+        initialAxis.type
+    );
+    const unchanged = nextRange.every((value, index) => {
+        const current = selectedRange[index];
+        return value instanceof Date && current instanceof Date
+            ? value.getTime() === current.getTime()
+            : value === current;
+    });
+    if (unchanged) {
+        return;
+    }
+
+    state.axes = state.axes.map((axis) => axis === activeAxis
+        ? {...axis, domain: [...nextRange], min: undefined, max: undefined}
+        : axis);
+    state.baseAxes = cloneAxes(state.axes);
+    state.zoomTransform = zoomIdentity;
+    state.config = {...state.config, axes: state.axes};
+};
+
 const render = <T = any>(state: KChartState<T>): void => {
     const completion = beginRenderCompletion(state);
     const baseMargin: KChartMargin = {
@@ -1840,6 +1996,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderSpecAreas(state);
     renderGuideLines(state);
     renderSeriesWithAnimation(state);
+    renderRangeNavigatorForState(state);
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
@@ -1884,6 +2041,7 @@ const renderDataUpdate = <T = any>(
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
+    renderRangeNavigatorForState(state);
 
     const startedAt = now();
     const renderId = state.animationRenderId;
@@ -1924,6 +2082,7 @@ const renderDataUpdate = <T = any>(
         }
 
         state.scales = nextScales;
+        renderRangeNavigatorForState(state);
         state.animationFrame = undefined;
         animationCancellation.delete(state);
         const finalFrameTasks = completion.tasks.slice(taskCountBeforeFrame);
@@ -1983,6 +2142,7 @@ export const createKChart = <T = any>(
                 ...state.config,
                 data
             };
+            reconcileRangeNavigatorSelectionForData(state);
             renderDataUpdate(state, previousScales);
             return controller;
         },
@@ -2019,8 +2179,10 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         destroy() {
+            destroyedCharts.add(state as object);
             getZoomRenderScheduler(state).destroy();
             cancelSeriesAnimation(state);
+            destroyRangeNavigator(state);
             state.series.forEach((series: KChartSeries<T>) => {
                 if (series.destroy) {
                     series.destroy(state.layers);

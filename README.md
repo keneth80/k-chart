@@ -285,7 +285,7 @@ responsibility:
 src/
 ├── core/       # contracts, state, layers, scales, and chart lifecycle
 ├── series/     # SVG, Canvas, WebGL, candlestick, and globe renderers
-├── options/    # spec area, fixed guide line, and cursor line
+├── options/    # spec area, guide/cursor line, range navigator, and tooltip notes
 ├── worker/     # OffscreenCanvas worker entry
 └── utils/      # renderer-independent algorithms such as LTTB
 ```
@@ -1021,6 +1021,35 @@ createKChart({
 ```
 
 `createCursorLineOption`은 마우스 위치를 따라 가장 가까운 x 위치의 series 값을 읽어 보여주는 inspect overlay입니다. 기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드는 호환을 위해 남아 있지만, 새 코드에서는 `options` 배열을 권장합니다.
+
+## Range Navigator
+
+긴 number/time 시계열은 `rangeNavigator`로 전체 추세를 유지하면서 선택 구간만 메인 차트에 표시할 수 있습니다. 하단 overview 높이와 간격은 자동으로 margin에 반영되며, 문자열/point 축에서는 활성화되지 않습니다.
+
+```ts
+createKChart({
+    selector: '#chart',
+    data: weeklyCommits,
+    axes: [
+        {field: 'week', type: 'time', placement: 'bottom'},
+        {field: 'commits', type: 'number', placement: 'right', min: 0}
+    ],
+    series: [createGroupedColumnSeries({
+        selector: 'weekly-commits',
+        displayName: 'Commits',
+        xField: 'week',
+        segments: [{field: 'commits', color: '#2f81f7'}]
+    })],
+    rangeNavigator: {
+        xField: 'week',
+        yField: 'commits',
+        height: 58,
+        gap: 14
+    }
+}).render();
+```
+
+`createRangeNavigatorOption(...)`으로 같은 설정을 `options` 배열에 넣을 수도 있습니다. brush 선택 후 `onRangeChange`는 number 축이면 숫자, time 축이면 `Date` 두 개로 구성된 domain을 전달합니다.
 
 `tooltip.formatter` can be used when the default series/x/y text is not enough.
 
