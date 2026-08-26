@@ -18,7 +18,6 @@
   <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&label=npm&color=0ea5e9"></a>
   <a href="https://github.com/keneth80/k-chart/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/keneth80/k-chart?style=for-the-badge&color=22c55e"></a>
   <a href="https://k-chart-playground.vercel.app/"><img alt="Playground" src="https://img.shields.io/badge/Live_Playground-open-8b5cf6?style=for-the-badge"></a>
-  <a href="https://k-chart-bench.vercel.app/"><img alt="Benchmark" src="https://img.shields.io/badge/Live_Benchmark-view-f59e0b?style=for-the-badge"></a>
 </p>
 
 <p align="center">
@@ -36,8 +35,6 @@
 
 <p align="center">
   <a href="https://k-chart-playground.vercel.app/"><strong>Open Playground</strong></a>
-  ·
-  <a href="https://k-chart-bench.vercel.app/"><strong>View Benchmark</strong></a>
   ·
   <a href="#quick-start"><strong>Quick Start</strong></a>
   ·
@@ -144,7 +141,6 @@ KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object�
 - 수천에서 수만 개의 point를 빠르게 그려야 하면 Canvas series를 사용합니다.
 - 더 큰 line/point 데이터나 잦은 viewport 변경이 있으면 WebGL series와 LTTB downsampling을 조합합니다.
 - 3D, 지도, 지구본은 optional adapter package로 분리해 필요한 화면에서만 로드합니다.
-- 재현 가능한 렌더링 측정 결과와 조건은 [KChart Benchmark](https://k-chart-bench.vercel.app/)에서 확인할 수 있습니다.
 
 ## Core Concept
 
@@ -250,12 +246,6 @@ npm install @keneth80/k-chart
 - Local playground URL: `http://127.0.0.1:9011`
 
 The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.
-
-## Benchmark
-
-- Live benchmark: [https://k-chart-bench.vercel.app/](https://k-chart-bench.vercel.app/)
-
-The benchmark publishes reproducible KChart rendering measurements alongside the dataset size, browser environment, runtime version, and measurement methodology.
 
 ## Local Development
 
