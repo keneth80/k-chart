@@ -1,6 +1,6 @@
 {
   "name": "@keneth80/k-chart-maplibre",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MapLibre flat-map, clustered world map, and globe drilldown adapter for KChart.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
