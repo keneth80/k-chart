@@ -53,11 +53,16 @@ When implementing charts:
 
 Codex reads `AGENTS.md`. Put project-wide instructions at the repository root and narrower instructions in subdirectories when a dashboard package needs different rules.
 
-The KChart repository's root `AGENTS.md` points to the canonical AI docs and includes validation commands. In a consuming project, include the shared instruction above and add exact build and test commands.
+KChart does not commit a repository-specific `AGENTS.md`; maintainers may create
+one locally when needed. In a consuming project, include the shared instruction
+above and add exact build and test commands appropriate to that project.
 
 ## Claude Code
 
-Claude Code reads `CLAUDE.md`. Keep it short and reference the same canonical documents instead of copying the catalog into the file.
+Claude Code reads `CLAUDE.md`. KChart does not commit this tool-specific file;
+maintainers or consuming projects may create one locally. Keep it short and
+reference the same canonical documents instead of copying the catalog into the
+file.
 
 For local exceptions that must not be committed, use the tool's supported local instruction mechanism rather than placing tokens, provider keys, or private data in `CLAUDE.md`.
 
