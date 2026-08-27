@@ -57,9 +57,13 @@ export interface KChartDownsampleContext<T = any> {
 
 export interface KChartDownsampleConfiguration<T = any> {
     enabled?: boolean;
+    /** LTTB target point count. Pixel-column min/max does not use this option. */
     threshold?: number | ((context: KChartDownsampleContext<T>) => number);
     xAccessor?: (point: T) => number;
     yAccessor?: (point: T) => number;
+    strategy?: 'lttb' | 'min-max' | 'auto';
+    /** Minimum visible points per plot pixel before pixel-column min/max sampling starts. */
+    pointsPerPixel?: number;
 }
 
 export interface KChartAsyncRenderConfiguration {

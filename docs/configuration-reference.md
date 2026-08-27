@@ -254,7 +254,7 @@ createKChart({
 | `pointerEvents` | `'core' \| 'series'` | 기본값은 `core`입니다. 노드/링크가 직접 hover·click을 처리하는 custom series는 `series`를 지정하면 코어 tooltip이 상위 group에서 이벤트를 함께 수신합니다. |
 | `xField` / `yField` | `keyof T & string` | 기본 tooltip, scale 선택, downsample에 쓰이는 field입니다. |
 | `color` | `string` | series 색상입니다. 없으면 chart `colors` 팔레트에서 할당됩니다. |
-| `downsample` | `boolean \| KChartDownsampleConfiguration<T>` | line 계열 renderer에서 LTTB downsampling을 적용합니다. |
+| `downsample` | `boolean \| KChartDownsampleConfiguration<T>` | line 계열 renderer에서 LTTB 또는 픽셀 열별 min/max downsampling을 적용합니다. |
 | `render(context)` | `function` | 실제 렌더링 함수입니다. custom series의 핵심 확장 지점입니다. |
 | `tooltip(context)` | `function` | custom tooltip hit-test를 구현할 수 있습니다. |
 | `clearTooltip(context)` | `function` | hover 종료 시 series highlight를 되돌릴 수 있습니다. |
@@ -273,7 +273,7 @@ createKChart({
 | `strokeWidth` | `number` | `2` | SVG path stroke width입니다. |
 | `curve` | `boolean` | `false` | `true`이면 `curveMonotoneX`를 사용합니다. |
 | `dot` | `boolean \| { radius; fill; stroke }` | `false` | 각 point에 SVG circle을 표시합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 
 ### SVG Area: `createAreaSeries`
 
@@ -285,7 +285,7 @@ createKChart({
 | `fill` / `fillOpacity` | `string`, `number` | chart color, `0.26` | area fill 스타일입니다. |
 | `stroke` / `strokeWidth` | `string`, `number` | chart color, `2` | area 상단 라인 스타일입니다. |
 | `curve` | `boolean` | `false` | `true`이면 `curveMonotoneX`를 사용합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 
 ### SVG Horizontal Bar: `createBarSeries`
 
@@ -560,7 +560,7 @@ createTreemapSeries<ProductShare>({
 | `color` | `string` | chart color | stroke 색상입니다. |
 | `lineWidth` | `number` | `2` | Canvas line width입니다. |
 | `canvasName` | `string` | `selector` | canvas layer 이름입니다. 여러 series가 같은 canvas를 공유할 때 지정합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 | `asyncRender` | `KChartAsyncRenderConfiguration` | disabled | OffscreenCanvas + Worker line draw를 사용합니다. |
 
 ### Canvas Point: `createCanvasPointSeries`
@@ -605,7 +605,7 @@ createTreemapSeries<ProductShare>({
 | `color` | `string` | chart color | line 색상입니다. |
 | `lineWidth` | `number` | `1` | WebGL line width입니다. 브라우저/드라이버에 따라 1보다 큰 값이 제한될 수 있습니다. |
 | `canvasName` | `string` | `selector` | WebGL canvas layer 이름입니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 | `asyncRender` | `KChartAsyncRenderConfiguration` | disabled | OffscreenCanvas + Worker line draw를 사용합니다. |
 
 ### WebGL Point: `createWebglPointSeries`
@@ -670,9 +670,16 @@ WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달�
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` when object exists | false이면 downsampling을 끕니다. |
-| `threshold` | `number \| (context) => number` | plot width | 줄이고자 하는 목표 point 수입니다. 보통 chart plot width를 사용합니다. |
+| `strategy` | `'lttb' \| 'min-max' \| 'auto'` | `lttb` | `min-max`는 화면의 픽셀 열마다 first/min/max/last를 보존합니다. `auto`는 정렬된 number/time x축에만 min-max를 적용하고 나머지는 LTTB로 돌아갑니다. |
+| `threshold` | `number \| (context) => number` | plot width | LTTB가 줄일 목표 point 수입니다. 보통 chart plot width를 사용하며 min-max 경로에서는 평가하지 않습니다. |
+| `pointsPerPixel` | `number` | `4` | min-max 축약을 시작할 입력 밀도입니다. 보이는 데이터가 `plot width × pointsPerPixel`을 넘으면 축약합니다. 출력은 픽셀 열당 최대 4점과 선 연결용 좌우 경계 이웃 최대 1점씩입니다. |
 | `xAccessor` | `(point) => number` | field 기반 | LTTB x 값 추출 함수입니다. |
 | `yAccessor` | `(point) => number` | field 기반 | LTTB y 값 추출 함수입니다. |
+
+`min-max`는 x 값이 오름차순인 고밀도 시계열 line에 적합합니다. 범주형 축,
+비정렬 데이터, 결측값, 커스텀 accessor처럼 픽셀 열을 안전하게 계산할 수 없는 입력은
+`strategy: 'auto'`에서 기존 LTTB 경로를 사용합니다. 명시적인 `min-max`에서는
+알고리즘을 몰래 바꾸지 않고 원본 renderer 입력을 유지합니다.
 
 ## Worker Rendering
 
