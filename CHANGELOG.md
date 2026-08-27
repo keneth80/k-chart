@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.26.0 - 2026-08-27
+
+### Added
+
+- Added pixel-column min/max downsampling for dense numeric and time-series
+  lines, preserving each visible column's first, minimum, maximum, and last
+  points in source order.
+- Added `downsample.strategy` (`lttb`, `min-max`, or `auto`) and
+  `pointsPerPixel` configuration while preserving LTTB as the existing default.
+- Added configurable MapLibre world clustering, single-world rendering,
+  bounds, cluster styling, cluster interaction callbacks, and toolbar controls
+  in `@keneth80/k-chart-maplibre` 0.2.0.
+- Added a StackBlitz-ready clustered world map example and playground entry.
+
+### Changed
+
+- Dense Canvas and WebGL line demos now use the safe `auto` strategy so
+  continuous, ordered data can retain narrow spikes with output proportional
+  to plot width.
+- Unsafe or unsupported automatic min/max inputs fall back to LTTB; explicit
+  `min-max` keeps the original renderer input instead of silently changing
+  algorithms.
+
+### Tests
+
+- Added regression coverage for numeric, Date, and ISO-time min/max sampling,
+  viewport boundaries, extrema order, invalid data, zoomed domains, automatic
+  fallback behavior, and output-size bounds.
+- Added MapLibre configuration and runtime tests for clustering, world-copy
+  control, callbacks, styling expressions, bounds, and toolbar behavior.
+
 ## 1.25.0 - 2026-08-27
 
 ### Added
