@@ -27,6 +27,15 @@ __MACOSX/
 .idea/
 .vscode/
 
+# Local AI coding-assistant configuration
+.codex/
+.claude/
+.agents/
+.omc/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+
 # Archives
 *.zip
 *.tgz

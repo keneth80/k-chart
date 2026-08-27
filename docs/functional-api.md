@@ -698,7 +698,7 @@ const chart = createKChart<Point>({
 
 ### Downsampling
 
-`createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`는 `downsample` 옵션을 지원합니다. `true`를 넘기면 현재 plot width를 기준으로 LTTB가 적용되고, 객체를 넘기면 threshold와 x/y accessor를 직접 지정할 수 있습니다.
+`createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`는 `downsample` 옵션을 지원합니다. `true`를 넘기면 기존과 동일하게 현재 plot width를 기준으로 LTTB가 적용됩니다. 객체를 넘기면 LTTB, 픽셀 열별 min/max, 안전한 자동 선택 전략을 사용할 수 있습니다.
 
 ```ts
 createWebglLineSeries<Point>({
@@ -711,6 +711,30 @@ createWebglLineSeries<Point>({
     }
 });
 ```
+
+정렬된 numeric/time 시계열은 `min-max`가 각 픽셀 열의 진입점, 최솟값,
+최댓값, 이탈점을 원본 순서대로 보존합니다. 화면에 표현할 수 없는 중복 점은
+줄이면서 짧은 피크와 급락은 유지하므로 대용량 모니터링 차트에 적합합니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'dense-signal',
+    xField: 'time',
+    yField: 'signal',
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }
+});
+```
+
+`auto`는 오름차순 number/time x축처럼 픽셀 열을 안전하게 계산할 수 있을 때
+min-max를 사용합니다. 범주형 축, 비정렬 입력, 결측값, 커스텀 accessor는 기존 LTTB로
+fallback합니다. 알고리즘을 고정해야 하는 경우 `strategy: 'lttb'` 또는
+`strategy: 'min-max'`를 명시합니다. 명시적인 min-max가 안전하지 않은 입력을
+만나면 다른 알고리즘으로 바꾸지 않고 원본 renderer 입력을 유지합니다.
+`pointsPerPixel`은 축약을 시작할 입력 밀도이며, 실제 결과는 픽셀 열마다 원본
+순서의 대표점 최대 4개와 선 연결용 좌우 경계 이웃 최대 1개씩으로 제한됩니다.
 
 알고리즘 자체도 export됩니다.
 
@@ -964,6 +988,7 @@ createWorldCountryMapSeries<Country>({
 - [World Country Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts)
 - [World Activity Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts)
 - [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
+- [World Cluster Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts)
 
 ## Display Options
 

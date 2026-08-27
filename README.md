@@ -68,6 +68,8 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts"><strong>World Activity Map</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts"><strong>World Cluster Map</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-column-basic?title=KChart%20Column&file=src/main.ts"><strong>Column</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-stacked-column-basic?title=KChart%20Stacked%20Column&file=src/main.ts"><strong>Stacked Column</strong></a>
@@ -762,9 +764,9 @@ createKChart({
 - `gestureZoom`: 모바일 touch gesture 입력을 제어합니다. `devices`는 기본값이 `'mobile'`이며, `minTouches: 1`이면 한 손가락 pan과 두 손가락 pinch를 함께 허용합니다.
 - `resetOnDoubleClick`: `false`로 지정하면 더블클릭 reset을 끌 수 있습니다.
 
-## LTTB Downsampling
+## Line Downsampling
 
-Line 계열 series는 `downsample` 옵션으로 LTTB(Largest Triangle Three Buckets) 다운샘플링을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.
+Line 계열 series는 `downsample` 옵션으로 LTTB 또는 픽셀 열별 min/max 축약을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.
 
 ```ts
 createCanvasLineSeries<Point>({
@@ -790,6 +792,31 @@ createWebglLineSeries<Point>({
     }
 });
 ```
+
+고밀도 numeric/time 시계열에서는 `min-max`가 각 픽셀 열의
+first/min/max/last를 원본 순서대로 보존해 짧은 피크를 놓치지 않으면서 출력
+point 수를 화면 폭에 비례하도록 제한합니다. 적용 가능 여부를 KChart에 맡기려면
+`auto`를 사용합니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'webgl-dense-signal',
+    xField: 'time',
+    yField: 'signal',
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }
+});
+```
+
+`auto`는 오름차순 number/time x축에서는 min-max를 선택하고, 범주형 축,
+비정렬 입력, 결측값, 커스텀 accessor에서는 LTTB로 fallback합니다. 기존
+`downsample: true`와 `strategy: 'lttb'`의 동작은 변경되지 않습니다.
+명시적인 `strategy: 'min-max'`가 안전하지 않은 입력을 만나면 다른 알고리즘으로
+바꾸지 않고 원본 renderer 입력을 유지합니다.
+`pointsPerPixel`은 축약을 시작할 입력 밀도이며 결과는 픽셀 열당 최대 4개의
+대표점과 선 연결을 위한 좌우 경계 이웃 최대 1개씩으로 제한됩니다.
 
 필요하면 알고리즘만 직접 사용할 수도 있습니다.
 

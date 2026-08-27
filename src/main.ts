@@ -92,6 +92,7 @@ type DemoKind =
     | 'three-constellation'
     | 'three-wafer'
     | 'world-activity-map'
+    | 'world-cluster-map'
     | 'globe-map'
     | 'globe-map-drilldown'
     | 'cesium-route'
@@ -301,6 +302,43 @@ const globePlaces = parseMapLibrePlaces<DemoPlace, DemoPlace>([
     { id: 'sao-paulo-mercadao', city: 'Sao Paulo', name: 'Mercadao Municipal', category: 'Restaurant', address: 'Rua da Cantareira 306, Sao Paulo', description: 'Municipal market famous for local food.', lat: -23.5418, lon: -46.6291 }
 ], (place) => place);
 
+const worldClusterHubs = [
+    { city: 'Seoul', lat: 37.5665, lon: 126.9780, count: 96, category: 'Asia Pacific' },
+    { city: 'Tokyo', lat: 35.6762, lon: 139.6503, count: 82, category: 'Asia Pacific' },
+    { city: 'Singapore', lat: 1.3521, lon: 103.8198, count: 64, category: 'Asia Pacific' },
+    { city: 'Sydney', lat: -33.8688, lon: 151.2093, count: 52, category: 'Asia Pacific' },
+    { city: 'Mumbai', lat: 19.0760, lon: 72.8777, count: 58, category: 'Asia Pacific' },
+    { city: 'Dubai', lat: 25.2048, lon: 55.2708, count: 44, category: 'Middle East' },
+    { city: 'London', lat: 51.5072, lon: -0.1276, count: 76, category: 'Europe' },
+    { city: 'Berlin', lat: 52.5200, lon: 13.4050, count: 54, category: 'Europe' },
+    { city: 'Amsterdam', lat: 52.3676, lon: 4.9041, count: 38, category: 'Europe' },
+    { city: 'New York', lat: 40.7128, lon: -74.0060, count: 88, category: 'North America' },
+    { city: 'Chicago', lat: 41.8781, lon: -87.6298, count: 46, category: 'North America' },
+    { city: 'San Francisco', lat: 37.7749, lon: -122.4194, count: 69, category: 'North America' },
+    { city: 'Mexico City', lat: 19.4326, lon: -99.1332, count: 42, category: 'Latin America' },
+    { city: 'Sao Paulo', lat: -23.5505, lon: -46.6333, count: 62, category: 'Latin America' },
+    { city: 'Cape Town', lat: -33.9249, lon: 18.4241, count: 35, category: 'Africa' }
+] as const;
+
+const worldClusterPlaces: DemoPlace[] = worldClusterHubs.flatMap((hub, hubIndex) =>
+    Array.from({length: hub.count}, (_unused, pointIndex) => {
+        const angle = pointIndex * 2.3999632297 + hubIndex * 0.41;
+        const distance = 0.08 + Math.sqrt(pointIndex + 1) * 0.055;
+        const lat = Math.max(-85, Math.min(85, hub.lat + Math.sin(angle) * distance));
+        const rawLon = hub.lon + Math.cos(angle) * distance * 1.35;
+        const lon = ((rawLon + 180) % 360 + 360) % 360 - 180;
+        return {
+            id: `${hub.city.toLowerCase().replace(/\s+/g, '-')}-${pointIndex + 1}`,
+            city: hub.city,
+            name: `${hub.city} signal ${pointIndex + 1}`,
+            category: hub.category,
+            description: 'Aggregated operational event available for drilldown.',
+            lat,
+            lon
+        };
+    })
+);
+
 const resolveGlobePlaces = createMapLibrePlaceResolver<DemoPoint, DemoPlace>(
     globePlaces,
     {
@@ -473,6 +511,7 @@ const examples: ExampleMeta[] = [
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'world-activity-map', title: '글로벌 시장 활동 현황', dataLabel: 'country activity index' },
+    { kind: 'world-cluster-map', title: 'Global operations cluster map', dataLabel: `${worldClusterPlaces.length} live locations` },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Realtime time-series line', dataLabel: '250ms sliding window' },
@@ -517,6 +556,47 @@ const setupMapLibreDemo = (): void => {
             zoom: 13
         }
     );
+};
+
+const setupWorldClusterDemo = async (): Promise<void> => {
+    if (!chartRoot) {
+        return;
+    }
+    const controller = createMapLibreFlatMap<DemoPlace>({
+        container: chartRoot,
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        initialZoom: 1.15,
+        minZoom: 0.6,
+        maxZoom: 12,
+        renderWorldCopies: true,
+        cluster: true,
+        clusterRadius: 58,
+        clusterStyle: {
+            steps: [
+                {minPointCount: 24, color: '#facc15', radius: 21},
+                {minPointCount: 64, color: '#fb923c', radius: 27}
+            ],
+            color: '#4ade80',
+            radius: 16,
+            strokeColor: 'rgba(255, 255, 255, 0.78)',
+            strokeWidth: 2,
+            textColor: '#17202a',
+            textSize: 12
+        },
+        markerColor: '#22d3ee',
+        toolbar: {visible: false},
+        onClusterClick: ({pointCount, coordinates}) => {
+            console.info(`[KChart MapLibre] expand ${pointCount} locations`, coordinates);
+        }
+    });
+    mapLibreController = controller;
+    await controller.show({
+        lat: 20,
+        lon: 5,
+        zoom: 1.15,
+        label: 'Global operations',
+        places: worldClusterPlaces
+    });
 };
 
 const setupCesiumDemo = async (): Promise<void> => {
@@ -1846,10 +1926,13 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     if (kind === 'canvas-line' || kind === 'canvas-bigdata-line') {
         const prefix = `demo-${kind}`;
         const asyncRender = kind === 'canvas-bigdata-line' ? asyncLineRender : undefined;
+        const downsample = kind === 'canvas-bigdata-line'
+            ? {strategy: 'auto' as const, pointsPerPixel: 4}
+            : undefined;
         return [
-            createCanvasLineSeries({ selector: `${prefix}-value`, displayName: kind === 'canvas-bigdata-line' ? '50k Value' : 'Canvas Value', xField: 'x', yField: 'value', color: '#5db8ff', lineWidth: 2, asyncRender }),
-            createCanvasLineSeries({ selector: `${prefix}-volume`, displayName: kind === 'canvas-bigdata-line' ? '50k Volume' : 'Canvas Volume', xField: 'x', yField: 'volume', color: '#56d08f', lineWidth: 2, asyncRender }),
-            createCanvasLineSeries({ selector: `${prefix}-extra`, displayName: kind === 'canvas-bigdata-line' ? '50k Extra' : 'Canvas Extra', xField: 'x', yField: 'extra', color: '#f3b45b', lineWidth: 2, asyncRender })
+            createCanvasLineSeries({ selector: `${prefix}-value`, displayName: kind === 'canvas-bigdata-line' ? '50k Value' : 'Canvas Value', xField: 'x', yField: 'value', color: '#5db8ff', lineWidth: 2, downsample, asyncRender }),
+            createCanvasLineSeries({ selector: `${prefix}-volume`, displayName: kind === 'canvas-bigdata-line' ? '50k Volume' : 'Canvas Volume', xField: 'x', yField: 'volume', color: '#56d08f', lineWidth: 2, downsample, asyncRender }),
+            createCanvasLineSeries({ selector: `${prefix}-extra`, displayName: kind === 'canvas-bigdata-line' ? '50k Extra' : 'Canvas Extra', xField: 'x', yField: 'extra', color: '#f3b45b', lineWidth: 2, downsample, asyncRender })
         ];
     }
     if (kind === 'webgl-line' || kind === 'webgl-large-line') {
@@ -1863,6 +1946,7 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 yField: `signal${index}`,
                 color,
                 lineWidth: 1,
+                downsample: {strategy: 'auto', pointsPerPixel: 4},
                 asyncRender: asyncLineRender
             }));
         }
@@ -2650,13 +2734,20 @@ const createSeriesSnippet = (kind: DemoKind): string => {
 })`;
     }
     if (kind === 'canvas-line' || kind === 'canvas-bigdata-line') {
+        const downsample = kind === 'canvas-bigdata-line'
+            ? `,
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }`
+            : '';
         return `createCanvasLineSeries({
     selector: 'demo-${kind}-value',
     displayName: '${kind === 'canvas-bigdata-line' ? '50k Value' : 'Canvas Value'}',
     xField: 'x',
     yField: 'value',
     color: '#5db8ff',
-    lineWidth: 2
+    lineWidth: 2${downsample}
 }),
 createCanvasLineSeries({
     selector: 'demo-${kind}-volume',
@@ -2664,7 +2755,7 @@ createCanvasLineSeries({
     xField: 'x',
     yField: 'volume',
     color: '#56d08f',
-    lineWidth: 2
+    lineWidth: 2${downsample}
 }),
 createCanvasLineSeries({
     selector: 'demo-${kind}-extra',
@@ -2672,17 +2763,24 @@ createCanvasLineSeries({
     xField: 'x',
     yField: 'extra',
     color: '#f3b45b',
-    lineWidth: 2
+    lineWidth: 2${downsample}
 })`;
     }
     if (kind === 'webgl-line' || kind === 'webgl-large-line') {
+        const downsample = kind === 'webgl-large-line'
+            ? `,
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }`
+            : '';
         return `createWebglLineSeries({
     selector: 'demo-${kind}-value',
     displayName: '${kind === 'webgl-large-line' ? '120k Value' : 'WebGL Value'}',
     xField: 'x',
     yField: 'value',
     color: '#5db8ff',
-    lineWidth: 1
+    lineWidth: 1${downsample}
 }),
 createWebglLineSeries({
     selector: 'demo-${kind}-volume',
@@ -2690,7 +2788,7 @@ createWebglLineSeries({
     xField: 'x',
     yField: 'volume',
     color: '#56d08f',
-    lineWidth: 1
+    lineWidth: 1${downsample}
 }),
 createWebglLineSeries({
     selector: 'demo-${kind}-extra',
@@ -2698,7 +2796,7 @@ createWebglLineSeries({
     xField: 'x',
     yField: 'extra',
     color: '#f3b45b',
-    lineWidth: 1
+    lineWidth: 1${downsample}
 })`;
     }
     if (kind === 'canvas-point') {
@@ -2822,6 +2920,57 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'world-cluster-map') {
+        return `import {
+    createMapLibreFlatMap,
+    parseMapLibrePlaces
+} from '@keneth80/k-chart-maplibre';
+import '@keneth80/k-chart-maplibre/style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+const places = parseMapLibrePlaces(apiRows, (row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.region,
+    lat: Number(row.latitude),
+    lon: Number(row.longitude)
+}));
+
+const worldMap = createMapLibreFlatMap({
+    container: '#chart-div',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    initialZoom: 1.15,
+    minZoom: 0.6,
+    maxZoom: 12,
+    // Wide viewports can repeat the world horizontally. Set false to show one copy.
+    renderWorldCopies: true,
+    cluster: true,
+    clusterRadius: 58,
+    clusterStyle: {
+        steps: [
+            { minPointCount: 24, color: '#facc15', radius: 21 },
+            { minPointCount: 64, color: '#fb923c', radius: 27 }
+        ],
+        color: '#4ade80',
+        radius: 16,
+        textColor: '#17202a'
+    },
+    toolbar: { visible: false },
+    onClusterClick: ({ pointCount, coordinates }) => {
+        console.info('Expanding cluster', pointCount, coordinates);
+    },
+    onPlaceClick: ({ place }) => {
+        console.info('Selected place', place);
+    }
+});
+
+await worldMap.show({
+    lat: 20,
+    lon: 5,
+    zoom: 1.15,
+    places
+});`;
+    }
     if (kind === 'doughnut-scroll-legend') {
         return `import { createDoughnutChart } from '@keneth80/k-chart';
 
@@ -3610,7 +3759,12 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
     chartRoot.classList.toggle('doughnut-scroll-chart', kind === 'doughnut-scroll-legend');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
-    if (kind === 'cesium-route') {
+    if (kind === 'world-cluster-map') {
+        chart = null;
+        void setupWorldClusterDemo().catch((error) => {
+            console.error('[KChart MapLibre] cluster map failed to load', error);
+        });
+    } else if (kind === 'cesium-route') {
         chart = null;
         void setupCesiumDemo();
     } else {

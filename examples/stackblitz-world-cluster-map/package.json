@@ -1,5 +1,5 @@
 {
-  "name": "kchart-world-activity-map",
+  "name": "kchart-world-cluster-map",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@keneth80/k-chart": "^1.26.0",
+    "@keneth80/k-chart-maplibre": "^0.2.0",
+    "maplibre-gl": "^5.19.0",
     "typescript": "^6.0.3",
     "vite": "^7.1.12"
-  }
+  },
+  "devDependencies": {}
 }

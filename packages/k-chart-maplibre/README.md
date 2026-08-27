@@ -90,7 +90,12 @@ const resolvePlaces = createMapLibrePlaceResolver<City, Place>(places, {
 const map = createMapLibreFlatMap({
     container: '#chart',
     style: 'https://tiles.openfreemap.org/styles/liberty',
-    initialZoom: 13
+    initialZoom: 13,
+    toolbar: {
+        visible: true,
+        location: true,
+        backButton: true
+    }
 });
 
 const bridge = createMapLibreGlobeBridge(
@@ -131,6 +136,61 @@ MapLibre renders map tiles and place markers. Address or restaurant search shoul
 when malformed provider records should be ignored instead of throwing an error.
 `createMapLibrePlaceResolver()` indexes places once and returns the resolver expected
 by `createMapLibreGlobeBridge()`.
+
+## World Clusters
+
+`createMapLibreFlatMap()` can also be used as a standalone clustered world map. Set
+`renderWorldCopies: false` to prevent repeated worlds and use `maxBounds` to constrain
+panning. When `renderWorldCopies` is omitted, the MapLibre default is preserved.
+
+```ts
+const map = createMapLibreFlatMap({
+    container: '#world-map',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    initialZoom: 1.5,
+    minZoom: 1,
+    renderWorldCopies: false,
+    maxBounds: [[-180, -85], [180, 85]],
+    toolbar: {visible: false},
+    clusterStyle: {
+        color: '#2563eb',
+        radius: 16,
+        steps: [
+            {minPointCount: 10, color: '#0f766e', radius: 20},
+            {minPointCount: 50, color: '#ca8a04', radius: 26},
+            {minPointCount: 200, color: '#dc2626', radius: 32}
+        ],
+        strokeColor: '#ffffff',
+        strokeWidth: 2,
+        textColor: '#ffffff',
+        textSize: 12
+    },
+    onClusterClick: ({clusterId, pointCount, coordinates, expansionZoom, map}) => {
+        console.log('Expanded cluster', {clusterId, pointCount, coordinates, expansionZoom});
+    },
+    onClusterHover: ({type, hovered, clusterId, pointCount, event, feature, map}) => {
+        console.log(type, {hovered, clusterId, pointCount, event, feature, map});
+    }
+});
+
+map.setPlaces(worldPlaces);
+await map.show({lat: 20, lon: 0, zoom: 1.5});
+```
+
+Cluster clicks always retain the built-in expansion animation. `onClusterClick` runs
+after the expansion zoom has been resolved and receives the cluster feature, center,
+point count, expansion zoom, original layer event, and map. `onClusterHover` runs for
+both enter and leave transitions and includes `type` and `hovered` state.
+
+Cluster styling uses `color` and `radius` as values below the first threshold. Each
+`steps` entry applies at `minPointCount` and may change the color, radius, or both.
+Thresholds are sorted before they are passed to MapLibre. Omitting `steps` preserves
+the existing radius thresholds at 20 and 60 points. When a threshold is repeated,
+the last color or radius specified for that threshold wins.
+
+Toolbar controls remain fully visible by default for backward compatibility.
+`toolbar.visible` hides the entire toolbar, while `toolbar.location` and
+`toolbar.backButton` independently hide the location label or globe-back button.
 
 ## Place Data Utilities
 
