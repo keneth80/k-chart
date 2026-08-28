@@ -1,0 +1,178 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap");
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #edf3f8;
+  background: #07111b;
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; }
+button { font: inherit; }
+
+.route-lab {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 560px;
+  overflow: hidden;
+  background: #0b1722;
+}
+
+.route-map,
+.route-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.route-overlay {
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.route-path {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 4px rgba(3, 10, 18, .62));
+}
+
+.route-path-air { stroke-dasharray: 12 9; }
+
+.route-flow {
+  fill: none;
+  stroke: rgba(255, 255, 255, .9);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 3 20;
+}
+
+.is-route-animating .route-flow { animation: route-flow 1.15s linear infinite; }
+@keyframes route-flow { to { stroke-dashoffset: -46; } }
+
+.route-mode-badge text,
+.route-stop text {
+  fill: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(6, 16, 25, .72);
+  stroke-width: 2px;
+}
+
+.route-mode-badge circle {
+  stroke: #fff;
+  stroke-width: 2px;
+  filter: drop-shadow(0 4px 8px rgba(3, 10, 18, .42));
+}
+
+.route-stop { pointer-events: auto; cursor: pointer; outline: none; }
+.route-stop path { stroke: #fff; stroke-width: 3px; filter: drop-shadow(0 3px 5px rgba(3, 10, 18, .58)); }
+.route-stop:hover path, .route-stop:focus path { stroke-width: 5px; }
+.route-stop .route-stop-label { font-size: 12px; stroke-width: 3px; }
+
+.route-toolbar,
+.route-legend,
+.route-callout {
+  position: absolute;
+  z-index: 4;
+  border: 1px solid rgba(231, 241, 248, .22);
+  border-radius: 8px;
+  background: rgba(7, 17, 27, .87);
+  box-shadow: 0 12px 34px rgba(2, 8, 15, .26);
+  backdrop-filter: blur(12px);
+}
+
+.route-toolbar {
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 10px 11px 10px 14px;
+}
+
+.route-toolbar > div, .route-callout > div { display: grid; gap: 2px; }
+.route-toolbar strong, .route-legend strong, .route-callout strong { color: #f8fbff; font-size: 13px; }
+.route-toolbar span, .route-callout span { color: #a8bac7; font-size: 11px; }
+
+#animation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid rgba(143, 216, 255, .3);
+  border-radius: 7px;
+  background: rgba(93, 184, 255, .15);
+  color: #e9f7ff;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#animation-toggle i {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5db8ff;
+  color: #07111b;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.route-legend {
+  left: 14px;
+  bottom: 14px;
+  display: grid;
+  gap: 8px;
+  width: 180px;
+  padding: 13px 14px;
+}
+
+.route-legend > div {
+  display: grid;
+  grid-template-columns: 22px 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  color: #b8c8d2;
+  font-size: 10px;
+}
+
+.route-legend i { width: 20px; height: 4px; border-radius: 2px; }
+.route-legend b { color: #f8fbff; font-size: 9px; }
+
+.route-callout {
+  top: 78px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+  padding: 10px 12px;
+}
+
+.route-callout > i {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  border-radius: 50%;
+  color: #07111b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+@media (max-width: 680px) {
+  .route-toolbar { left: 8px; right: 8px; top: 8px; justify-content: space-between; }
+  .route-toolbar > div span, .route-callout span { display: none; }
+  .route-legend { left: 8px; bottom: 8px; width: 140px; padding: 10px; }
+  .route-legend > div { grid-template-columns: 18px 30px minmax(0, 1fr); gap: 3px; }
+  .route-callout { top: 60px; right: 8px; min-width: 0; }
+}
