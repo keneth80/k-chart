@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart Hybrid Operations Dashboard</title>
+  </head>
+  <body>
+    <main class="operations-dashboard">
+      <header class="operations-header">
+        <div>
+          <p>GLOBAL NETWORK / LIVE</p>
+          <h1>Operations control</h1>
+        </div>
+        <div class="live-state"><i></i>Streaming normally</div>
+      </header>
+
+      <section class="kpi-strip" aria-label="Operations KPIs">
+        <article><span>ACTIVE REGIONS</span><strong>18</strong><small>3 continents</small></article>
+        <article><span>THROUGHPUT</span><strong>8.42</strong><small>Tb/s · +4.8%</small></article>
+        <article><span>GLOBAL SLA</span><strong>99.992%</strong><small>rolling 24h</small></article>
+        <article class="critical"><span>OPEN INCIDENTS</span><strong>3</strong><small>1 critical</small></article>
+      </section>
+
+      <section class="operations-main">
+        <div class="telemetry-panel">
+          <header class="section-heading">
+            <div><span>GLOBAL TELEMETRY</span><strong>Throughput and operating baseline</strong></div>
+            <div class="renderer-key" aria-label="Renderer layers">
+              <span class="webgl"><b>WebGL</b>14K points</span>
+              <span class="canvas"><b>Canvas</b>SLA baseline</span>
+              <span class="svg"><b>SVG</b>3 incidents</span>
+            </div>
+          </header>
+          <div id="chart" aria-label="Hybrid renderer telemetry chart"></div>
+        </div>
+
+        <aside class="incident-panel">
+          <header class="section-heading">
+            <div><span>INCIDENT FEED</span><strong>Needs attention</strong></div>
+            <b>03</b>
+          </header>
+          <div id="incident-list" class="incident-list"></div>
+          <footer>
+            <span>Worker queue</span><strong>0 pending</strong>
+            <span>Frame delivery</span><strong>100%</strong>
+          </footer>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
