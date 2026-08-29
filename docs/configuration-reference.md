@@ -28,7 +28,7 @@ createKChart({
 | `data` | `T[]` | yes | - | 차트 전체 데이터입니다. 모든 series와 axis domain 계산이 이 배열을 기준으로 동작합니다. |
 | `axes` | `KChartAxis<T>[]` | yes | - | x/y/top/right scale과 axis 정의입니다. |
 | `series` | `KChartSeries<T>[]` | yes | - | 렌더링할 series 목록입니다. |
-| `options` | `KChartOption<T>[]` | no | `[]` | spec area, guide line, cursor line, tooltip note 등 plugin형 옵션입니다. |
+| `options` | `KChartOption<T>[]` | no | `[]` | spec area, guide line, cursor line, range navigator, tooltip note 등 plugin형 옵션입니다. |
 | `width` | `number` | no | container width or `320` | 전체 SVG/canvas width입니다. |
 | `height` | `number` | no | container height or `240` | 전체 SVG/canvas height입니다. |
 | `margin` | `Partial<KChartMargin>` | no | `{ top: 24, right: 24, bottom: 36, left: 44 }` | plot 영역 바깥 여백입니다. title, top legend, option label이 있으면 top margin은 자동 보정될 수 있습니다. |
@@ -39,6 +39,7 @@ createKChart({
 | `legend` | `KChartLegendConfiguration` | no | visible top legend | series 표시/숨김 범례 설정입니다. |
 | `tooltip` | `KChartTooltipConfiguration<T>` | no | basic tooltip | nearest point tooltip 설정입니다. |
 | `zoom` | `KChartZoomConfiguration<T>` | no | disabled | number/time 축 zoom, pan, 영역 선택 zoom 설정입니다. |
+| `rangeNavigator` | `KChartRangeNavigatorConfiguration<T>` | no | disabled | 전체 number/time x축 개요와 하단 brush를 표시하고 선택 구간을 메인 차트에 반영합니다. |
 | `animation` | `boolean \| KChartAnimationConfiguration` | no | disabled | series enter animation과 연속 축의 data update transition을 설정합니다. |
 | `specAreas` | `KChartSpecAreaConfiguration[]` | no | `[]` | 기존 호환 필드입니다. 새 코드는 `createSpecAreaOption(...)` 사용을 권장합니다. |
 | `guideLines` | `KChartGuideLinesConfiguration` | no | - | 기존 호환 필드입니다. 새 코드는 `createGuideLineOption(...)` 사용을 권장합니다. |
@@ -206,6 +207,41 @@ setInterval(() => {
 | `devices` | `'pc' \| 'mobile' \| 'all'` | `mobile` | 어떤 입력 장치에서 반응할지 정합니다. |
 | `minTouches` | `number` | `1` | gesture 처리에 필요한 최소 touch 수입니다. |
 
+## Range Navigator Configuration
+
+`rangeNavigator`는 전체 number/time x축을 작은 overview로 유지하고, 하단 brush에서 선택한 구간만 메인 차트에 표시합니다. 문자열/point 축에서는 렌더링하지 않습니다. 필요한 하단 여백은 `height + gap`만큼 자동 확보됩니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `visible` | `boolean` | `true` | navigator 표시 여부입니다. |
+| `xField` | `keyof T & string` | 첫 number/time 가로축 | overview와 선택 domain에 사용할 x field입니다. |
+| `yField` | `keyof T & string` | 첫 series y field | overview 선/영역에 사용할 y field입니다. |
+| `height` | `number` | `52` | overview와 brush의 높이(px), 최소 24입니다. |
+| `gap` | `number` | `14` | 메인 plot 아래와 navigator 사이 간격(px)입니다. |
+| `stroke` / `fill` | `string` | blue theme | overview 선과 영역 색상입니다. |
+| `selectionFill` / `handleFill` | `string` | theme defaults | 선택 영역과 양쪽 handle 색상입니다. |
+| `onRangeChange` | `(range) => void` | - | 사용자가 brush를 놓은 뒤 선택된 `[min, max]` domain을 받습니다. time 축에서는 `Date` 값입니다. |
+
+```ts
+createKChart({
+    data: weeklyCommits,
+    axes: [
+        {field: 'week', type: 'time', placement: 'bottom'},
+        {field: 'commits', type: 'number', placement: 'right'}
+    ],
+    series: [createGroupedColumnSeries({
+        selector: 'commits',
+        xField: 'week',
+        segments: [{field: 'commits', color: '#2f81f7'}]
+    })],
+    rangeNavigator: {
+        xField: 'week',
+        yField: 'commits',
+        height: 58
+    }
+});
+```
+
 ## Series Common Contract
 
 모든 series factory는 최종적으로 `KChartSeries<T>`를 반환합니다.
@@ -218,7 +254,7 @@ setInterval(() => {
 | `pointerEvents` | `'core' \| 'series'` | 기본값은 `core`입니다. 노드/링크가 직접 hover·click을 처리하는 custom series는 `series`를 지정하면 코어 tooltip이 상위 group에서 이벤트를 함께 수신합니다. |
 | `xField` / `yField` | `keyof T & string` | 기본 tooltip, scale 선택, downsample에 쓰이는 field입니다. |
 | `color` | `string` | series 색상입니다. 없으면 chart `colors` 팔레트에서 할당됩니다. |
-| `downsample` | `boolean \| KChartDownsampleConfiguration<T>` | line 계열 renderer에서 LTTB downsampling을 적용합니다. |
+| `downsample` | `boolean \| KChartDownsampleConfiguration<T>` | line 계열 renderer에서 LTTB 또는 픽셀 열별 min/max downsampling을 적용합니다. |
 | `render(context)` | `function` | 실제 렌더링 함수입니다. custom series의 핵심 확장 지점입니다. |
 | `tooltip(context)` | `function` | custom tooltip hit-test를 구현할 수 있습니다. |
 | `clearTooltip(context)` | `function` | hover 종료 시 series highlight를 되돌릴 수 있습니다. |
@@ -237,7 +273,7 @@ setInterval(() => {
 | `strokeWidth` | `number` | `2` | SVG path stroke width입니다. |
 | `curve` | `boolean` | `false` | `true`이면 `curveMonotoneX`를 사용합니다. |
 | `dot` | `boolean \| { radius; fill; stroke }` | `false` | 각 point에 SVG circle을 표시합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 
 ### SVG Area: `createAreaSeries`
 
@@ -249,7 +285,7 @@ setInterval(() => {
 | `fill` / `fillOpacity` | `string`, `number` | chart color, `0.26` | area fill 스타일입니다. |
 | `stroke` / `strokeWidth` | `string`, `number` | chart color, `2` | area 상단 라인 스타일입니다. |
 | `curve` | `boolean` | `false` | `true`이면 `curveMonotoneX`를 사용합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 
 ### SVG Horizontal Bar: `createBarSeries`
 
@@ -524,7 +560,7 @@ createTreemapSeries<ProductShare>({
 | `color` | `string` | chart color | stroke 색상입니다. |
 | `lineWidth` | `number` | `2` | Canvas line width입니다. |
 | `canvasName` | `string` | `selector` | canvas layer 이름입니다. 여러 series가 같은 canvas를 공유할 때 지정합니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 | `asyncRender` | `KChartAsyncRenderConfiguration` | disabled | OffscreenCanvas + Worker line draw를 사용합니다. |
 
 ### Canvas Point: `createCanvasPointSeries`
@@ -569,7 +605,7 @@ createTreemapSeries<ProductShare>({
 | `color` | `string` | chart color | line 색상입니다. |
 | `lineWidth` | `number` | `1` | WebGL line width입니다. 브라우저/드라이버에 따라 1보다 큰 값이 제한될 수 있습니다. |
 | `canvasName` | `string` | `selector` | WebGL canvas layer 이름입니다. |
-| `downsample` | `boolean \| object` | disabled | LTTB를 적용합니다. |
+| `downsample` | `boolean \| object` | disabled | LTTB 또는 픽셀 열별 min/max 축약을 적용합니다. |
 | `asyncRender` | `KChartAsyncRenderConfiguration` | disabled | OffscreenCanvas + Worker line draw를 사용합니다. |
 
 ### WebGL Point: `createWebglPointSeries`
@@ -634,9 +670,16 @@ WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달�
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` when object exists | false이면 downsampling을 끕니다. |
-| `threshold` | `number \| (context) => number` | plot width | 줄이고자 하는 목표 point 수입니다. 보통 chart plot width를 사용합니다. |
+| `strategy` | `'lttb' \| 'min-max' \| 'auto'` | `lttb` | `min-max`는 화면의 픽셀 열마다 first/min/max/last를 보존합니다. `auto`는 정렬된 number/time x축에만 min-max를 적용하고 나머지는 LTTB로 돌아갑니다. |
+| `threshold` | `number \| (context) => number` | plot width | LTTB가 줄일 목표 point 수입니다. 보통 chart plot width를 사용하며 min-max 경로에서는 평가하지 않습니다. |
+| `pointsPerPixel` | `number` | `4` | min-max 축약을 시작할 입력 밀도입니다. 보이는 데이터가 `plot width × pointsPerPixel`을 넘으면 축약합니다. 출력은 픽셀 열당 최대 4점과 선 연결용 좌우 경계 이웃 최대 1점씩입니다. |
 | `xAccessor` | `(point) => number` | field 기반 | LTTB x 값 추출 함수입니다. |
 | `yAccessor` | `(point) => number` | field 기반 | LTTB y 값 추출 함수입니다. |
+
+`min-max`는 x 값이 오름차순인 고밀도 시계열 line에 적합합니다. 범주형 축,
+비정렬 데이터, 결측값, 커스텀 accessor처럼 픽셀 열을 안전하게 계산할 수 없는 입력은
+`strategy: 'auto'`에서 기존 LTTB 경로를 사용합니다. 명시적인 `min-max`에서는
+알고리즘을 몰래 바꾸지 않고 원본 renderer 입력을 유지합니다.
 
 ## Worker Rendering
 

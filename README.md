@@ -18,7 +18,6 @@
   <a href="https://www.npmjs.com/package/@keneth80/k-chart"><img alt="npm" src="https://img.shields.io/npm/v/%40keneth80%2Fk-chart?style=for-the-badge&label=npm&color=0ea5e9"></a>
   <a href="https://github.com/keneth80/k-chart/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/keneth80/k-chart?style=for-the-badge&color=22c55e"></a>
   <a href="https://k-chart-playground.vercel.app/"><img alt="Playground" src="https://img.shields.io/badge/Live_Playground-open-8b5cf6?style=for-the-badge"></a>
-  <a href="https://k-chart-bench.vercel.app/"><img alt="Benchmark" src="https://img.shields.io/badge/Live_Benchmark-view-f59e0b?style=for-the-badge"></a>
 </p>
 
 <p align="center">
@@ -36,8 +35,6 @@
 
 <p align="center">
   <a href="https://k-chart-playground.vercel.app/"><strong>Open Playground</strong></a>
-  ·
-  <a href="https://k-chart-bench.vercel.app/"><strong>View Benchmark</strong></a>
   ·
   <a href="#quick-start"><strong>Quick Start</strong></a>
   ·
@@ -69,6 +66,10 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts"><strong>World Map</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts"><strong>World Activity Map</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts"><strong>World Cluster Map</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-column-basic?title=KChart%20Column&file=src/main.ts"><strong>Column</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-stacked-column-basic?title=KChart%20Stacked%20Column&file=src/main.ts"><strong>Stacked Column</strong></a>
@@ -82,6 +83,8 @@
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-pie-basic?title=KChart%20Pie&file=src/main.ts"><strong>Pie</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-doughnut-basic?title=KChart%20Doughnut&file=src/main.ts"><strong>Doughnut</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-doughnut-scroll-legend?title=KChart%20Scrollable%20Doughnut%20Legend&file=src/main.ts"><strong>Scrollable Doughnut Legend</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-multi-series-basic?title=KChart%20Multi%20Series&file=src/main.ts"><strong>Multi Series</strong></a>
   ·
@@ -144,7 +147,6 @@ KChart의 성능 방향은 “모든 기능을 하나의 거대한 chart object�
 - 수천에서 수만 개의 point를 빠르게 그려야 하면 Canvas series를 사용합니다.
 - 더 큰 line/point 데이터나 잦은 viewport 변경이 있으면 WebGL series와 LTTB downsampling을 조합합니다.
 - 3D, 지도, 지구본은 optional adapter package로 분리해 필요한 화면에서만 로드합니다.
-- 재현 가능한 렌더링 측정 결과와 조건은 [KChart Benchmark](https://k-chart-bench.vercel.app/)에서 확인할 수 있습니다.
 
 ## Core Concept
 
@@ -251,12 +253,6 @@ npm install @keneth80/k-chart
 
 The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.
 
-## Benchmark
-
-- Live benchmark: [https://k-chart-bench.vercel.app/](https://k-chart-bench.vercel.app/)
-
-The benchmark publishes reproducible KChart rendering measurements alongside the dataset size, browser environment, runtime version, and measurement methodology.
-
 ## Local Development
 
 ```bash
@@ -295,7 +291,7 @@ responsibility:
 src/
 ├── core/       # contracts, state, layers, scales, and chart lifecycle
 ├── series/     # SVG, Canvas, WebGL, candlestick, and globe renderers
-├── options/    # spec area, fixed guide line, and cursor line
+├── options/    # spec area, guide/cursor line, range navigator, and tooltip notes
 ├── worker/     # OffscreenCanvas worker entry
 └── utils/      # renderer-independent algorithms such as LTTB
 ```
@@ -768,9 +764,9 @@ createKChart({
 - `gestureZoom`: 모바일 touch gesture 입력을 제어합니다. `devices`는 기본값이 `'mobile'`이며, `minTouches: 1`이면 한 손가락 pan과 두 손가락 pinch를 함께 허용합니다.
 - `resetOnDoubleClick`: `false`로 지정하면 더블클릭 reset을 끌 수 있습니다.
 
-## LTTB Downsampling
+## Line Downsampling
 
-Line 계열 series는 `downsample` 옵션으로 LTTB(Largest Triangle Three Buckets) 다운샘플링을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.
+Line 계열 series는 `downsample` 옵션으로 LTTB 또는 픽셀 열별 min/max 축약을 사용할 수 있습니다. 원본 `data`와 축 domain은 그대로 유지하고, SVG/Canvas/WebGL renderer에 넘기는 series 데이터만 그리기 직전에 줄입니다.
 
 ```ts
 createCanvasLineSeries<Point>({
@@ -796,6 +792,31 @@ createWebglLineSeries<Point>({
     }
 });
 ```
+
+고밀도 numeric/time 시계열에서는 `min-max`가 각 픽셀 열의
+first/min/max/last를 원본 순서대로 보존해 짧은 피크를 놓치지 않으면서 출력
+point 수를 화면 폭에 비례하도록 제한합니다. 적용 가능 여부를 KChart에 맡기려면
+`auto`를 사용합니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'webgl-dense-signal',
+    xField: 'time',
+    yField: 'signal',
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }
+});
+```
+
+`auto`는 오름차순 number/time x축에서는 min-max를 선택하고, 범주형 축,
+비정렬 입력, 결측값, 커스텀 accessor에서는 LTTB로 fallback합니다. 기존
+`downsample: true`와 `strategy: 'lttb'`의 동작은 변경되지 않습니다.
+명시적인 `strategy: 'min-max'`가 안전하지 않은 입력을 만나면 다른 알고리즘으로
+바꾸지 않고 원본 renderer 입력을 유지합니다.
+`pointsPerPixel`은 축약을 시작할 입력 밀도이며 결과는 픽셀 열당 최대 4개의
+대표점과 선 연결을 위한 좌우 경계 이웃 최대 1개씩으로 제한됩니다.
 
 필요하면 알고리즘만 직접 사용할 수도 있습니다.
 
@@ -1031,6 +1052,35 @@ createKChart({
 ```
 
 `createCursorLineOption`은 마우스 위치를 따라 가장 가까운 x 위치의 series 값을 읽어 보여주는 inspect overlay입니다. 기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드는 호환을 위해 남아 있지만, 새 코드에서는 `options` 배열을 권장합니다.
+
+## Range Navigator
+
+긴 number/time 시계열은 `rangeNavigator`로 전체 추세를 유지하면서 선택 구간만 메인 차트에 표시할 수 있습니다. 하단 overview 높이와 간격은 자동으로 margin에 반영되며, 문자열/point 축에서는 활성화되지 않습니다.
+
+```ts
+createKChart({
+    selector: '#chart',
+    data: weeklyCommits,
+    axes: [
+        {field: 'week', type: 'time', placement: 'bottom'},
+        {field: 'commits', type: 'number', placement: 'right', min: 0}
+    ],
+    series: [createGroupedColumnSeries({
+        selector: 'weekly-commits',
+        displayName: 'Commits',
+        xField: 'week',
+        segments: [{field: 'commits', color: '#2f81f7'}]
+    })],
+    rangeNavigator: {
+        xField: 'week',
+        yField: 'commits',
+        height: 58,
+        gap: 14
+    }
+}).render();
+```
+
+`createRangeNavigatorOption(...)`으로 같은 설정을 `options` 배열에 넣을 수도 있습니다. brush 선택 후 `onRangeChange`는 number 축이면 숫자, time 축이면 `Date` 두 개로 구성된 domain을 전달합니다.
 
 `tooltip.formatter` can be used when the default series/x/y text is not enough.
 

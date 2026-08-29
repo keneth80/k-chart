@@ -1,5 +1,130 @@
 # Changelog
 
+## 1.26.0 - 2026-08-27
+
+### Added
+
+- Added pixel-column min/max downsampling for dense numeric and time-series
+  lines, preserving each visible column's first, minimum, maximum, and last
+  points in source order.
+- Added `downsample.strategy` (`lttb`, `min-max`, or `auto`) and
+  `pointsPerPixel` configuration while preserving LTTB as the existing default.
+- Added configurable MapLibre world clustering, single-world rendering,
+  bounds, cluster styling, cluster interaction callbacks, and toolbar controls
+  in `@keneth80/k-chart-maplibre` 0.2.0.
+- Added a StackBlitz-ready clustered world map example and playground entry.
+
+### Changed
+
+- Dense Canvas and WebGL line demos now use the safe `auto` strategy so
+  continuous, ordered data can retain narrow spikes with output proportional
+  to plot width.
+- Unsafe or unsupported automatic min/max inputs fall back to LTTB; explicit
+  `min-max` keeps the original renderer input instead of silently changing
+  algorithms.
+
+### Tests
+
+- Added regression coverage for numeric, Date, and ISO-time min/max sampling,
+  viewport boundaries, extrema order, invalid data, zoomed domains, automatic
+  fallback behavior, and output-size bounds.
+- Added MapLibre configuration and runtime tests for clustering, world-copy
+  control, callbacks, styling expressions, bounds, and toolbar behavior.
+
+## 1.25.0 - 2026-08-27
+
+### Added
+
+- Added configurable pie and doughnut `sliceLabel` formatters with access to
+  the original datum, value, total, percentage, index, and segment color.
+- Added outside slice labels with leader lines, minimum-percentage and
+  maximum-count filtering, multi-line output, collision spacing, and plot-bound
+  clamping.
+- Added continuous value coloring and a fixed color legend for SVG region maps,
+  including configurable domains, palettes, labels, placement, and styling.
+- Added StackBlitz-ready world activity map and scrollable doughnut legend
+  examples.
+
+### Changed
+
+- Documented how to combine formatted outside doughnut labels with a separately
+  scrollable detail legend for dense category sets.
+
+### Tests
+
+- Added regression coverage for region-map color domains and legends, pie label
+  formatter contexts, filtering, collision layout, leader lines, and legacy
+  label visibility.
+
+## 1.24.1 - 2026-08-26
+
+### Changed
+
+- Added an internal numeric-field LTTB fast path that reads `xField` and
+  `yField` values directly, avoiding millions of accessor closure calls for
+  large object-array datasets.
+- Kept Date, string, nullish, mixed-value, and custom-accessor downsampling on
+  the existing conversion path without changing the public API.
+
+### Tests
+
+- Added exact point-reference equivalence coverage for numeric and generic
+  LTTB paths, including thresholds, ties, non-finite values, sparse data, and
+  custom accessor precedence.
+- Added package export coverage to keep the optimized dispatch pipeline an
+  internal implementation detail.
+
+## 1.24.0 - 2026-08-26
+
+### Added
+
+- Added the `rangeNavigator` configuration and
+  `createRangeNavigatorOption()` factory for number/time axes, providing a
+  compact overview chart with a draggable D3 brush selection.
+- Added a GitHub Contributors-style weekly commit example with columns, a
+  right-side contribution axis, and an interactive bottom range navigator.
+
+### Changed
+
+- Reserved navigator-aware bottom margins only for supported continuous axes
+  and preserved a minimum axis footer for labels and titles.
+- Kept the selected navigator range synchronized across data updates,
+  including reversed, partially overlapping, disjoint, and endpoint-touching
+  domains.
+
+### Fixed
+
+- Kept grouped endpoint columns inside the plot by clamping their complete
+  rendered width, including minimum bar widths and segment gaps.
+- Prevented callback-triggered updates or destruction from scheduling a stale
+  duplicate navigator render.
+
+### Tests
+
+- Added range normalization, pixel conversion, data-domain reconciliation,
+  navigator layout, and dense grouped-column geometry regression coverage.
+
+## 1.23.0 - 2026-08-25
+
+### Added
+
+- Added the remaining StackBlitz-ready starters for area, grouped and
+  horizontal bars, scatter, bubble, box plot, histogram, gauge, waterfall,
+  and the Three.js constellation example.
+
+### Changed
+
+- Coalesced wheel and drag zoom rendering to the latest state once per
+  animation frame, preventing repeated full-series projection while preserving
+  immediate zoom callbacks and a final render at gesture end.
+
+### Tests
+
+- Added zoom scheduling lifecycle coverage, including overlapping gesture
+  boundaries and authoritative-render cancellation. Three 60-second 300k-point
+  S3 runs completed with zero long tasks; the final reviewed build recorded a
+  50 ms worst frame, down from the previously published multi-second stall.
+
 ## 1.22.0 - 2026-08-20
 
 ### Added

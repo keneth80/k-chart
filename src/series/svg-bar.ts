@@ -17,6 +17,49 @@ const defaultGroupedPalette = [
     '#72e4ff'
 ];
 
+const resolveGroupStart = (
+    center: number,
+    groupWidth: number,
+    plotWidth: number
+): number => Math.max(0, Math.min(
+    Math.max(0, plotWidth - groupWidth),
+    center - groupWidth / 2
+));
+
+export const resolveGroupedColumnLayout = (
+    band: number,
+    plotWidth: number,
+    segmentCount: number,
+    groupWidthRatio: number,
+    requestedGap: number
+): {barWidth: number; gap: number; renderedGroupWidth: number} => {
+    const safeSegmentCount = Math.max(1, segmentCount);
+    const targetGroupWidth = Math.max(
+        0,
+        Math.min(plotWidth, band * groupWidthRatio)
+    );
+    const minimumBarWidth = Math.min(2, targetGroupWidth / safeSegmentCount);
+    const maxGap = safeSegmentCount > 1
+        ? Math.max(
+            0,
+            (targetGroupWidth - minimumBarWidth * safeSegmentCount)
+                / (safeSegmentCount - 1)
+        )
+        : 0;
+    const gap = Math.max(0, Math.min(requestedGap, maxGap));
+    const barWidth = Math.max(
+        minimumBarWidth,
+        (targetGroupWidth - gap * (safeSegmentCount - 1)) / safeSegmentCount
+    );
+
+    return {
+        barWidth,
+        gap,
+        renderedGroupWidth: barWidth * safeSegmentCount
+            + gap * (safeSegmentCount - 1)
+    };
+};
+
 const isInsideRect = (
     mouseX: number,
     mouseY: number,
@@ -151,13 +194,26 @@ export const createGroupedColumnSeries = <T = any>(
             : plotSize.height;
         const fallbackBand = plotSize.width / Math.max(data.length, 1);
         const band = resolveBandSize(xScale.scale, fallbackBand);
-        const groupWidth = band * (configuration.groupWidthRatio ?? 0.72);
-        const gap = configuration.gap ?? 4;
-        const barWidth = Math.max(2, (groupWidth - gap * (configuration.segments.length - 1)) / configuration.segments.length);
+        const {barWidth, gap, renderedGroupWidth} = resolveGroupedColumnLayout(
+            band,
+            plotSize.width,
+            configuration.segments.length,
+            configuration.groupWidthRatio ?? 0.72,
+            configuration.gap ?? 4
+        );
         const visibleCount = animation.enabled
             ? Math.max(1, Math.ceil(data.length * animation.progress))
             : data.length;
-        const renderData = visibleCount < data.length ? data.slice(0, visibleCount) : data;
+        const animationData = visibleCount < data.length ? data.slice(0, visibleCount) : data;
+        // Continuous axes can move points outside the visible range when a
+        // navigator or zoom changes the domain. Skip those bars so they do not
+        // paint across axis labels or margins.
+        const renderData = animationData.filter((point) => {
+            const center = resolveScalePosition(xScale, point[configuration.xField]);
+            return Number.isFinite(center)
+                && center >= 0
+                && center <= plotSize.width;
+        });
         const columns = renderData.flatMap((point) => configuration.segments.map((segment, segmentIndex) => ({
             point,
             segment,
@@ -174,7 +230,8 @@ export const createGroupedColumnSeries = <T = any>(
             .attr('class', configuration.selector)
             .attr('x', ({point, segmentIndex}) => {
                 const center = resolveScalePosition(xScale, point[configuration.xField]);
-                return center - groupWidth / 2 + segmentIndex * (barWidth + gap);
+                return resolveGroupStart(center, renderedGroupWidth, plotSize.width)
+                    + segmentIndex * (barWidth + gap);
             })
             .attr('y', ({point, segment}) => Math.min(baselineY, resolveScalePosition(yScale, point[segment.field])))
             .attr('width', barWidth)
@@ -204,16 +261,24 @@ export const createGroupedColumnSeries = <T = any>(
             : plotSize.height;
         const fallbackBand = plotSize.width / Math.max(data.length, 1);
         const band = resolveBandSize(xScale.scale, fallbackBand);
-        const groupWidth = band * (configuration.groupWidthRatio ?? 0.72);
-        const gap = configuration.gap ?? 4;
-        const barWidth = Math.max(2, (groupWidth - gap * (configuration.segments.length - 1)) / configuration.segments.length);
+        const {barWidth, gap, renderedGroupWidth} = resolveGroupedColumnLayout(
+            band,
+            plotSize.width,
+            configuration.segments.length,
+            configuration.groupWidthRatio ?? 0.72,
+            configuration.gap ?? 4
+        );
 
         for (const point of data) {
             const center = resolveScalePosition(xScale, point[configuration.xField]);
+            if (!Number.isFinite(center) || center < 0 || center > plotSize.width) {
+                continue;
+            }
             for (let segmentIndex = 0; segmentIndex < configuration.segments.length; segmentIndex += 1) {
                 const segment = configuration.segments[segmentIndex];
                 const valueY = resolveScalePosition(yScale, point[segment.field]);
-                const x = center - groupWidth / 2 + segmentIndex * (barWidth + gap);
+                const x = resolveGroupStart(center, renderedGroupWidth, plotSize.width)
+                    + segmentIndex * (barWidth + gap);
                 const y = Math.min(baselineY, valueY);
                 const height = Math.abs(valueY - baselineY);
                 if (!isInsideRect(mouseX, mouseY, x, y, barWidth, height)) {

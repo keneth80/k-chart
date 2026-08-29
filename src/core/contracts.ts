@@ -57,9 +57,13 @@ export interface KChartDownsampleContext<T = any> {
 
 export interface KChartDownsampleConfiguration<T = any> {
     enabled?: boolean;
+    /** LTTB target point count. Pixel-column min/max does not use this option. */
     threshold?: number | ((context: KChartDownsampleContext<T>) => number);
     xAccessor?: (point: T) => number;
     yAccessor?: (point: T) => number;
+    strategy?: 'lttb' | 'min-max' | 'auto';
+    /** Minimum visible points per plot pixel before pixel-column min/max sampling starts. */
+    pointsPerPixel?: number;
 }
 
 export interface KChartAsyncRenderConfiguration {
@@ -746,6 +750,21 @@ export interface KChartGeoRegionMapZoomConfiguration {
     scaleExtent?: [number, number];
 }
 
+export interface KChartGeoRegionMapColorLegendConfiguration {
+    visible?: boolean;
+    title?: string;
+    position?: 'bottom-left' | 'bottom-center' | 'bottom-right';
+    domain?: [number, number];
+    colors?: string[];
+    labels?: string[];
+    width?: number;
+    height?: number;
+    offset?: number;
+    backgroundFill?: string;
+    borderColor?: string;
+    textColor?: string;
+}
+
 export interface KChartGeoRegionMapMarkerClickContext {
     marker: KChartGeoRegionMapMarker;
     event: MouseEvent;
@@ -807,6 +826,7 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     hoverStroke?: string;
     hoverStrokeWidth?: number;
     zoom?: boolean | KChartGeoRegionMapZoomConfiguration;
+    colorLegend?: boolean | KChartGeoRegionMapColorLegendConfiguration;
     labels?: boolean | KChartGeoRegionMapLabelConfiguration<T>;
     bubbles?: KChartGeoRegionMapBubble[];
     markers?: KChartGeoRegionMapMarker[];
@@ -936,6 +956,25 @@ export interface KChartGuideLinesConfiguration {
     y?: KChartFixedGuideLine[];
 }
 
+export type KChartRangeNavigatorValue = number | Date;
+export type KChartRangeNavigatorRange = [
+    KChartRangeNavigatorValue,
+    KChartRangeNavigatorValue
+];
+
+export interface KChartRangeNavigatorConfiguration<T = any> {
+    visible?: boolean;
+    height?: number;
+    gap?: number;
+    xField?: keyof T & string;
+    yField?: keyof T & string;
+    stroke?: string;
+    fill?: string;
+    selectionFill?: string;
+    handleFill?: string;
+    onRangeChange?: (range: KChartRangeNavigatorRange) => void;
+}
+
 export interface KChartSpecAreaOption {
     type: 'spec-area';
     visible?: boolean;
@@ -953,6 +992,12 @@ export interface KChartCursorLineOption {
     type: 'cursor-line';
     visible?: boolean;
     config?: KChartCursorGuideConfiguration;
+}
+
+export interface KChartRangeNavigatorOption<T = any> {
+    type: 'range-navigator';
+    visible?: boolean;
+    config?: KChartRangeNavigatorConfiguration<T>;
 }
 
 export interface KChartTooltipNote<T = any> {
@@ -989,6 +1034,7 @@ export type KChartOption<T = any> =
     | KChartSpecAreaOption
     | KChartGuideLineOption
     | KChartCursorLineOption
+    | KChartRangeNavigatorOption<T>
     | KChartTooltipNoteOption<T>;
 
 export interface KChartConfiguration<T = any> {
@@ -1010,6 +1056,7 @@ export interface KChartConfiguration<T = any> {
     cursorGuide?: KChartCursorGuideConfiguration;
     guideLine?: KChartCursorGuideConfiguration;
     guideLines?: KChartGuideLinesConfiguration;
+    rangeNavigator?: KChartRangeNavigatorConfiguration<T>;
     options?: KChartOption<T>[];
     animation?: boolean | KChartAnimationConfiguration;
     onRenderComplete?: (event: KChartRenderCompleteEvent) => void;

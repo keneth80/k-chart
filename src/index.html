@@ -39,6 +39,7 @@
                     <h2>Bar</h2>
                     <button type="button" class="sidebar-item" data-sidebar-example="column">Column</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="stacked-column">Stacked Column</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="contributor-activity">Range Navigator</button>
                 </div>
                 <div class="sidebar-section">
                     <h2>Stock</h2>
@@ -60,6 +61,7 @@
                     <button type="button" class="sidebar-item" data-sidebar-example="radial">SVG Radial</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="pie">SVG Pie</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="doughnut">SVG Doughnut</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="doughnut-scroll-legend">Scrollable Legend</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="graph">Graph Chart</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="tree">Tree Chart</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="treemap">Treemap</button>
@@ -70,6 +72,8 @@
                 </div>
                 <div class="sidebar-section">
                     <h2>Map</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="world-activity-map">World Activity</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="world-cluster-map">World Clusters</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="globe-map">Globe Zoom</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="globe-map-drilldown">Globe Map</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="cesium-route">Cesium Route</button>
@@ -140,6 +144,11 @@
                             <strong>Doughnut Chart</strong>
                             <span class="sparkline doughnut-a"></span>
                         </button>
+                        <button type="button" class="example-card" data-example="doughnut-scroll-legend" data-chart-type="custom" data-renderer="svg">
+                            <span class="example-card-type">Custom SVG</span>
+                            <strong>Scrollable Legend</strong>
+                            <span class="sparkline doughnut-a"></span>
+                        </button>
                         <button type="button" class="example-card" data-example="canvas-line" data-chart-type="line" data-renderer="canvas">
                             <span class="example-card-type">Canvas</span>
                             <strong>Line Renderer</strong>
@@ -169,6 +178,11 @@
                             <span class="example-card-type">SVG</span>
                             <strong>Stacked Column</strong>
                             <span class="sparkline columns-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="contributor-activity" data-chart-type="bar" data-renderer="svg">
+                            <span class="example-card-type">SVG + Brush</span>
+                            <strong>Range Navigator</strong>
+                            <span class="sparkline columns-a"></span>
                         </button>
                         <button type="button" class="example-card" data-example="canvas-candlestick" data-chart-type="stock" data-renderer="canvas">
                             <span class="example-card-type">Canvas</span>
@@ -268,6 +282,16 @@
                         <button type="button" class="example-card" data-example="three-wafer" data-chart-type="monitoring" data-renderer="three">
                             <span class="example-card-type">Three.js</span>
                             <strong>Wafer Monitor</strong>
+                            <span class="sparkline dots-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="world-activity-map" data-chart-type="map" data-renderer="svg">
+                            <span class="example-card-type">SVG Map</span>
+                            <strong>Activity Choropleth</strong>
+                            <span class="sparkline area-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="world-cluster-map" data-chart-type="map" data-renderer="maplibre">
+                            <span class="example-card-type">MapLibre</span>
+                            <strong>World Clusters</strong>
                             <span class="sparkline dots-a"></span>
                         </button>
                         <button type="button" class="example-card" data-example="globe-map" data-chart-type="map" data-renderer="svg">

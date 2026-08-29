@@ -698,7 +698,7 @@ const chart = createKChart<Point>({
 
 ### Downsampling
 
-`createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`는 `downsample` 옵션을 지원합니다. `true`를 넘기면 현재 plot width를 기준으로 LTTB가 적용되고, 객체를 넘기면 threshold와 x/y accessor를 직접 지정할 수 있습니다.
+`createLineSeries`, `createCanvasLineSeries`, `createWebglLineSeries`는 `downsample` 옵션을 지원합니다. `true`를 넘기면 기존과 동일하게 현재 plot width를 기준으로 LTTB가 적용됩니다. 객체를 넘기면 LTTB, 픽셀 열별 min/max, 안전한 자동 선택 전략을 사용할 수 있습니다.
 
 ```ts
 createWebglLineSeries<Point>({
@@ -711,6 +711,30 @@ createWebglLineSeries<Point>({
     }
 });
 ```
+
+정렬된 numeric/time 시계열은 `min-max`가 각 픽셀 열의 진입점, 최솟값,
+최댓값, 이탈점을 원본 순서대로 보존합니다. 화면에 표현할 수 없는 중복 점은
+줄이면서 짧은 피크와 급락은 유지하므로 대용량 모니터링 차트에 적합합니다.
+
+```ts
+createWebglLineSeries<Point>({
+    selector: 'dense-signal',
+    xField: 'time',
+    yField: 'signal',
+    downsample: {
+        strategy: 'auto',
+        pointsPerPixel: 4
+    }
+});
+```
+
+`auto`는 오름차순 number/time x축처럼 픽셀 열을 안전하게 계산할 수 있을 때
+min-max를 사용합니다. 범주형 축, 비정렬 입력, 결측값, 커스텀 accessor는 기존 LTTB로
+fallback합니다. 알고리즘을 고정해야 하는 경우 `strategy: 'lttb'` 또는
+`strategy: 'min-max'`를 명시합니다. 명시적인 min-max가 안전하지 않은 입력을
+만나면 다른 알고리즘으로 바꾸지 않고 원본 renderer 입력을 유지합니다.
+`pointsPerPixel`은 축약을 시작할 입력 밀도이며, 실제 결과는 픽셀 열마다 원본
+순서의 대표점 최대 4개와 선 연결용 좌우 경계 이웃 최대 1개씩으로 제한됩니다.
 
 알고리즘 자체도 export됩니다.
 
@@ -904,6 +928,24 @@ createWorldCountryMapSeries<Country>({
 });
 ```
 
+`colorLegend`를 사용하면 `valueField`의 숫자 값을 연속 색상으로 변환하고, 지도 확대와 무관하게 고정되는 범례를 함께 표시할 수 있습니다. `colorField` 또는 `fill`을 명시하면 기존 사용자 지정 색상이 우선합니다. `domain`을 생략하면 현재 데이터의 최솟값과 최댓값을 사용합니다.
+
+```ts
+createWorldCountryMapSeries<Country>({
+    selector: 'world-activity',
+    dataKey: 'name',
+    valueField: 'activity',
+    colorLegend: {
+        visible: true,
+        title: '국가별 활동 지수',
+        position: 'bottom-left',
+        domain: [0, 100],
+        colors: ['#274c77', '#2a9d8f', '#e9c46a', '#e76f51'],
+        labels: ['낮음', '보통', '높음', '매우 높음']
+    }
+});
+```
+
 지도 위에 좌표 기반 강조 요소가 필요하면 `bubbles`와 `markers`를 함께 사용할 수 있습니다. 둘 다 일반적인 위도/경도 값을 사용하며 내부에서 `projection([lon, lat])`로 화면 좌표를 계산합니다. `bubbles`는 지도 위 원형 분포/규모 표현에 적합하고, `markers`는 사진 썸네일, 라벨, 핀 형태의 지점 표시를 제공합니다. `imageUrl`에는 일반 이미지 URL이나 `data:image/...` URI를 넣을 수 있습니다. 마커별 `onClick`을 지정하면 원본 marker, 화면 좌표, mouse event를 받아 팝업이나 상세 이동을 연결할 수 있습니다.
 
 ```ts
@@ -944,7 +986,9 @@ createWorldCountryMapSeries<Country>({
 
 - [Korea Region Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-korea-region-map-basic?title=KChart%20Korea%20Region%20Map&file=src/main.ts)
 - [World Country Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-country-map-basic?title=KChart%20World%20Country%20Map&file=src/main.ts)
+- [World Activity Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts)
 - [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
+- [World Cluster Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts)
 
 ## Display Options
 
@@ -969,6 +1013,33 @@ createKChart({
 ```
 
 The default tooltip shows the active series name and nearest x/y values. Provide `tooltip.formatter` for custom HTML/text.
+
+Pie and doughnut presets accept `sliceLabel` when labels need domain-specific text or an outside layout. The formatter receives the original datum together with the computed label, value, total, percentage, index, and segment color. Returning an array renders a multi-line SVG label.
+
+```ts
+createDoughnutChart({
+    selector: '#chart',
+    data: services,
+    label: 'label',
+    value: 'value',
+    innerRadiusRatio: 0.58,
+    sliceLabel: {
+        position: 'outside',
+        formatter: ({data, percentage}) =>
+            `${data.category} · ${percentage.toFixed(1)}%`,
+        leaderLine: {visible: true, length: 16},
+        minPercentage: 2.2,
+        maxVisible: 12,
+        collision: {minGap: 22, padding: 8}
+    }
+});
+```
+
+`minPercentage` and `maxVisible` keep dense outside labels readable; filtered slices remain in the chart and tooltip. Keep every category in the scrollable detail legend described below.
+
+When one custom series has many internal categories, such as doughnut segments, keep its detailed legend separate from KChart's series legend. Set `legend.visible: false`, reserve chart margin for an HTML legend, and apply `overflow-y: auto` to a fixed-height list. The list can then scroll without moving or resizing the SVG plot; on narrow screens, place the same list below the chart.
+
+Full example: [Scrollable Doughnut Legend StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-doughnut-scroll-legend?title=KChart%20Scrollable%20Doughnut%20Legend&file=src/main.ts)
 
 ### Pinned Tooltip Notes
 
@@ -1015,6 +1086,11 @@ createKChart({
         createCursorLineOption({
             valueFormat: (value: number) => Number(value).toFixed(1)
         }),
+        createRangeNavigatorOption<Point>({
+            xField: 'time',
+            yField: 'value',
+            height: 56
+        }),
         createTooltipNoteOption<Point>({
             maxNotes: 8,
             onChange: (notes) => console.info(notes)
@@ -1023,7 +1099,7 @@ createKChart({
 });
 ```
 
-기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드도 호환됩니다. 새 코드에서는 option factory 사용을 권장합니다.
+`createRangeNavigatorOption(...)`은 number/time x축의 전체 overview와 brush를 추가합니다. 같은 설정을 `rangeNavigator` 직접 필드로 지정해도 됩니다. 기존 `specAreas`, `guideLines`, `cursorGuide`, `guideLine` 직접 필드도 호환됩니다. 새 코드에서는 option factory 사용을 권장합니다.
 
 ## Custom Series
 

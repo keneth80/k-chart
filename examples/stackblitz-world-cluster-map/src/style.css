@@ -1,0 +1,65 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #e5eef6;
+  background: #07111d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px;
+  background: radial-gradient(circle at 20% 0%, #17324c 0, #07111d 42%);
+}
+
+main {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+}
+
+header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+header p,
+header h1,
+header span {
+  margin: 0;
+}
+
+header p {
+  color: #67e8f9;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+header h1 {
+  font-size: 25px;
+}
+
+header span {
+  color: #93a4b7;
+  font-size: 13px;
+}
+
+#map {
+  position: relative;
+  height: min(68vh, 720px);
+  min-height: 460px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  background: #0f1b29;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+#map .kchart-maplibre-toolbar {
+  display: none;
+}

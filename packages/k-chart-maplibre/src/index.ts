@@ -1,6 +1,11 @@
-import maplibregl, {
+import maplibregl from 'maplibre-gl';
+import type {
+    ExpressionSpecification,
     GeoJSONSource,
+    LngLatBoundsLike,
     Map as MapLibreMap,
+    MapGeoJSONFeature,
+    MapLayerMouseEvent,
     MapMouseEvent,
     StyleSpecification
 } from 'maplibre-gl';
@@ -25,15 +30,61 @@ export interface KChartMapLibreShowOptions<T extends KChartMapLibrePlace> {
     exit?: () => void;
 }
 
+export interface KChartMapLibreToolbarOptions {
+    visible?: boolean;
+    location?: boolean;
+    backButton?: boolean;
+}
+
+export interface KChartMapLibreClusterStyleStep {
+    minPointCount: number;
+    color?: string;
+    radius?: number;
+}
+
+export interface KChartMapLibreClusterStyle {
+    color?: string;
+    radius?: number;
+    steps?: readonly KChartMapLibreClusterStyleStep[];
+    strokeColor?: string;
+    strokeWidth?: number;
+    textColor?: string;
+    textSize?: number;
+}
+
+export interface KChartMapLibreClusterContext {
+    clusterId: number;
+    pointCount: number;
+    coordinates: [number, number];
+    feature: MapGeoJSONFeature;
+    event: MapLayerMouseEvent;
+    map: MapLibreMap;
+}
+
+export interface KChartMapLibreClusterClickContext extends KChartMapLibreClusterContext {
+    expansionZoom: number;
+}
+
+export interface KChartMapLibreClusterHoverContext extends KChartMapLibreClusterContext {
+    type: 'enter' | 'leave';
+    hovered: boolean;
+}
+
 export interface KChartMapLibreConfiguration<T extends KChartMapLibrePlace> {
     container: string | HTMLElement;
     style: string | StyleSpecification;
     initialZoom?: number;
     minZoom?: number;
     maxZoom?: number;
+    renderWorldCopies?: boolean;
+    maxBounds?: LngLatBoundsLike;
     cluster?: boolean;
     clusterRadius?: number;
+    clusterStyle?: KChartMapLibreClusterStyle;
     markerColor?: string;
+    toolbar?: KChartMapLibreToolbarOptions;
+    onClusterClick?: (context: KChartMapLibreClusterClickContext) => void;
+    onClusterHover?: (context: KChartMapLibreClusterHoverContext) => void;
     onPlaceClick?: (context: {
         place: T;
         event: MapMouseEvent;
@@ -66,6 +117,43 @@ const SOURCE_ID = 'kchart-maplibre-places';
 const CLUSTER_LAYER_ID = 'kchart-maplibre-place-clusters';
 const CLUSTER_COUNT_LAYER_ID = 'kchart-maplibre-place-cluster-count';
 const PLACE_LAYER_ID = 'kchart-maplibre-places';
+
+const DEFAULT_CLUSTER_STYLE_STEPS: readonly KChartMapLibreClusterStyleStep[] = [
+    {minPointCount: 20, radius: 24},
+    {minPointCount: 60, radius: 30}
+];
+
+const createClusterStepExpression = <T extends string | number>(
+    baseValue: T,
+    steps: readonly KChartMapLibreClusterStyleStep[],
+    getValue: (step: KChartMapLibreClusterStyleStep) => T | undefined
+): T | ExpressionSpecification => {
+    const valuesByThreshold = new Map<number, T>();
+    steps.forEach((step) => {
+        const value = getValue(step);
+        if (
+            Number.isFinite(step.minPointCount)
+            && step.minPointCount > 0
+            && value !== undefined
+        ) {
+            valuesByThreshold.set(step.minPointCount, value);
+        }
+    });
+    const stops = Array.from(valuesByThreshold, ([minPointCount, value]) => ({
+        minPointCount,
+        value
+    }))
+        .sort((left, right) => left.minPointCount - right.minPointCount);
+    if (stops.length === 0) {
+        return baseValue;
+    }
+    return [
+        'step',
+        ['get', 'point_count'],
+        baseValue,
+        ...stops.flatMap(({minPointCount, value}) => [minPointCount, value])
+    ] as ExpressionSpecification;
+};
 
 const resolveContainer = (container: string | HTMLElement): HTMLElement => {
     const node = typeof container === 'string'
@@ -142,6 +230,12 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
     backButton.setAttribute('aria-label', 'Back to globe');
     backButton.title = 'Back to globe';
     backButton.textContent = 'G';
+    const showToolbar = configuration.toolbar?.visible ?? true;
+    const showLocation = showToolbar && (configuration.toolbar?.location ?? true);
+    const showBackButton = showToolbar && (configuration.toolbar?.backButton ?? true);
+    toolbar.hidden = !showToolbar || (!showLocation && !showBackButton);
+    locationLabel.hidden = !showLocation;
+    backButton.hidden = !showBackButton;
     toolbar.append(locationLabel, backButton);
     overlay.append(mapContainer, toolbar);
     host.appendChild(overlay);
@@ -150,13 +244,44 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
     let places: T[] = [];
     let exit: (() => void) | undefined;
     let readyPromise: Promise<void> | undefined;
+    let hoveredCluster: Omit<KChartMapLibreClusterContext, 'event' | 'map'> | undefined;
+    let interactionGeneration = 0;
+    let visible = false;
 
     const findPlace = (id: unknown): T | undefined =>
         places.find((place) => String(place.id) === String(id));
 
     const updateSource = (): void => {
+        interactionGeneration += 1;
         const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined;
         source?.setData(toFeatureCollection(places));
+    };
+
+    const resolveClusterContext = (
+        event: MapLayerMouseEvent
+    ): Omit<KChartMapLibreClusterContext, 'event' | 'map'> | undefined => {
+        const feature = event.features?.[0]
+            ?? map?.queryRenderedFeatures(event.point, {layers: [CLUSTER_LAYER_ID]})[0];
+        const clusterId = Number(feature?.properties?.cluster_id);
+        const pointCount = Number(feature?.properties?.point_count);
+        if (
+            !feature
+            || feature.geometry.type !== 'Point'
+            || !Number.isFinite(clusterId)
+            || !Number.isFinite(pointCount)
+        ) {
+            return undefined;
+        }
+        const [lon, lat] = feature.geometry.coordinates;
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+            return undefined;
+        }
+        return {
+            clusterId,
+            pointCount,
+            coordinates: [lon, lat],
+            feature
+        };
     };
 
     const addPlaceLayers = (): void => {
@@ -169,16 +294,26 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             cluster: configuration.cluster ?? true,
             clusterRadius: configuration.clusterRadius ?? 46
         });
+        const clusterStyle = configuration.clusterStyle;
+        const clusterStyleSteps = clusterStyle?.steps ?? DEFAULT_CLUSTER_STYLE_STEPS;
         map.addLayer({
             id: CLUSTER_LAYER_ID,
             type: 'circle',
             source: SOURCE_ID,
             filter: ['has', 'point_count'],
             paint: {
-                'circle-color': '#0f766e',
-                'circle-radius': ['step', ['get', 'point_count'], 18, 20, 24, 60, 30],
-                'circle-stroke-color': '#ecfeff',
-                'circle-stroke-width': 2
+                'circle-color': createClusterStepExpression(
+                    clusterStyle?.color ?? '#0f766e',
+                    clusterStyleSteps,
+                    (step) => step.color
+                ),
+                'circle-radius': createClusterStepExpression(
+                    clusterStyle?.radius ?? 18,
+                    clusterStyleSteps,
+                    (step) => step.radius
+                ),
+                'circle-stroke-color': clusterStyle?.strokeColor ?? '#ecfeff',
+                'circle-stroke-width': clusterStyle?.strokeWidth ?? 2
             }
         });
         map.addLayer({
@@ -188,10 +323,10 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             filter: ['has', 'point_count'],
             layout: {
                 'text-field': ['get', 'point_count_abbreviated'],
-                'text-size': 12
+                'text-size': clusterStyle?.textSize ?? 12
             },
             paint: {
-                'text-color': '#f8fafc'
+                'text-color': clusterStyle?.textColor ?? '#f8fafc'
             }
         });
         map.addLayer({
@@ -208,17 +343,34 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
         });
 
         map.on('click', CLUSTER_LAYER_ID, async (event) => {
-            const feature = map?.queryRenderedFeatures(event.point, {layers: [CLUSTER_LAYER_ID]})[0];
-            const clusterId = Number(feature?.properties?.cluster_id);
+            const cluster = resolveClusterContext(event);
             const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined;
-            const coordinates = feature?.geometry.type === 'Point'
-                ? feature.geometry.coordinates as [number, number]
-                : undefined;
-            if (!source || !coordinates || !Number.isFinite(clusterId)) {
+            if (!map || !source || !cluster || !visible) {
                 return;
             }
-            const zoom = await source.getClusterExpansionZoom(clusterId);
-            map?.easeTo({center: coordinates, zoom});
+            const currentMap = map;
+            const requestGeneration = interactionGeneration;
+            let expansionZoom: number;
+            try {
+                expansionZoom = await source.getClusterExpansionZoom(cluster.clusterId);
+            } catch {
+                // Cluster ids can become stale while GeoJSON data or styles are refreshed.
+                return;
+            }
+            if (
+                map !== currentMap
+                || !visible
+                || interactionGeneration !== requestGeneration
+            ) {
+                return;
+            }
+            currentMap.easeTo({center: cluster.coordinates, zoom: expansionZoom});
+            configuration.onClusterClick?.({
+                ...cluster,
+                expansionZoom,
+                event,
+                map: currentMap
+            });
         });
         map.on('click', PLACE_LAYER_ID, (event) => {
             const place = findPlace(event.features?.[0]?.properties?.id);
@@ -231,13 +383,52 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
                 .addTo(map);
             configuration.onPlaceClick?.({place, event, map});
         });
-        [CLUSTER_LAYER_ID, PLACE_LAYER_ID].forEach((layerId) => {
-            map?.on('mouseenter', layerId, () => {
-                if (map) map.getCanvas().style.cursor = 'pointer';
+        const updateHoveredCluster = (event: MapLayerMouseEvent): void => {
+            if (!map) return;
+            map.getCanvas().style.cursor = 'pointer';
+            const nextCluster = resolveClusterContext(event);
+            if (!nextCluster || nextCluster.clusterId === hoveredCluster?.clusterId) {
+                return;
+            }
+            if (hoveredCluster) {
+                configuration.onClusterHover?.({
+                    ...hoveredCluster,
+                    type: 'leave',
+                    hovered: false,
+                    event,
+                    map
+                });
+            }
+            hoveredCluster = nextCluster;
+            configuration.onClusterHover?.({
+                ...nextCluster,
+                type: 'enter',
+                hovered: true,
+                event,
+                map
             });
-            map?.on('mouseleave', layerId, () => {
-                if (map) map.getCanvas().style.cursor = '';
-            });
+        };
+        map.on('mouseenter', CLUSTER_LAYER_ID, updateHoveredCluster);
+        map.on('mousemove', CLUSTER_LAYER_ID, updateHoveredCluster);
+        map.on('mouseleave', CLUSTER_LAYER_ID, (event) => {
+            if (!map) return;
+            map.getCanvas().style.cursor = '';
+            if (hoveredCluster) {
+                configuration.onClusterHover?.({
+                    ...hoveredCluster,
+                    type: 'leave',
+                    hovered: false,
+                    event,
+                    map
+                });
+                hoveredCluster = undefined;
+            }
+        });
+        map.on('mouseenter', PLACE_LAYER_ID, () => {
+            if (map) map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', PLACE_LAYER_ID, () => {
+            if (map) map.getCanvas().style.cursor = '';
         });
     };
 
@@ -245,13 +436,22 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
         if (readyPromise) {
             return readyPromise;
         }
+        const worldOptions = {
+            ...(configuration.renderWorldCopies === undefined
+                ? {}
+                : {renderWorldCopies: configuration.renderWorldCopies}),
+            ...(configuration.maxBounds === undefined
+                ? {}
+                : {maxBounds: configuration.maxBounds})
+        };
         map = new maplibregl.Map({
             container: mapContainer,
             style: configuration.style,
             center: [0, 0],
             zoom: configuration.initialZoom ?? 12,
             minZoom: configuration.minZoom ?? 2,
-            maxZoom: configuration.maxZoom ?? 19
+            maxZoom: configuration.maxZoom ?? 19,
+            ...worldOptions
         });
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
         readyPromise = new Promise((resolve, reject) => {
@@ -272,6 +472,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
 
     return {
         async show(options) {
+            interactionGeneration += 1;
+            visible = true;
             places = options.places ?? places;
             exit = options.exit;
             locationLabel.textContent = options.label ?? '';
@@ -287,6 +489,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
                 map?.jumpTo(target);
                 map?.resize();
             } catch (error) {
+                visible = false;
+                interactionGeneration += 1;
                 overlay.hidden = true;
                 exit = undefined;
                 map?.remove();
@@ -296,6 +500,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             }
         },
         hide() {
+            visible = false;
+            interactionGeneration += 1;
             overlay.hidden = true;
             exit = undefined;
         },
@@ -321,9 +527,12 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             map?.resize();
         },
         destroy() {
+            visible = false;
+            interactionGeneration += 1;
             map?.remove();
             map = undefined;
             readyPromise = undefined;
+            hoveredCluster = undefined;
             overlay.remove();
         },
         getMap() {

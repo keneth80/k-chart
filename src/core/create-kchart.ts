@@ -7,6 +7,16 @@ import {resolveCursorGuide} from '../options/cursor-line';
 import {renderGuideLines} from '../options/guide-line';
 import {renderSpecAreas, resolveSpecAreas} from '../options/spec-area';
 import {
+    destroyRangeNavigator,
+    RANGE_NAVIGATOR_MINIMUM_AXIS_FOOTER,
+    renderRangeNavigator,
+    reconcileRangeNavigatorRange,
+    resolveRangeNavigatorAxis,
+    resolveRangeNavigatorConfiguration,
+    resolveRangeNavigatorDataDomain,
+    resolveRangeNavigatorLayout
+} from '../options/range-navigator';
+import {
     destroyTooltipNotes,
     pinTooltipNote,
     renderTooltipNotes,
@@ -14,11 +24,8 @@ import {
 } from '../options/tooltip-note';
 import {isCanvasTransferred} from '../series/support/canvas';
 import {resolveScalePosition} from '../series/support/scale';
-import {downsampleLTTB} from '../utils/downsample-lttb';
-import {
-    resolveAxisDomain,
-    resolveDownsampleAccessor
-} from './domain';
+import {resolveSeriesRenderData} from '../internal/downsample';
+import {resolveAxisDomain} from './domain';
 import {applyAxisTickCount} from './ticks';
 import {interpolateResolvedScales} from './animation';
 import {
@@ -42,8 +49,6 @@ import type {
     KChartMargin,
     KChartSize,
     KChartResolvedScale,
-    KChartDownsampleContext,
-    KChartDownsampleConfiguration,
     KChartAnimationConfiguration,
     KChartAnimationContext,
     KChartAnimationEasing,
@@ -58,6 +63,7 @@ import type {
     KChartGestureZoomConfiguration,
     KChartZoomConfiguration,
     KChartGuideLinesConfiguration,
+    KChartRangeNavigatorRange,
     KChartConfiguration,
     KChartState,
     KChartController,
@@ -158,6 +164,91 @@ const defaultAnimationContext: KChartAnimationContext = {
 };
 
 const animationCancellation = new WeakMap<object, () => void>();
+const destroyedCharts = new WeakSet<object>();
+
+type ZoomFrameRequester = (callback: (timestamp: number) => void) => number;
+type ZoomFrameCanceller = (frame: number) => void;
+
+export const createZoomRenderScheduler = (
+    renderLatest: () => void,
+    requestFrame: ZoomFrameRequester | undefined = typeof globalThis.requestAnimationFrame === 'function'
+        ? (callback) => globalThis.requestAnimationFrame(callback)
+        : undefined,
+    cancelFrame: ZoomFrameCanceller | undefined = typeof globalThis.cancelAnimationFrame === 'function'
+        ? (frame) => globalThis.cancelAnimationFrame(frame)
+        : undefined
+) => {
+    let scheduledFrame: number | undefined;
+    let renderPending = false;
+    let destroyed = false;
+
+    const cancel = (): void => {
+        if (scheduledFrame !== undefined) {
+            cancelFrame?.(scheduledFrame);
+        }
+        scheduledFrame = undefined;
+        renderPending = false;
+    };
+
+    const flush = (): void => {
+        if (destroyed || !renderPending) {
+            return;
+        }
+        if (scheduledFrame !== undefined) {
+            cancelFrame?.(scheduledFrame);
+        }
+        scheduledFrame = undefined;
+        renderPending = false;
+        renderLatest();
+    };
+
+    return {
+        start(): void {
+            // Keep a frame queued by a gesture that ended just before this one
+            // began. The callback reads current state, so the same frame can
+            // safely paint the newest transform without dropping either input.
+        },
+        schedule(): void {
+            if (destroyed) {
+                return;
+            }
+            renderPending = true;
+            if (scheduledFrame !== undefined) {
+                return;
+            }
+            if (!requestFrame) {
+                flush();
+                return;
+            }
+            // Zoom input can outpace painting, so retain only the latest state per frame.
+            scheduledFrame = requestFrame(() => {
+                scheduledFrame = undefined;
+                flush();
+            });
+        },
+        end(): void {
+            flush();
+        },
+        cancel,
+        destroy(): void {
+            cancel();
+            destroyed = true;
+        }
+    };
+};
+
+type ZoomRenderScheduler = ReturnType<typeof createZoomRenderScheduler>;
+
+const zoomRenderSchedulers = new WeakMap<object, ZoomRenderScheduler>();
+
+const getZoomRenderScheduler = <T = any>(state: KChartState<T>): ZoomRenderScheduler => {
+    let scheduler = zoomRenderSchedulers.get(state);
+    if (!scheduler) {
+        scheduler = createZoomRenderScheduler(() => render(state));
+        zoomRenderSchedulers.set(state, scheduler);
+    }
+    return scheduler;
+};
 
 const now = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
@@ -316,7 +407,21 @@ const resolveEffectiveMargin = <T = any>(
     size: KChartSize,
     baseMargin: KChartMargin
 ): KChartMargin => {
-    const axisMargin = resolveAxisTitleMargins(config.axes, baseMargin);
+    const resolvedAxisMargin = resolveAxisTitleMargins(config.axes, baseMargin);
+    const rangeNavigator = resolveRangeNavigatorConfiguration(config);
+    const hasRangeNavigator = Boolean(rangeNavigator)
+        && rangeNavigator?.visible !== false
+        && Boolean(resolveRangeNavigatorAxis(config.axes, rangeNavigator?.xField));
+    const axisMargin = hasRangeNavigator
+        ? {
+            ...resolvedAxisMargin,
+            bottom: Math.max(
+                resolvedAxisMargin.bottom,
+                RANGE_NAVIGATOR_MINIMUM_AXIS_FOOTER
+            )
+                + resolveRangeNavigatorLayout(rangeNavigator).reservedSpace
+        }
+        : resolvedAxisMargin;
     const horizontalAxisTitleTopSpace = resolveHorizontalAxisTitleTopSpace(config.axes);
     const legend = config.legend;
     const hasTopLegend = legend?.visible !== false && legend?.placement !== 'right' && legend?.placement !== 'bottom' && config.series.length > 0;
@@ -616,56 +721,6 @@ const resolveAxisTransform = (
     return 'translate(0, 0)';
 };
 
-const resolveDownsampleThreshold = <T = any>(
-    downsample: boolean | KChartDownsampleConfiguration<T>,
-    context: KChartDownsampleContext<T>
-): number => {
-    if (typeof downsample === 'boolean') {
-        return Math.max(3, Math.floor(context.plotSize.width));
-    }
-
-    if (typeof downsample.threshold === 'function') {
-        return downsample.threshold(context);
-    }
-
-    return downsample.threshold ?? Math.max(3, Math.floor(context.plotSize.width));
-};
-
-const resolveSeriesRenderData = <T = any>(
-    state: KChartState<T>,
-    series: KChartSeries<T>,
-    xScale?: KChartResolvedScale<T>,
-    yScale?: KChartResolvedScale<T>
-): T[] => {
-    const downsample = series.downsample;
-
-    if (!downsample || (typeof downsample !== 'boolean' && downsample.enabled === false)) {
-        return state.data;
-    }
-
-    const xAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.xField, xScale, state.data)
-        : downsample.xAccessor ?? resolveDownsampleAccessor(series.xField, xScale, state.data);
-    const yAccessor = typeof downsample === 'boolean'
-        ? resolveDownsampleAccessor(series.yField, yScale, state.data)
-        : downsample.yAccessor ?? resolveDownsampleAccessor(series.yField, yScale, state.data);
-
-    if (!xAccessor || !yAccessor) {
-        return state.data;
-    }
-
-    const context: KChartDownsampleContext<T> = {
-        data: state.data,
-        plotSize: state.plotSize,
-        series,
-        xField: series.xField,
-        yField: series.yField
-    };
-    const threshold = resolveDownsampleThreshold(downsample, context);
-
-    return downsampleLTTB(state.data, threshold, xAccessor, yAccessor);
-};
-
 const renderTitle = <T = any>(state: KChartState<T>): void => {
     const title = state.config.title;
     const hasTitle = Boolean(title?.text?.trim());
@@ -944,6 +999,7 @@ const resolveZoomedAxes = <T = any>(
 };
 
 const resetZoom = <T = any>(state: KChartState<T>): void => {
+    zoomRenderSchedulers.get(state)?.cancel();
     state.zoomTransform = zoomIdentity;
     state.axes = cloneAxes(state.initialAxes);
     state.baseAxes = cloneAxes(state.initialAxes);
@@ -1070,6 +1126,7 @@ const applySelectionZoom = <T = any>(state: KChartState<T>): void => {
         axes: state.axes
     };
     state.config.zoom?.onZoom?.(nextZoom);
+    zoomRenderSchedulers.get(state)?.cancel();
     render(state);
 };
 
@@ -1152,6 +1209,9 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                 }
                 return false;
             })
+            .on('start', () => {
+                getZoomRenderScheduler(state).start();
+            })
             .on('zoom', (event: D3ZoomEvent<any, unknown>) => {
                 state.zoomTransform = event.transform;
                 const nextZoom = resolveZoomedAxes(state, event.transform);
@@ -1161,7 +1221,10 @@ const renderZoom = <T = any>(state: KChartState<T>): void => {
                     axes: state.axes
                 };
                 zoomConfig?.onZoom?.(nextZoom);
-                render(state);
+                getZoomRenderScheduler(state).schedule();
+            })
+            .on('end', () => {
+                zoomRenderSchedulers.get(state)?.end();
             });
 
         eventTarget.call(zoomBehavior as any);
@@ -1659,7 +1722,7 @@ const renderSeries = <T = any>(
             .data([series])
             .join('g')
             .attr('class', `${series.selector}-group`);
-        const renderData = resolveSeriesRenderData(state, series, xScale, yScale);
+        const renderData = resolveSeriesRenderData(state.data, state.plotSize, series, xScale, yScale);
 
         series.render({
             ...state.layers,
@@ -1729,6 +1792,136 @@ const renderSeriesWithAnimation = <T = any>(state: KChartState<T>): void => {
     tick(startedAt);
 };
 
+const toRangeNavigatorRange = (
+    domain: Array<string | number | Date>
+): KChartRangeNavigatorRange | undefined => {
+    if (domain.length < 2) {
+        return undefined;
+    }
+    const first = domain[0];
+    const last = domain[domain.length - 1];
+    if ((typeof first !== 'number' && !(first instanceof Date))
+        || (typeof last !== 'number' && !(last instanceof Date))) {
+        return undefined;
+    }
+    return [first, last];
+};
+
+const renderRangeNavigatorForState = <T = any>(state: KChartState<T>): void => {
+    const configuration = resolveRangeNavigatorConfiguration(state.config);
+    if (!configuration || configuration.visible === false) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    // The navigator owns a full-data scale. The active chart axis may hold a
+    // narrower brush or zoom domain, so using it for the overview would make
+    // the mini chart collapse to the selected window.
+    const initialAxis = resolveRangeNavigatorAxis(state.initialAxes, configuration.xField);
+    const activeAxis = resolveRangeNavigatorAxis(state.axes, configuration.xField);
+    if (!initialAxis || !activeAxis || (initialAxis.type !== 'number' && initialAxis.type !== 'time')) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    const configuredDomain = initialAxis.domain?.length
+        || initialAxis.min !== undefined
+        || initialAxis.max !== undefined
+        ? toRangeNavigatorRange(resolveAxisDomain(initialAxis, state.data))
+        : undefined;
+    const fullDomain = configuredDomain ?? resolveRangeNavigatorDataDomain(
+        state.data,
+        initialAxis.field,
+        initialAxis.type
+    );
+    const selectedRange = toRangeNavigatorRange(resolveAxisDomain(activeAxis, state.data));
+    if (!fullDomain || !selectedRange) {
+        destroyRangeNavigator(state);
+        return;
+    }
+
+    renderRangeNavigator(state, {
+        xAxis: initialAxis,
+        fullDomain,
+        selectedRange,
+        onRangeChange: (range) => {
+            getZoomRenderScheduler(state).cancel();
+            state.axes = state.axes.map((axis) => axis === activeAxis
+                ? {
+                    ...axis,
+                    domain: [...range],
+                    min: undefined,
+                    max: undefined
+                }
+                : axis);
+            // Wheel zoom starts from the navigator selection, while
+            // initialAxes remains the reset/full-data source of truth.
+            state.baseAxes = cloneAxes(state.axes);
+            state.zoomTransform = zoomIdentity;
+            state.config = {
+                ...state.config,
+                axes: state.axes
+            };
+            const renderIdBeforeCallback = state.renderCompletion.renderId;
+            configuration.onRangeChange?.(range);
+            if (destroyedCharts.has(state as object)
+                || state.renderCompletion.renderId !== renderIdBeforeCallback) {
+                return;
+            }
+            render(state);
+        }
+    });
+};
+
+const reconcileRangeNavigatorSelectionForData = <T = any>(state: KChartState<T>): void => {
+    const configuration = resolveRangeNavigatorConfiguration(state.config);
+    if (!configuration || configuration.visible === false) {
+        return;
+    }
+    const initialAxis = resolveRangeNavigatorAxis(state.initialAxes, configuration.xField);
+    const activeAxis = resolveRangeNavigatorAxis(state.axes, configuration.xField);
+    if (!initialAxis || !activeAxis || !activeAxis.domain?.length
+        || (initialAxis.type !== 'number' && initialAxis.type !== 'time')) {
+        return;
+    }
+
+    const configuredDomain = initialAxis.domain?.length
+        || initialAxis.min !== undefined
+        || initialAxis.max !== undefined
+        ? toRangeNavigatorRange(resolveAxisDomain(initialAxis, state.data))
+        : undefined;
+    const fullDomain = configuredDomain ?? resolveRangeNavigatorDataDomain(
+        state.data,
+        initialAxis.field,
+        initialAxis.type
+    );
+    const selectedRange = toRangeNavigatorRange(activeAxis.domain);
+    if (!fullDomain || !selectedRange) {
+        return;
+    }
+    const nextRange = reconcileRangeNavigatorRange(
+        selectedRange,
+        fullDomain,
+        initialAxis.type
+    );
+    const unchanged = nextRange.every((value, index) => {
+        const current = selectedRange[index];
+        return value instanceof Date && current instanceof Date
+            ? value.getTime() === current.getTime()
+            : value === current;
+    });
+    if (unchanged) {
+        return;
+    }
+
+    state.axes = state.axes.map((axis) => axis === activeAxis
+        ? {...axis, domain: [...nextRange], min: undefined, max: undefined}
+        : axis);
+    state.baseAxes = cloneAxes(state.axes);
+    state.zoomTransform = zoomIdentity;
+    state.config = {...state.config, axes: state.axes};
+};
+
 const render = <T = any>(state: KChartState<T>): void => {
     const completion = beginRenderCompletion(state);
     const baseMargin: KChartMargin = {
@@ -1748,6 +1941,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderSpecAreas(state);
     renderGuideLines(state);
     renderSeriesWithAnimation(state);
+    renderRangeNavigatorForState(state);
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
@@ -1792,6 +1986,7 @@ const renderDataUpdate = <T = any>(
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
+    renderRangeNavigatorForState(state);
 
     const startedAt = now();
     const renderId = state.animationRenderId;
@@ -1832,6 +2027,7 @@ const renderDataUpdate = <T = any>(
         }
 
         state.scales = nextScales;
+        renderRangeNavigatorForState(state);
         state.animationFrame = undefined;
         animationCancellation.delete(state);
         const finalFrameTasks = completion.tasks.slice(taskCountBeforeFrame);
@@ -1874,6 +2070,9 @@ export const createKChart = <T = any>(
 
     const controller: KChartController<T> = {
         render() {
+            // Explicit renders are authoritative. Discard a queued zoom paint
+            // so it cannot immediately restart/cancel an update animation.
+            zoomRenderSchedulers.get(state)?.cancel();
             render(state);
             return controller;
         },
@@ -1881,16 +2080,19 @@ export const createKChart = <T = any>(
             return state.renderCompletion.promise;
         },
         updateData(data: T[]) {
+            zoomRenderSchedulers.get(state)?.cancel();
             const previousScales = state.scales;
             state.data = data;
             state.config = {
                 ...state.config,
                 data
             };
+            reconcileRangeNavigatorSelectionForData(state);
             renderDataUpdate(state, previousScales);
             return controller;
         },
         updateAxes(axes: KChartAxis<T>[]) {
+            zoomRenderSchedulers.get(state)?.cancel();
             state.axes = cloneAxes(axes);
             state.initialAxes = cloneAxes(axes);
             state.baseAxes = cloneAxes(axes);
@@ -1922,7 +2124,10 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         destroy() {
+            destroyedCharts.add(state as object);
+            getZoomRenderScheduler(state).destroy();
             cancelSeriesAnimation(state);
+            destroyRangeNavigator(state);
             state.series.forEach((series: KChartSeries<T>) => {
                 if (series.destroy) {
                     series.destroy(state.layers);
