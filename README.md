@@ -249,9 +249,8 @@ npm install @keneth80/k-chart
 ## Playground
 
 - Live playground: [https://k-chart-playground.vercel.app/](https://k-chart-playground.vercel.app/)
-- Local playground URL: `http://127.0.0.1:9011`
 
-The playground demonstrates the React wrapper, chart examples, configuration editor, and AI Builder flow.
+The deployed playground demonstrates the React wrapper, chart examples, and configuration editor.
 
 ## Local Development
 
