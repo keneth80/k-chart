@@ -76,6 +76,9 @@ type DemoKind =
     | 'canvas-bigdata-line'
     | 'webgl-large-line'
     | 'column'
+    | 'dual-axis-combo'
+    | 'pareto'
+    | 'calendar-heatmap'
     | 'contributor-activity'
     | 'stacked-column'
     | 'plot'
@@ -125,6 +128,102 @@ const baseData: DemoPoint[] = [
     { label: 'May', x: 5, value: 51, volume: 30, extra: 24, radius: 10, category: 'E' },
     { label: 'Jun', x: 6, value: 64, volume: 42, extra: 31, radius: 14, category: 'F' }
 ];
+
+const dualAxisComboData: DemoPoint[] = [
+    ['Jan', 4.8, 31], ['Feb', 5.3, 34], ['Mar', 5.9, 38],
+    ['Apr', 5.5, 36], ['May', 6.4, 41], ['Jun', 6.9, 45],
+    ['Jul', 6.2, 43], ['Aug', 7.1, 47], ['Sep', 7.7, 51],
+    ['Oct', 7.4, 49], ['Nov', 8.1, 54], ['Dec', 8.6, 57]
+].map(([month, pipeline, winRate], index) => ({
+    label: String(month),
+    category: String(month),
+    x: index + 1,
+    value: Number(pipeline),
+    volume: Number(winRate),
+    extra: 0,
+    radius: 5
+}));
+
+const paretoSource = [
+    ['Late scans', 94],
+    ['Label errors', 67],
+    ['Count variance', 48],
+    ['Routing', 35],
+    ['Packaging', 24],
+    ['Cold chain', 16],
+    ['Other', 11]
+] as const;
+const paretoTotal = paretoSource.reduce((sum, [, incidents]) => sum + incidents, 0);
+let paretoRunningTotal = 0;
+const paretoData: DemoPoint[] = paretoSource.map(([category, incidents], index) => {
+    paretoRunningTotal += incidents;
+    return {
+        label: category,
+        category,
+        x: index + 1,
+        value: incidents,
+        volume: Number(((paretoRunningTotal / paretoTotal) * 100).toFixed(1)),
+        extra: 0,
+        radius: 5
+    };
+});
+
+const CALENDAR_DAY_MS = 86_400_000;
+const CALENDAR_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const CALENDAR_PALETTE = ['#20364f', '#276d7a', '#2fa18f', '#8bcf68', '#f0cc4f'];
+const CALENDAR_START = Date.UTC(2026, 0, 1);
+const CALENDAR_END = Date.UTC(2026, 5, 30);
+const CALENDAR_START_OFFSET = (new Date(CALENDAR_START).getUTCDay() + 6) % 7;
+
+const calendarColor = (value: number): string => {
+    if (value < 24) return CALENDAR_PALETTE[0];
+    if (value < 38) return CALENDAR_PALETTE[1];
+    if (value < 52) return CALENDAR_PALETTE[2];
+    if (value < 65) return CALENDAR_PALETTE[3];
+    return CALENDAR_PALETTE[4];
+};
+
+const calendarDateFormatter = new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC'
+});
+
+const calendarHeatmapData: DemoPoint[] = [];
+for (let timestamp = CALENDAR_START, dayIndex = 0; timestamp <= CALENDAR_END; timestamp += CALENDAR_DAY_MS, dayIndex += 1) {
+    const date = new Date(timestamp);
+    const day = (date.getUTCDay() + 6) % 7;
+    const week = Math.floor((CALENDAR_START_OFFSET + dayIndex) / 7);
+    const weekdayBase = day < 5 ? 48 : 17;
+    const seasonality = Math.sin(dayIndex / 13) * 11 + Math.cos(dayIndex / 31) * 7;
+    const campaignLift = date.getUTCMonth() === 2 || date.getUTCMonth() === 4 ? 13 : 0;
+    const cases = Math.max(6, Math.round(weekdayBase + seasonality + campaignLift + (dayIndex % 9)));
+    const weekKey = `W${String(week + 1).padStart(2, '0')}`;
+    const dayLabel = CALENDAR_DAYS[day];
+
+    calendarHeatmapData.push({
+        label: dayLabel,
+        category: weekKey,
+        x: week,
+        value: cases,
+        volume: day,
+        extra: timestamp,
+        radius: 0,
+        weekKey,
+        dayLabel,
+        dateKey: date.toISOString().slice(0, 10),
+        dateLabel: calendarDateFormatter.format(date)
+    });
+}
+
+const calendarWeekKeys = Array.from(new Set(calendarHeatmapData.map((point) => String(point.weekKey))));
+const calendarMonthLabels = new Map<string, string>();
+const calendarMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+calendarWeekKeys.forEach((weekKey, index) => {
+    const representativeDay = new Date(CALENDAR_START + Math.max(0, index * 7 - CALENDAR_START_OFFSET) * CALENDAR_DAY_MS);
+    calendarMonthLabels.set(weekKey, calendarMonthNames[Math.min(representativeDay.getUTCMonth(), 5)]);
+});
 
 const scrollableDoughnutData: DemoPoint[] = [
     ['검색', 184],
@@ -492,6 +591,9 @@ const examples: ExampleMeta[] = [
     { kind: 'canvas-bigdata-line', title: 'Canvas BigData line renderer', dataLabel: '50k points' },
     { kind: 'webgl-large-line', title: 'WebGL BigData line renderer', dataLabel: '120k points' },
     { kind: 'column', title: 'SVG column renderer' },
+    { kind: 'dual-axis-combo', title: 'Pipeline and win rate', dataLabel: 'column + line · dual axis' },
+    { kind: 'pareto', title: 'Operations incident Pareto', dataLabel: 'rank + cumulative share' },
+    { kind: 'calendar-heatmap', title: 'H1 case intake calendar', dataLabel: '181 daily cells' },
     { kind: 'contributor-activity', title: 'Contributor activity navigator', dataLabel: 'weekly commits' },
     { kind: 'stacked-column', title: 'SVG stacked column renderer' },
     { kind: 'plot', title: 'SVG plot renderer' },
@@ -765,6 +867,125 @@ const areaSeries = createCustomSeries<DemoPoint>({
             .attr('d', area)
             .style('fill', color)
             .style('fill-opacity', 0.28);
+    }
+});
+
+const calendarHeatmapSeries = createCustomSeries<DemoPoint>({
+    selector: 'demo-calendar-heatmap',
+    displayName: 'Cases opened',
+    xField: 'weekKey',
+    yField: 'dayLabel',
+    color: CALENDAR_PALETTE[2],
+    render({ group, data, xScale, yScale, plotSize }) {
+        if (!xScale || !yScale) {
+            return;
+        }
+
+        const stepX = xScale.scale.step?.() ?? plotSize.width / calendarWeekKeys.length;
+        const stepY = yScale.scale.step?.() ?? plotSize.height / CALENDAR_DAYS.length;
+        const cellWidth = Math.max(3, stepX - Math.min(3, stepX * 0.2));
+        const cellHeight = Math.max(8, stepY - Math.min(4, stepY * 0.18));
+
+        group.selectAll<SVGRectElement, DemoPoint>('rect.demo-calendar-cell')
+            .data(data, (point: DemoPoint) => String(point.dateKey))
+            .join('rect')
+            .attr('class', 'demo-calendar-cell')
+            .attr('x', (point) => xScale.scale(point.weekKey) - cellWidth / 2)
+            .attr('y', (point) => yScale.scale(point.dayLabel) - cellHeight / 2)
+            .attr('width', cellWidth)
+            .attr('height', cellHeight)
+            .attr('rx', Math.min(3, cellWidth / 4))
+            .attr('aria-label', (point) => `${String(point.dateLabel)}: ${point.value} cases opened`)
+            .style('fill', (point) => calendarColor(point.value))
+            .style('stroke', 'rgba(248, 251, 255, 0.84)')
+            .style('stroke-width', 0.8);
+
+        const legendWidth = 178;
+        const legend = group.selectAll<SVGGElement, null>('g.demo-calendar-scale')
+            .data([null])
+            .join('g')
+            .attr('class', 'demo-calendar-scale')
+            .attr('transform', `translate(${Math.max(0, plotSize.width - legendWidth)}, ${plotSize.height + 22})`);
+
+        legend.selectAll<SVGTextElement, null>('text.demo-calendar-scale-title')
+            .data([null])
+            .join('text')
+            .attr('class', 'demo-calendar-scale-title')
+            .attr('x', -60)
+            .attr('y', 9)
+            .style('fill', 'rgba(231, 244, 255, 0.72)')
+            .style('font-size', '11px')
+            .style('font-weight', 700)
+            .text('Cases');
+
+        legend.selectAll<SVGRectElement, string>('rect.demo-calendar-scale-swatch')
+            .data(CALENDAR_PALETTE)
+            .join('rect')
+            .attr('class', 'demo-calendar-scale-swatch')
+            .attr('x', (_color, index) => index * 30)
+            .attr('y', 0)
+            .attr('width', 28)
+            .attr('height', 10)
+            .attr('rx', 2)
+            .style('fill', (color) => color);
+
+        legend.selectAll<SVGTextElement, string>('text.demo-calendar-scale-label')
+            .data(['Low', 'High'])
+            .join('text')
+            .attr('class', 'demo-calendar-scale-label')
+            .attr('x', (_label, index) => index === 0 ? 0 : 150)
+            .attr('y', 24)
+            .attr('text-anchor', (_label, index) => index === 0 ? 'start' : 'end')
+            .style('fill', 'rgba(231, 244, 255, 0.62)')
+            .style('font-size', '10px')
+            .text((label) => label);
+    },
+    tooltip({ data, scales, plotSize, seriesGroup, mouseX, mouseY }) {
+        const xScale = scales.find((scale) => scale.field === 'weekKey');
+        const yScale = scales.find((scale) => scale.field === 'dayLabel');
+        if (!xScale || !yScale) {
+            return undefined;
+        }
+
+        const stepX = xScale.scale.step?.() ?? plotSize.width / calendarWeekKeys.length;
+        const stepY = yScale.scale.step?.() ?? plotSize.height / CALENDAR_DAYS.length;
+        const cellWidth = Math.max(3, stepX - Math.min(3, stepX * 0.2));
+        const cellHeight = Math.max(8, stepY - Math.min(4, stepY * 0.18));
+
+        seriesGroup.selectAll<SVGRectElement, DemoPoint>('rect.demo-calendar-cell')
+            .style('stroke', 'rgba(248, 251, 255, 0.84)')
+            .style('stroke-width', 0.8);
+
+        for (const point of data) {
+            const centerX = xScale.scale(point.weekKey);
+            const centerY = yScale.scale(point.dayLabel);
+            const inside = Math.abs(mouseX - centerX) <= cellWidth / 2
+                && Math.abs(mouseY - centerY) <= cellHeight / 2;
+            if (!inside) {
+                continue;
+            }
+
+            seriesGroup.selectAll<SVGRectElement, DemoPoint>('rect.demo-calendar-cell')
+                .filter((item) => item === point)
+                .style('stroke', '#f8fbff')
+                .style('stroke-width', 2);
+
+            return {
+                data: point,
+                x: centerX,
+                y: centerY,
+                distance: 0,
+                color: calendarColor(point.value),
+                html: `<strong>${String(point.dateLabel)}</strong><br/>${point.value} cases opened`
+            };
+        }
+
+        return undefined;
+    },
+    clearTooltip({ seriesGroup }) {
+        seriesGroup.selectAll<SVGRectElement, DemoPoint>('rect.demo-calendar-cell')
+            .style('stroke', 'rgba(248, 251, 255, 0.84)')
+            .style('stroke-width', 0.8);
     }
 });
 
@@ -1778,6 +1999,15 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'real-time') {
         return createRealtimeData();
     }
+    if (kind === 'dual-axis-combo') {
+        return dualAxisComboData;
+    }
+    if (kind === 'pareto') {
+        return paretoData;
+    }
+    if (kind === 'calendar-heatmap') {
+        return calendarHeatmapData;
+    }
     if (kind === 'contributor-activity') {
         return contributorActivityData;
     }
@@ -1826,6 +2056,76 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
         return [
             { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month' },
             { field: 'value', type: 'number' as const, placement: 'left' as const, min: 0, max: 72, title: 'Value' }
+        ];
+    }
+    if (kind === 'dual-axis-combo') {
+        return [
+            { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Month', tickCount: 6 },
+            {
+                field: 'value',
+                type: 'number' as const,
+                placement: 'left' as const,
+                min: 0,
+                max: 10,
+                title: 'Pipeline (USD millions)',
+                tickCount: 6,
+                tickFormat: (value: number) => `$${Number(value).toFixed(0)}M`
+            },
+            {
+                field: 'volume',
+                type: 'number' as const,
+                placement: 'right' as const,
+                min: 0,
+                max: 60,
+                title: 'Win rate',
+                tickCount: 4,
+                tickFormat: (value: number) => `${Number(value).toFixed(0)}%`
+            }
+        ];
+    }
+    if (kind === 'pareto') {
+        return [
+            { field: 'category', type: 'string' as const, placement: 'bottom' as const, title: 'Incident category', tickCount: 7 },
+            {
+                field: 'volume',
+                type: 'number' as const,
+                placement: 'right' as const,
+                min: 0,
+                max: 100,
+                title: 'Cumulative share',
+                tickCount: 5,
+                tickFormat: (value: number) => `${Number(value).toFixed(0)}%`
+            },
+            {
+                field: 'value',
+                type: 'number' as const,
+                placement: 'left' as const,
+                min: 0,
+                max: 110,
+                title: 'Incident count',
+                tickCount: 6
+            }
+        ];
+    }
+    if (kind === 'calendar-heatmap') {
+        return [
+            {
+                field: 'weekKey',
+                type: 'point' as const,
+                placement: 'top' as const,
+                domain: calendarWeekKeys,
+                padding: 0.5,
+                tickCount: 6,
+                tickFormat: (value: string) => calendarMonthLabels.get(String(value)) ?? ''
+            },
+            {
+                field: 'dayLabel',
+                type: 'point' as const,
+                placement: 'left' as const,
+                domain: [...CALENDAR_DAYS].reverse(),
+                padding: 0.5,
+                tickCount: 7
+            }
         ];
     }
     if (kind === 'contributor-activity') {
@@ -1966,6 +2266,55 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
     }
     if (kind === 'column') {
         return [svgColumnSeries('demo-column', 'value', '#5db8ff')];
+    }
+    if (kind === 'dual-axis-combo') {
+        return [
+            createGroupedColumnSeries<DemoPoint>({
+                selector: 'demo-pipeline',
+                displayName: 'Qualified pipeline ($M)',
+                xField: 'category',
+                segments: [{ field: 'value', label: 'Qualified pipeline ($M)', color: '#4f8fc9' }],
+                groupWidthRatio: 0.56,
+                opacity: 0.94,
+                radius: 3
+            }),
+            createLineSeries<DemoPoint>({
+                selector: 'demo-win-rate',
+                displayName: 'Win rate (%)',
+                xField: 'category',
+                yField: 'volume',
+                color: '#f07052',
+                strokeWidth: 3,
+                curve: true,
+                dot: { radius: 4, fill: '#f07052', stroke: '#f8fbff' }
+            })
+        ];
+    }
+    if (kind === 'pareto') {
+        return [
+            createGroupedColumnSeries<DemoPoint>({
+                selector: 'demo-incident-count',
+                displayName: 'Incidents',
+                xField: 'category',
+                segments: [{ field: 'value', label: 'Incidents', color: '#2f9d8f' }],
+                groupWidthRatio: 0.62,
+                opacity: 0.95,
+                radius: 3
+            }),
+            createLineSeries<DemoPoint>({
+                selector: 'demo-cumulative-share',
+                displayName: 'Cumulative share',
+                xField: 'category',
+                yField: 'volume',
+                color: '#f29a4a',
+                strokeWidth: 3,
+                curve: false,
+                dot: { radius: 4, fill: '#f29a4a', stroke: '#f8fbff' }
+            })
+        ];
+    }
+    if (kind === 'calendar-heatmap') {
+        return [calendarHeatmapSeries];
     }
     if (kind === 'contributor-activity') {
         return [createGroupedColumnSeries<DemoPoint>({
@@ -2322,6 +2671,19 @@ const createOptions = (kind: DemoKind): KChartOption[] => {
         }));
     }
 
+    if (kind === 'pareto') {
+        options.push(createGuideLineOption({
+            y: [{
+                value: 80,
+                label: '80% threshold',
+                color: 'rgba(240, 112, 82, 0.72)',
+                width: 1.5,
+                dasharray: '6 5',
+                labelBackground: 'rgba(10, 14, 20, 0.78)'
+            }]
+        }));
+    }
+
     if (kind === 'tooltip-note') {
         options.push(createTooltipNoteOption<DemoPoint>({
             maxNotes: 6,
@@ -2347,6 +2709,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isThreeScene = isThreeConstellation || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
     const isWorldActivityMap = kind === 'world-activity-map';
+    const isCalendarHeatmap = kind === 'calendar-heatmap';
     const isScrollableDoughnut = kind === 'doughnut-scroll-legend';
     const isCompactScrollableDoughnut = isScrollableDoughnut && (chartRoot?.clientWidth ?? 760) < 680;
     const isRadial = kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isScrollableDoughnut;
@@ -2356,6 +2719,8 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         || kind === 'multi-options'
         || kind === 'plot'
         || kind === 'column'
+        || kind === 'dual-axis-combo'
+        || kind === 'pareto'
         || kind === 'contributor-activity'
         || kind === 'stacked-column'
         || kind === 'circle'
@@ -2387,6 +2752,8 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                 ? 520
             : isScrollableDoughnut
                 ? isCompactScrollableDoughnut ? 650 : 500
+                : isCalendarHeatmap
+                    ? 390
                 : chartRoot?.clientHeight || 420,
         margin: kind === 'axis-custom-margin'
             ? { top: 82, right: 76, bottom: 70, left: 86 }
@@ -2404,6 +2771,12 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap || isWorldActivityMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
+                    : isCalendarHeatmap
+                        ? { top: 68, right: 24, bottom: 60, left: 58 }
+                    : kind === 'dual-axis-combo'
+                        ? { top: 92, right: 80, bottom: 52, left: 80 }
+                    : kind === 'pareto'
+                        ? { top: 92, right: 80, bottom: 68, left: 72 }
                     : isScrollableDoughnut
                         ? isCompactScrollableDoughnut
                             ? { top: 72, right: 20, bottom: 264, left: 20 }
@@ -2417,7 +2790,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             fontSize: 14
         },
         grid: {
-            visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isThreeScene && !isRadial,
+            visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isThreeScene && !isRadial && !isCalendarHeatmap,
             x: kind === 'contributor-activity',
             y: true,
             color: 'rgba(188, 206, 218, 0.18)',
@@ -2425,7 +2798,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
         },
         options: createOptions(kind),
         legend: {
-            visible: kind !== 'topology' && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isScrollableDoughnut && !isThreeScene,
+            visible: kind !== 'topology' && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isScrollableDoughnut && !isThreeScene && !isCalendarHeatmap,
             placement: 'top'
         },
         tooltip: {
@@ -2504,6 +2877,59 @@ const createSeriesSnippet = (kind: DemoKind): string => {
     yField: 'value',
     render({ group, data, xScale, yScale }) {
         // draw SVG rect columns from chart scales
+    }
+})`;
+    }
+    if (kind === 'dual-axis-combo') {
+        return `createGroupedColumnSeries({
+    selector: 'qualified-pipeline',
+    displayName: 'Qualified pipeline ($M)',
+    xField: 'category',
+    segments: [{ field: 'value', color: '#4f8fc9' }]
+}),
+createLineSeries({
+    selector: 'win-rate',
+    displayName: 'Win rate (%)',
+    xField: 'category',
+    yField: 'volume',
+    color: '#f07052',
+    strokeWidth: 3,
+    curve: true,
+    dot: true
+})`;
+    }
+    if (kind === 'pareto') {
+        return `createGroupedColumnSeries({
+    selector: 'incident-count',
+    displayName: 'Incidents',
+    xField: 'category',
+    segments: [{ field: 'value', color: '#2f9d8f' }]
+}),
+createLineSeries({
+    selector: 'cumulative-share',
+    displayName: 'Cumulative share',
+    xField: 'category',
+    yField: 'volume',
+    color: '#f29a4a',
+    strokeWidth: 3,
+    dot: true
+})`;
+    }
+    if (kind === 'calendar-heatmap') {
+        return `createCustomSeries({
+    selector: 'case-calendar',
+    displayName: 'Cases opened',
+    xField: 'weekKey',
+    yField: 'dayLabel',
+    render({ group, data, xScale, yScale }) {
+        // Map each week/day pair to an SVG cell and color it by value.
+        group.selectAll('rect.calendar-cell')
+            .data(data, (point) => point.dateKey)
+            .join('rect')
+            .attr('class', 'calendar-cell')
+            .attr('x', (point) => xScale.scale(point.weekKey))
+            .attr('y', (point) => yScale.scale(point.dayLabel))
+            .style('fill', (point) => colorForCases(point.value));
     }
 })`;
     }
@@ -3557,6 +3983,7 @@ const baseData = [
     createCursorLineOption,
     createCustomSeries,
     createGraphSeries,
+    createGroupedColumnSeries,
     createGuideLineOption,
     createKChart,
     createLineSeries,

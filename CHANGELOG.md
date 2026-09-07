@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.26.1 - 2026-09-07
+
+### Added
+
+- Added Dual-axis Combo and Pareto examples that combine SVG columns and
+  lines with independent left and right value axes.
+- Added a Calendar Heatmap example with 181 accessible daily cells, five
+  intensity levels, and date/value tooltips.
+- Added standalone StackBlitz-ready projects and README links for all three
+  analysis examples.
+
+### Changed
+
+- Added an Analysis section to the main playground so the new examples are
+  available directly from the sidebar and example gallery.
+
+### Tests
+
+- Verified the root typecheck, production build, unit suite, standalone Vite
+  builds, and desktop/mobile rendering for each new example.
+
 ## 1.26.0 - 2026-08-27
 
 ### Added

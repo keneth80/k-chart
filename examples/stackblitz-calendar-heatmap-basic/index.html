@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart Calendar Heatmap Basic</title>
+  </head>
+  <body>
+    <main class="calendar-shell">
+      <header class="calendar-header">
+        <div>
+          <p class="eyebrow">Service operations</p>
+          <h1>Daily support demand</h1>
+          <p>New customer cases opened across the first half of 2026.</p>
+        </div>
+        <div class="summary" aria-label="Half-year case summary">
+          <span>H1 total</span>
+          <strong id="case-total">0</strong>
+          <small>cases opened</small>
+        </div>
+      </header>
+      <section class="chart-panel" aria-label="Calendar heatmap of daily support cases">
+        <div class="heat-legend" aria-label="Cases opened color scale">
+          <span>Fewer</span>
+          <i style="--swatch:#e9f3ef"></i>
+          <i style="--swatch:#bddfd4"></i>
+          <i style="--swatch:#79bcae"></i>
+          <i style="--swatch:#348a80"></i>
+          <i style="--swatch:#075b5a"></i>
+          <span>More</span>
+        </div>
+        <div id="chart" role="img" aria-label="Week columns and weekday rows colored by daily support cases"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

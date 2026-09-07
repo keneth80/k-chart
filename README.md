@@ -74,6 +74,12 @@
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-stacked-column-basic?title=KChart%20Stacked%20Column&file=src/main.ts"><strong>Stacked Column</strong></a>
   ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-dual-axis-combo-basic?title=KChart%20Dual-axis%20Combo&file=src/main.ts"><strong>Dual-axis Combo</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-pareto-basic?title=KChart%20Pareto&file=src/main.ts"><strong>Pareto</strong></a>
+  ·
+  <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-calendar-heatmap-basic?title=KChart%20Calendar%20Heatmap&file=src/main.ts"><strong>Calendar Heatmap</strong></a>
+  ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-candlestick-basic?title=KChart%20Candlestick&file=src/main.ts"><strong>Candlestick</strong></a>
   ·
   <a href="https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-plot-basic?title=KChart%20Plot&file=src/main.ts"><strong>Plot</strong></a>
