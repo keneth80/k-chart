@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Reorganized the README around a concise value proposition, four primary trust
+  badges, four first-step links, an early Quick Start, and a small representative
+  StackBlitz set.
+- Moved detailed renderer, adapter, AI, import-surface, custom-tooltip, and
+  advanced API guidance into focused documentation, leaving the root README as
+  a concise onboarding and navigation page.
+- Updated the four representative StackBlitz projects to use KChart 1.26.1.
+- Corrected development-port, React-wrapper, release-package, security-reporting,
+  architecture-snapshot, and public API compatibility wording across contributor
+  and integration documentation.
+
+### Removed
+
+- Removed the unconfigured coverage badge and the obsolete duplicate
+  `README 2.md` after confirming that it was unreferenced and described the former
+  package name, port, and class-based API.
+
 ## 1.26.1 - 2026-09-07
 
 ### Added

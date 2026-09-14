@@ -1,14 +1,66 @@
 # React And Next.js Guide
 
-KChart core package(`@keneth80/k-chart`)는 framework-agnostic 함수형 chart runtime입니다. 현재 npm으로 배포된 라이브러리 안에는 공식 React plugin package가 포함되어 있지 않습니다.
+KChart core package(`@keneth80/k-chart`)는 framework-agnostic 함수형 chart runtime입니다. React 프로젝트에서는 별도 저장소와 npm package로 배포되는 공식 wrapper인 `@keneth80/k-chart-react`를 사용하는 것이 가장 빠른 경로입니다.
 
-현재 React wrapper는 `kchart-next-playground` 저장소의 `packages/react/src`에 로컬 예제로 들어 있습니다. 이 문서는 React/Next.js 프로젝트에서 core API를 직접 쓰는 방법과, wrapper 컴포넌트를 만들어 재사용하는 방법을 설명합니다.
+- npm: [@keneth80/k-chart-react](https://www.npmjs.com/package/@keneth80/k-chart-react)
+- GitHub: [keneth80/k-chart-react](https://github.com/keneth80/k-chart-react)
 
-복사해서 사용할 수 있는 wrapper 예제 파일도 제공합니다: [examples/react-wrapper.tsx](../examples/react-wrapper.tsx)
+공식 wrapper가 맞지 않는 경우에는 core API를 Client Component에서 직접 사용하거나 자체 wrapper를 만들 수 있습니다. 이 저장소의 대안 예제는 [examples/react-wrapper.tsx](../examples/react-wrapper.tsx)에 있습니다.
 
-## Client Component에서 사용
+## 가장 빠른 방법: 공식 React Wrapper
 
-KChart는 DOM element, SVG, Canvas, WebGL layer를 직접 만들기 때문에 Next.js App Router에서는 반드시 Client Component 안에서 mount 이후 생성해야 합니다.
+core package와 React wrapper를 함께 설치합니다. `react`와 `react-dom`은 wrapper의 peer dependency입니다.
+
+```bash
+npm install @keneth80/k-chart @keneth80/k-chart-react
+```
+
+Next.js App Router에서는 Client Component에서 사용합니다.
+
+```tsx
+'use client';
+
+import { useMemo } from 'react';
+import { createLineSeries } from '@keneth80/k-chart';
+import { KChart } from '@keneth80/k-chart-react';
+
+type Point = {
+    x: number;
+    value: number;
+};
+
+export function DashboardChart({ data }: { data: Point[] }) {
+    const series = useMemo(() => [
+        createLineSeries<Point>({
+            selector: 'value',
+            displayName: 'Value',
+            xField: 'x',
+            yField: 'value',
+            curve: true
+        })
+    ], []);
+
+    return (
+        <KChart<Point>
+            data={data}
+            axes={[
+                { field: 'x', type: 'number', placement: 'bottom', title: 'Index' },
+                { field: 'value', type: 'number', placement: 'left', title: 'Value' }
+            ]}
+            series={series}
+            grid={{ visible: true, y: true }}
+            tooltip={{ visible: true }}
+            style={{ width: '100%', height: 420 }}
+        />
+    );
+}
+```
+
+wrapper의 전체 props와 지원 범위는 [package README](https://github.com/keneth80/k-chart-react#readme)를 기준으로 확인하세요.
+
+## Core API를 직접 Client Component에서 사용
+
+KChart는 DOM element, SVG, Canvas, WebGL layer를 직접 만들기 때문에 core API를 직접 쓸 때는 Next.js App Router의 Client Component 안에서 mount 이후 생성해야 합니다.
 
 ```tsx
 'use client';
@@ -71,9 +123,9 @@ export function TrafficChart({ data }: { data: TrafficPoint[] }) {
 }
 ```
 
-## 재사용 가능한 React Wrapper
+## 자체 React Wrapper 만들기
 
-여러 화면에서 같은 방식으로 차트를 쓴다면 wrapper 컴포넌트를 만들어두는 편이 좋습니다.
+공식 wrapper 대신 lifecycle이나 props contract를 직접 관리해야 한다면 자체 wrapper 컴포넌트를 만들 수 있습니다.
 
 전체 파일 예제: [examples/react-wrapper.tsx](../examples/react-wrapper.tsx)
 
@@ -221,11 +273,13 @@ Next.js 프로젝트에서 패키지 transpile이 필요하면 `next.config.mjs`
 
 ```js
 const nextConfig = {
-    transpilePackages: ['@keneth80/k-chart']
+    transpilePackages: ['@keneth80/k-chart', '@keneth80/k-chart-react']
 };
 
 export default nextConfig;
 ```
+
+core API만 직접 사용하는 프로젝트라면 `@keneth80/k-chart-react` 항목은 제외합니다.
 
 ## OffscreenCanvas Worker 사용
 
