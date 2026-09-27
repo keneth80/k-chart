@@ -343,7 +343,7 @@ export interface KChartWaterfallSeriesConfiguration<T = any> {
     };
 }
 
-export type KChartGraphLayout = 'force' | 'circular';
+export type KChartGraphLayout = 'force' | 'circular' | 'layered';
 export type KChartGraphRoamMode = 'move' | 'scale' | 'both' | 'disabled';
 export type KChartGraphSelectMode = 'single' | 'multiple' | 'disabled';
 export type KChartGraphEdgeSymbols = 'none-none' | 'none-arrow' | 'circle-circle' | 'circle-arrow';
@@ -382,20 +382,24 @@ export interface KChartGraphSeriesConfiguration<T = any> {
     categoryField?: keyof T & string;
     categorySide?: 'source' | 'target' | 'both';
     layout?: KChartGraphLayout;
+    nodeRank?: number | ((node: KChartGraphNode<T>, index: number) => number);
     directed?: boolean;
     edgeSymbols?: KChartGraphEdgeSymbols;
     color?: string;
     palette?: string[];
+    nodeColor?: string | ((node: KChartGraphNode<T>, index: number) => string);
     nodeMinRadius?: number;
     nodeMaxRadius?: number;
     nodeStroke?: string;
     nodeStrokeWidth?: number;
     nodeOpacity?: number;
-    edgeColor?: string;
+    edgeColor?: string | ((edge: KChartGraphEdge<T>, index: number) => string);
+    edgeDash?: string | null | ((edge: KChartGraphEdge<T>, index: number) => string | null);
     edgeMinWidth?: number;
     edgeMaxWidth?: number;
     edgeOpacity?: number;
     chargeStrength?: number;
+    gravity?: number;
     linkDistance?: number;
     collisionPadding?: number;
     iterations?: number;

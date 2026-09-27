@@ -336,12 +336,17 @@ createKChart({
 | `valueField` | `keyof T & string` | required | node 크기와 edge 굵기에 사용할 metric입니다. 숫자로 변환할 수 없는 값은 `0`으로 처리합니다. |
 | `categoryField` | `keyof T & string` | - | category별 node 색상 field입니다. 누락값은 `N/A`로 분류합니다. |
 | `categorySide` | `source \| target \| both` | `source` | row의 category를 어느 쪽 node에 적용할지 정합니다. |
-| `layout` | `force \| circular` | `force` | force-directed 또는 원형 배치를 선택합니다. |
+| `layout` | `force \| circular \| layered` | `force` | force-directed, 원형, source-target 계층 배치를 선택합니다. |
+| `nodeRank` | `number \| (node, index) => number` | topology 기반 | `layered`에서 node의 layer를 정합니다. rank `0`이 위에 오며 같은 rank는 가로 행으로 배치됩니다. |
 | `directed` | `boolean` | `false` | `edgeSymbols` 미지정 시 target 화살표를 표시할지 정합니다. |
 | `edgeSymbols` | `none-none \| none-arrow \| circle-circle \| circle-arrow` | directed에 따라 결정 | edge 시작/끝 장식입니다. |
+| `palette` / `nodeColor` | colors / `string \| (node, index) => string` | category/chart color | category palette 또는 node별 fill 색상을 설정합니다. |
 | `nodeMinRadius` / `nodeMaxRadius` | `number` | `9`, `28` | node metric을 매핑할 반지름 범위입니다. |
+| `edgeColor` | `string \| (edge, index) => string` | metallic gray | edge stroke 색상입니다. |
+| `edgeDash` | `string \| null \| (edge, index) => string \| null` | solid | SVG `stroke-dasharray` 값입니다. `null`은 실선입니다. |
 | `edgeMinWidth` / `edgeMaxWidth` | `number` | `1`, `7` | edge metric을 매핑할 stroke width 범위입니다. |
 | `chargeStrength` | `number` | `-360` | force layout의 node 반발력입니다. |
+| `gravity` | `number` | `0` | `0`보다 클 때 force layout에 중앙 방향 `forceX`/`forceY`를 추가합니다. |
 | `linkDistance` | `number` | plot 크기 기반 | force layout의 선호 edge 길이입니다. |
 | `collisionPadding` | `number` | `8` | node 충돌 방지 여백입니다. |
 | `iterations` | `number` | `220` | 동기 force simulation tick 횟수입니다. |
@@ -365,6 +370,8 @@ createGraphSeries<Relation>({
     selectMode: 'multiple'
 });
 ```
+
+`edgeColor` callback은 edge stroke에 적용되지만, arrow/circle marker는 series가 공유하므로 callback별 색상을 지원하지 않고 기본 marker 색상을 사용합니다. `layered`는 순환 관계를 strongly connected component로 묶은 뒤 barycenter 순서로 edge 교차를 줄입니다. plot이 조밀하면 label 영역을 포함해 rank 행을 줄바꿈하고 node, 간격, label을 같은 비율로 축소하여 겹침과 잘림을 방지합니다.
 
 Graph가 직접 node hover/click 및 roaming을 처리해야 하는 화면에서는 chart-level `tooltip`과 `zoom`을 끄는 구성을 권장합니다. 코어 tooltip overlay가 필요한 경우 Graph의 `tooltip()` hit-test도 동작하지만, overlay가 SVG node의 직접 pointer event보다 위에 놓일 수 있습니다.
 

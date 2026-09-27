@@ -198,7 +198,7 @@ Optional integrations stay outside the core dependency graph and are included on
 | --- | --- | --- |
 | React / Next.js | [`@keneth80/k-chart-react`](https://www.npmjs.com/package/@keneth80/k-chart-react) and [integration guide](docs/react-nextjs.md) | Component lifecycle, updates, and cleanup |
 | Three.js | [`@keneth80/k-chart-three`](packages/k-chart-three/README.md) | 3D scenes using the Custom Series context |
-| MapLibre | [`@keneth80/k-chart-maplibre`](packages/k-chart-maplibre/README.md) | Interactive vector maps and chart overlays |
+| MapLibre | [`@keneth80/k-chart-maplibre`](packages/k-chart-maplibre/README.md) | Interactive vector maps, chart overlays, and the [subcell scalar-field example](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts) |
 | Cesium | [`@keneth80/k-chart-cesium`](packages/k-chart-cesium/README.md) | 3D globe and geospatial visualization |
 
 ## Features And Guides

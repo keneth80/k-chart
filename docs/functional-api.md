@@ -1018,6 +1018,7 @@ createWorldCountryMapSeries<Country>({
 - [World Activity Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts)
 - [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
 - [World Cluster Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts)
+- [Subcell Scalar Field StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts)
 
 ## Display Options
 

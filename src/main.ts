@@ -16,6 +16,12 @@ import type {
     KChartMapLibreGlobeBridge,
     KChartMapLibrePlace
 } from '../packages/k-chart-maplibre/src';
+import {
+    mountSubcellHeatmapApp,
+    type MountedSubcellHeatmapApp
+} from '../examples/stackblitz-subcell-heatmap-basic/src/app';
+import { createSubcellHeatmapDemoWithAdapter } from '../examples/stackblitz-subcell-heatmap-basic/src/heatmap-demo-core';
+import '../examples/stackblitz-subcell-heatmap-basic/src/component.css';
 import type {
     KChartCesiumController,
     KChartCesiumRoutePoint
@@ -96,6 +102,7 @@ type DemoKind =
     | 'three-wafer'
     | 'world-activity-map'
     | 'world-cluster-map'
+    | 'subcell-heatmap'
     | 'globe-map'
     | 'globe-map-drilldown'
     | 'cesium-route'
@@ -285,6 +292,21 @@ const graphData: DemoPoint[] = [
     { label: 'Queue → Worker', source: 'Queue', target: 'Worker', metric: 24, x: 0, value: 24, volume: 0, extra: 0, radius: 0, category: 'Data' },
     { label: 'Worker → Database', source: 'Worker', target: 'Database', metric: 19, x: 0, value: 19, volume: 0, extra: 0, radius: 0, category: 'Data' }
 ];
+
+const graphNodeRankById: Record<string, number> = {
+    Browser: 0,
+    'Mobile App': 0,
+    'API Gateway': 1,
+    Auth: 2,
+    Orders: 2,
+    Catalog: 2,
+    Queue: 3,
+    Search: 3,
+    Worker: 4,
+    Database: 5
+};
+const graphNodePalette = ['#32b7a6', '#55a7ff', '#ffbf5b', '#ff7b72', '#a78bfa'];
+const graphEdgePalette = ['#61c7ff', '#4fd1a5', '#ffbf69', '#f28b82'];
 
 const sankeyData: DemoPoint[] = [
     { label: 'Visit → Signup', source: 'Visit', target: 'Signup', metric: 120, x: 0, value: 120, volume: 0, extra: 0, radius: 0, category: 'Acquisition' },
@@ -614,6 +636,7 @@ const examples: ExampleMeta[] = [
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'world-activity-map', title: '글로벌 시장 활동 현황', dataLabel: 'country activity index' },
     { kind: 'world-cluster-map', title: 'Global operations cluster map', dataLabel: `${worldClusterPlaces.length} live locations` },
+    { kind: 'subcell-heatmap', title: '0.5° subcell scalar heat field', dataLabel: '51 × 51 samples per cell' },
     { kind: 'update-series', title: 'Update series API' },
     { kind: 'update-data', title: 'Update data API' },
     { kind: 'real-time', title: 'Realtime time-series line', dataLabel: '250ms sliding window' },
@@ -622,7 +645,7 @@ const examples: ExampleMeta[] = [
     { kind: 'pie', title: 'Custom SVG pie renderer' },
     { kind: 'doughnut', title: 'Custom SVG doughnut renderer' },
     { kind: 'doughnut-scroll-legend', title: '디지털 서비스 이용 분포', dataLabel: 'scrollable segment legend' },
-    { kind: 'graph', title: 'SVG graph relationship renderer', dataLabel: 'force + circular layout' },
+    { kind: 'graph', title: 'SVG graph relationship renderer', dataLabel: 'layered layout + callback styling' },
     { kind: 'sankey', title: 'SVG Sankey flow renderer', dataLabel: 'source → target metric' },
     { kind: 'tree', title: 'SVG organization tree renderer', dataLabel: 'id → parent hierarchy' },
     { kind: 'treemap', title: 'SVG product revenue treemap', dataLabel: 'area = revenue' },
@@ -638,6 +661,32 @@ const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart
 let mapLibreController: KChartMapLibreController<DemoPlace> | undefined;
 let mapLibreBridge: KChartMapLibreGlobeBridge<DemoPoint, DemoPlace> | undefined;
 let cesiumController: KChartCesiumController | undefined;
+let subcellHeatmapApp: MountedSubcellHeatmapApp | undefined;
+let subcellHeatmapGeneration = 0;
+let subcellHeatmapAbort: AbortController | undefined;
+
+const setupSubcellHeatmapDemo = async (
+    generation: number,
+    signal: AbortSignal
+): Promise<void> => {
+    if (!chartRoot) {
+        return;
+    }
+    const mounted = await mountSubcellHeatmapApp(
+        chartRoot,
+        (container, options) => createSubcellHeatmapDemoWithAdapter(
+            container,
+            (configuration) => createMapLibreFlatMap(configuration),
+            options
+        ),
+        { signal }
+    );
+    if (generation !== subcellHeatmapGeneration || signal.aborted) {
+        mounted.destroy();
+        return;
+    }
+    subcellHeatmapApp = mounted;
+};
 
 const setupMapLibreDemo = (): void => {
     if (!chartRoot) {
@@ -2458,11 +2507,17 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
                 valueField: 'metric',
                 categoryField: 'category',
                 categorySide: 'source',
-                layout: 'force',
+                layout: 'layered',
+                nodeRank: (node) => graphNodeRankById[node.id] ?? 0,
+                nodeColor: (_node, index) => graphNodePalette[index % graphNodePalette.length],
                 directed: true,
                 edgeSymbols: 'circle-arrow',
+                edgeColor: (_edge, index) => graphEdgePalette[index % graphEdgePalette.length],
+                edgeDash: (edge) => edge.target.id === 'Database' ? '7 4' : null,
                 roam: 'both',
                 selectMode: 'multiple',
+                linkDistance: 52,
+                collisionPadding: 48,
                 nodeMinRadius: 10,
                 nodeMaxRadius: 30,
                 edgeMinWidth: 1.2,
@@ -2995,7 +3050,23 @@ createLineSeries({
 })`;
     }
     if (kind === 'graph') {
-        return `createGraphSeries({
+        return `(() => {
+const rankByService: Record<string, number> = {
+    Browser: 0,
+    'Mobile App': 0,
+    'API Gateway': 1,
+    Auth: 2,
+    Orders: 2,
+    Catalog: 2,
+    Queue: 3,
+    Search: 3,
+    Worker: 4,
+    Database: 5
+};
+const nodePalette = ['#32b7a6', '#55a7ff', '#ffbf5b', '#ff7b72', '#a78bfa'];
+const edgePalette = ['#61c7ff', '#4fd1a5', '#ffbf69', '#f28b82'];
+
+return createGraphSeries({
     selector: 'service-graph',
     displayName: 'Service relationships',
     sourceField: 'source',
@@ -3003,16 +3074,23 @@ createLineSeries({
     valueField: 'metric',
     categoryField: 'category',
     categorySide: 'source',
-    layout: 'force',
+    layout: 'layered',
+    nodeRank: (node) => rankByService[node.id] ?? 0,
+    nodeColor: (_node, index) => nodePalette[index % nodePalette.length],
     directed: true,
     edgeSymbols: 'circle-arrow',
+    edgeColor: (_edge, index) => edgePalette[index % edgePalette.length],
+    edgeDash: (edge) => edge.target.id === 'Database' ? '7 4' : null,
     roam: 'both',
     selectMode: 'multiple',
+    linkDistance: 52,
+    collisionPadding: 48,
     labels: {
         visible: true,
         formatter: (node) => \`\${node.label} · \${node.value}\`
     }
-})`;
+});
+})()`;
     }
     if (kind === 'tree') {
         return `createTreeSeries({
@@ -3346,6 +3424,29 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'subcell-heatmap') {
+        return `import { createMapLibreFlatMap } from '@keneth80/k-chart-maplibre';
+import '@keneth80/k-chart-maplibre/style.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+// createSubcellHeatmapDemo is copied from this example. It is an example-local
+// CanvasSource extension built on the real KChart MapLibre adapter.
+const demo = await createSubcellHeatmapDemo('#chart-div', {
+    showGrid: false,
+    showCellOutline: false,
+    showLowValueBackground: false,
+    showSamples: false,
+    onPick: ({ longitude, latitude, value }) => {
+        console.info(longitude, latitude, value);
+    }
+});
+
+// Grid visibility changes only the line layer. The raster and probes remain.
+demo.setGridVisible(false);
+demo.setCellOutlineVisible(false);
+demo.setLowValueBackgroundVisible(false);
+demo.setFrame(makeFrame(1));`;
+    }
     if (kind === 'world-cluster-map') {
         return `import {
     createMapLibreFlatMap,
@@ -4167,9 +4268,14 @@ const renderExample = (kind: DemoKind): void => {
     }
 
     activeKind = kind;
+    subcellHeatmapGeneration += 1;
+    subcellHeatmapAbort?.abort();
+    subcellHeatmapAbort = undefined;
     scrollableDoughnutCompactLayout = kind === 'doughnut-scroll-legend'
         && (chartRoot.clientWidth || 760) < 680;
     chart?.destroy();
+    subcellHeatmapApp?.destroy();
+    subcellHeatmapApp = undefined;
     cesiumController?.destroy();
     cesiumController = undefined;
     mapLibreController?.destroy();
@@ -4185,8 +4291,19 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('tree-chart', kind === 'tree');
     chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
     chartRoot.classList.toggle('doughnut-scroll-chart', kind === 'doughnut-scroll-legend');
+    chartRoot.classList.toggle('subcell-heatmap-chart', kind === 'subcell-heatmap');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
-    if (kind === 'world-cluster-map') {
+    if (kind === 'subcell-heatmap') {
+        chart = null;
+        const generation = subcellHeatmapGeneration;
+        const abort = new AbortController();
+        subcellHeatmapAbort = abort;
+        void setupSubcellHeatmapDemo(generation, abort.signal).catch((error) => {
+            if (generation === subcellHeatmapGeneration && !(error instanceof Error && error.name === 'AbortError')) {
+                console.error('[KChart MapLibre] subcell heat field failed to load', error);
+            }
+        });
+    } else if (kind === 'world-cluster-map') {
         chart = null;
         void setupWorldClusterDemo().catch((error) => {
             console.error('[KChart MapLibre] cluster map failed to load', error);

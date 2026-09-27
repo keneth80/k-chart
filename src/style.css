@@ -620,6 +620,16 @@ pre > code {
     container-type: inline-size;
 }
 
+.container-chart.subcell-heatmap-chart {
+    min-height: 820px;
+    overflow: auto;
+    background: #07131c;
+}
+
+.container-chart.subcell-heatmap-chart > .subcell-app {
+    padding: 14px;
+}
+
 .doughnut-scroll-legend {
     position: absolute;
     z-index: 4;
