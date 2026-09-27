@@ -6,11 +6,11 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.26.1`
+- Current release baseline: `1.27.0`
 - Current integration branch at handoff: `main`
-- Release tag: `v1.26.1`
+- Release tag: `v1.27.0`
 - Published packages:
-  - `@keneth80/k-chart@1.26.1`
+  - `@keneth80/k-chart@1.27.0`
   - `@keneth80/k-chart-react@0.2.1` (official React wrapper, maintained in [keneth80/k-chart-react](https://github.com/keneth80/k-chart-react))
   - `@keneth80/k-chart-maplibre@0.2.0`
   - `@keneth80/k-chart-cesium@0.1.5`
