@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import type {
     ExpressionSpecification,
     GeoJSONSource,
@@ -10,17 +10,17 @@ import type {
     MapMouseEvent,
     StyleSpecification
 } from 'maplibre-gl';
-import type {KChartMapLibrePlace} from './place-data';
+import type {KChartMapLibrePlace} from './place-data.js';
 
 export {
     createMapLibrePlaceResolver,
     parseMapLibrePlaces
-} from './place-data';
+} from './place-data.js';
 export type {
     KChartMapLibrePlace,
     KChartMapLibrePlaceParserOptions,
     KChartMapLibrePlaceResolverOptions
-} from './place-data';
+} from './place-data.js';
 
 export interface KChartMapLibreShowOptions<T extends KChartMapLibrePlace> {
     lat: number;
@@ -257,6 +257,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
     let interactionGeneration = 0;
     let visible = false;
     let activeUserMoveStart: readonly number[] | undefined;
+    let userInputDeadline = 0;
     const captureMapView = (currentMap: MapLibreMap): readonly number[] => {
         const center = currentMap.getCenter();
         return [
@@ -278,10 +279,32 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             activeUserMoveStart = undefined;
             return;
         }
-        if (activeUserMoveStart || !event.originalEvent) {
+        const isUserMove = Boolean(event.originalEvent) || Date.now() <= userInputDeadline;
+        userInputDeadline = 0;
+        if (activeUserMoveStart || !isUserMove) {
             return;
         }
         activeUserMoveStart = captureMapView(map);
+    };
+    const handleNativeUserInput = (): void => {
+        if (!map || !visible) {
+            return;
+        }
+        // MapLibre 6 does not consistently expose originalEvent on camera events.
+        // Limit the marker to the immediately following camera transition so
+        // programmatic jumpTo/flyTo calls remain excluded.
+        userInputDeadline = Date.now() + 1500;
+    };
+    const attachNativeUserInputListeners = (): void => {
+        mapContainer.addEventListener('pointerdown', handleNativeUserInput, true);
+        mapContainer.addEventListener('wheel', handleNativeUserInput, true);
+        mapContainer.addEventListener('keydown', handleNativeUserInput, true);
+    };
+    const detachNativeUserInputListeners = (): void => {
+        mapContainer.removeEventListener('pointerdown', handleNativeUserInput, true);
+        mapContainer.removeEventListener('wheel', handleNativeUserInput, true);
+        mapContainer.removeEventListener('keydown', handleNativeUserInput, true);
+        userInputDeadline = 0;
     };
     const handleMoveEnd = (): void => {
         const previousView = activeUserMoveStart;
@@ -499,6 +522,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
                 ? {}
                 : {maxBounds: configuration.maxBounds})
         };
+        attachNativeUserInputListeners();
         map = new maplibregl.Map({
             container: mapContainer,
             style: configuration.style,
@@ -532,6 +556,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
         async show(options) {
             interactionGeneration += 1;
             visible = true;
+            userInputDeadline = 0;
             places = options.places ?? places;
             exit = options.exit;
             locationLabel.textContent = options.label ?? '';
@@ -553,6 +578,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
                 exit = undefined;
                 activeUserMoveStart = undefined;
                 detachMapMoveListeners();
+                detachNativeUserInputListeners();
                 map?.remove();
                 map = undefined;
                 readyPromise = undefined;
@@ -565,6 +591,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             overlay.hidden = true;
             exit = undefined;
             activeUserMoveStart = undefined;
+            userInputDeadline = 0;
         },
         setPlaces(nextPlaces) {
             places = [...nextPlaces];
@@ -587,6 +614,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
         },
         resize() {
             activeUserMoveStart = undefined;
+            userInputDeadline = 0;
             map?.resize();
         },
         destroy() {
@@ -595,6 +623,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             activeUserMoveStart = undefined;
             backButton.removeEventListener('click', handleBackButtonClick);
             detachMapMoveListeners();
+            detachNativeUserInputListeners();
             map?.remove();
             map = undefined;
             readyPromise = undefined;

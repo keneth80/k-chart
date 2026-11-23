@@ -37,6 +37,10 @@ try {
         path.join(__dirname, 'runtime.test.cjs'),
         path.join(outputDirectory, 'index.js')
     ]);
+    run(process.execPath, [
+        path.join(__dirname, 'esm-runtime.test.mjs'),
+        path.join(packageRoot, 'lib/esm/index.js')
+    ]);
 } finally {
     rmSync(outputDirectory, {recursive: true, force: true});
 }
