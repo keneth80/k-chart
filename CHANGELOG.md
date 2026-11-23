@@ -1,5 +1,17 @@
 # Changelog
 
+## @keneth80/k-chart-maplibre 0.3.2 - 2026-11-23
+
+### Fixed
+
+- Prevented a cluster click's preceding `pointerdown` from classifying the
+  adapter-owned expansion `easeTo()` as a user camera move.
+
+### Tests
+
+- Added the browser event sequence `pointerdown -> cluster click -> easeTo` to
+  the runtime suite and verified that it does not emit `onMoveEnd`.
+
 ## @keneth80/k-chart-maplibre 0.3.1 - 2026-11-23
 
 ### Fixed
