@@ -12,6 +12,8 @@ module.exports = {
     entry: './src/main.ts',
     resolve: {
         extensions: ['.js', '.ts', '.json'],
+        // Let ESM TypeScript examples use Node-compatible `.js` specifiers in source.
+        extensionAlias: { '.js': ['.js', '.ts'] },
         alias: {
             '@keneth80/k-chart$': helpers.root('src/index.ts'),
             '@keneth80/k-chart/core$': helpers.root('src/core/index.ts'),

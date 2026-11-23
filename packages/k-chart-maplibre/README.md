@@ -200,6 +200,23 @@ navigation-control move finishes. It receives the canvas center in CSS pixels an
 the result of `map.unproject()` at that point. Initialization, `show()`, `flyTo()`,
 `resize()`, and built-in cluster expansion `easeTo()` do not invoke it.
 
+## Subcell Scalar Fields
+
+The [subcell heat-field example](../../examples/stackblitz-subcell-heatmap-basic/)
+uses `createMapLibreFlatMap()` for the map lifecycle and attaches a bounded
+MapLibre `CanvasSource` to the returned map. It interpolates scalar values before
+color mapping, so a 0.5-degree cell can show multiple internal peaks without
+misrepresenting MapLibre point-density values as percentages.
+
+The example-local `showGrid` control changes only the grid-line layer, while
+`showCellOutline` independently shows or hides the selected-cell border. The
+example also offers `showLowValueBackground` to replace the uniform low-value
+alpha rectangle with value-scaled alpha. The raster values, synthetic
+observation points, current frame, and map position remain intact. This is an
+adapter extension pattern, not a new KChart core or MapLibre adapter API.
+
+[Open the example in StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts)
+
 ## Place Data Utilities
 
 ### `parseMapLibrePlaces(data, parser, options?)`

@@ -13,21 +13,26 @@ KChart is published to npm as `@keneth80/k-chart`.
 Run these checks before every release:
 
 ```bash
-npm install
+npm ci
+npm run ci:adapters
 npm run typecheck
-npm run build:lib
+npm run test:unit
+npm run build-demo
 npm run pack:dry
 ```
 
-`npm run pack:dry` should show only the runtime package files:
+`npm run pack:dry` should show the configured public package files:
 
 - `lib/**`
 - `README.md`
 - `LICENSE`
 - `CHANGELOG.md`
 - `package.json`
+- `llms.txt` and `ai/**`
+- selected `docs/**` guides and assets
+- TypeScript integration examples and standalone `examples/stackblitz-*` projects
 
-It should not include `node_modules`, `src`, `dist`, demo files, webpack config, or local archives.
+It should not include `node_modules`, `src`, `dist`, webpack config, or local archives.
 
 ## GitFlow
 

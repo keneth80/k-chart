@@ -3,7 +3,9 @@ import {
     forceCollide,
     forceLink,
     forceManyBody,
-    forceSimulation
+    forceSimulation,
+    forceX,
+    forceY
 } from 'd3-force';
 import {zoom, zoomIdentity, ZoomTransform} from 'd3-zoom';
 import type {
@@ -31,6 +33,33 @@ let graphSeriesInstanceSequence = 0;
 export interface KChartResolvedGraph<T = any> {
     nodes: Array<KChartGraphNode<T>>;
     edges: Array<KChartGraphEdge<T>>;
+}
+
+export interface KChartGraphLayoutResult {
+    positions: Array<{x: number; y: number}>;
+    radiusScale: number;
+}
+
+export interface KChartGraphForceLayoutOptions<T = any> {
+    width: number;
+    height: number;
+    radius: (node: KChartGraphNode<T>, index: number) => number;
+    linkDistance: number;
+    chargeStrength?: number;
+    gravity?: number;
+    collisionPadding?: number;
+    iterations?: number;
+}
+
+export interface KChartGraphLayeredLayoutOptions<T = any> {
+    width: number;
+    height: number;
+    radius: (node: KChartGraphNode<T>, index: number) => number;
+    ranks: number[];
+    collisionPadding?: number;
+    rankGap?: number;
+    labelWidth?: (node: KChartGraphNode<T>, index: number) => number;
+    labelHeight?: (node: KChartGraphNode<T>, index: number) => number;
 }
 
 type GraphFieldConfiguration<T> = Pick<
@@ -181,13 +210,21 @@ const distanceToSegment = (
 
 const safeSvgId = (value: string): string => value.replace(/[^a-zA-Z0-9_-]/g, '-');
 
+const estimateGraphLabelWidth = (value: string, fontSize: number): number => Array.from(value)
+    .reduce((width, character) => {
+        if (/\s/.test(character)) return width + fontSize * 0.35;
+        return width + fontSize * (character.codePointAt(0)! > 0xff ? 1 : 0.62);
+    }, fontSize * 0.4);
+
 const hashGraphValue = (seed: number, value: unknown): number => {
     const text = String(value ?? '');
-    let hash = seed;
+    // Include a length prefix so adjacent fields cannot collapse into the
+    // same byte stream (for example A + BC versus AB + C).
+    let hash = Math.imul(seed ^ text.length, 16777619);
     for (let index = 0; index < text.length; index += 1) {
         hash = Math.imul(hash ^ text.charCodeAt(index), 16777619);
     }
-    return hash;
+    return Math.imul(hash ^ 0xff, 16777619);
 };
 
 const resolveGraphDataSignature = <T = any>(
@@ -195,6 +232,11 @@ const resolveGraphDataSignature = <T = any>(
     configuration: GraphFieldConfiguration<T>
 ): number => {
     let hash = Math.imul(2166136261, data.length + 1);
+    hash = hashGraphValue(hash, configuration.sourceField);
+    hash = hashGraphValue(hash, configuration.targetField);
+    hash = hashGraphValue(hash, configuration.valueField);
+    hash = hashGraphValue(hash, configuration.categoryField);
+    hash = hashGraphValue(hash, configuration.categorySide);
     data.forEach((row) => {
         hash = hashGraphValue(hash, row[configuration.sourceField]);
         hash = hashGraphValue(hash, row[configuration.targetField]);
@@ -206,6 +248,349 @@ const resolveGraphDataSignature = <T = any>(
     return hash >>> 0;
 };
 
+const resolveNodeRanks = <T = any>(
+    nodes: Array<KChartGraphNode<T>>,
+    edges: Array<KChartGraphEdge<T>>,
+    configuredRank: KChartGraphSeriesConfiguration<T>['nodeRank']
+): number[] => {
+    if (configuredRank !== undefined) {
+        return nodes.map((node, index) => {
+            const rank = typeof configuredRank === 'function'
+                ? configuredRank(node, index)
+                : configuredRank;
+            return Number.isFinite(rank) ? rank : 0;
+        });
+    }
+
+    const nodeIndexes = new Map(nodes.map((node, index) => [node, index]));
+    const outgoing = nodes.map(() => [] as number[]);
+    edges.forEach((edge) => {
+        const sourceIndex = nodeIndexes.get(edge.source);
+        const targetIndex = nodeIndexes.get(edge.target);
+        if (sourceIndex === undefined || targetIndex === undefined || sourceIndex === targetIndex) return;
+        outgoing[sourceIndex].push(targetIndex);
+    });
+
+    // Collapse strongly-connected components first. Iterative Kosaraju avoids
+    // overflowing the call stack on large production dependency graphs.
+    const reverseOutgoing = nodes.map(() => [] as number[]);
+    outgoing.forEach((targets, sourceIndex) => {
+        targets.forEach((targetIndex) => reverseOutgoing[targetIndex].push(sourceIndex));
+    });
+    const visited = nodes.map(() => false);
+    const finishOrder: number[] = [];
+    nodes.forEach((_node, startIndex) => {
+        if (visited[startIndex]) return;
+        const walk = [{nodeIndex: startIndex, nextTarget: 0}];
+        visited[startIndex] = true;
+        while (walk.length) {
+            const frame = walk[walk.length - 1];
+            const targets = outgoing[frame.nodeIndex];
+            if (frame.nextTarget < targets.length) {
+                const targetIndex = targets[frame.nextTarget];
+                frame.nextTarget += 1;
+                if (!visited[targetIndex]) {
+                    visited[targetIndex] = true;
+                    walk.push({nodeIndex: targetIndex, nextTarget: 0});
+                }
+                continue;
+            }
+            finishOrder.push(frame.nodeIndex);
+            walk.pop();
+        }
+    });
+    const componentByNode = nodes.map(() => -1);
+    let componentCount = 0;
+    for (let orderIndex = finishOrder.length - 1; orderIndex >= 0; orderIndex -= 1) {
+        const startIndex = finishOrder[orderIndex];
+        if (componentByNode[startIndex] !== -1) continue;
+        const members = [startIndex];
+        componentByNode[startIndex] = componentCount;
+        while (members.length) {
+            const nodeIndex = members.pop() as number;
+            reverseOutgoing[nodeIndex].forEach((sourceIndex) => {
+                if (componentByNode[sourceIndex] !== -1) return;
+                componentByNode[sourceIndex] = componentCount;
+                members.push(sourceIndex);
+            });
+        }
+        componentCount += 1;
+    }
+
+    const componentOutgoing = Array.from({length: componentCount}, () => new Set<number>());
+    const componentIndegree = Array.from({length: componentCount}, () => 0);
+    outgoing.forEach((targets, sourceIndex) => {
+        targets.forEach((targetIndex) => {
+            const sourceComponent = componentByNode[sourceIndex];
+            const targetComponent = componentByNode[targetIndex];
+            if (sourceComponent === targetComponent || componentOutgoing[sourceComponent].has(targetComponent)) return;
+            componentOutgoing[sourceComponent].add(targetComponent);
+            componentIndegree[targetComponent] += 1;
+        });
+    });
+    const componentRanks = Array.from({length: componentCount}, () => 0);
+    const queue = componentIndegree.reduce<number[]>((result, degree, index) => {
+        if (degree === 0) result.push(index);
+        return result;
+    }, []);
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+        const sourceComponent = queue[cursor];
+        componentOutgoing[sourceComponent].forEach((targetComponent) => {
+            componentRanks[targetComponent] = Math.max(
+                componentRanks[targetComponent],
+                componentRanks[sourceComponent] + 1
+            );
+            componentIndegree[targetComponent] -= 1;
+            if (componentIndegree[targetComponent] === 0) queue.push(targetComponent);
+        });
+    }
+    return componentByNode.map((component) => componentRanks[component] ?? 0);
+};
+
+const resolveLayoutSignature = <T = any>(
+    configuration: KChartGraphSeriesConfiguration<T>,
+    ranks: number[]
+): number => {
+    let hash = 2166136261;
+    [
+        configuration.layout ?? 'force',
+        configuration.nodeMinRadius ?? 9,
+        configuration.nodeMaxRadius ?? 28,
+        configuration.chargeStrength ?? -360,
+        configuration.gravity ?? 0,
+        configuration.linkDistance ?? 'auto',
+        configuration.collisionPadding ?? 8,
+        configuration.iterations ?? 220
+    ].forEach((value) => {
+        hash = hashGraphValue(hash, value);
+    });
+    ranks.forEach((rank) => {
+        hash = hashGraphValue(hash, rank);
+    });
+    return hash >>> 0;
+};
+
+const clampNodeCoordinate = (value: number, size: number, radius: number, padding: number): number => {
+    const minimum = radius + padding;
+    const maximum = size - radius - padding;
+    return minimum <= maximum
+        ? Math.max(minimum, Math.min(maximum, value))
+        : size / 2;
+};
+
+export const applyForceLayout = <T = any>(
+    nodes: Array<KChartGraphNode<T>>,
+    edges: Array<KChartGraphEdge<T>>,
+    options: KChartGraphForceLayoutOptions<T>
+): KChartGraphLayoutResult => {
+    const width = Math.max(1, options.width);
+    const height = Math.max(1, options.height);
+    const radii = nodes.map((node, index) => Math.max(0, options.radius(node, index)));
+    const initialRadius = Math.max(24, Math.min(width, height) * 0.3);
+    const simulationNodes = nodes.map((node, index) => {
+        const angle = (Math.PI * 2 * index) / Math.max(1, nodes.length) - Math.PI / 2;
+        return {
+            ...node,
+            x: width / 2 + Math.cos(angle) * initialRadius,
+            y: height / 2 + Math.sin(angle) * initialRadius
+        };
+    });
+    const cloneByNode = new Map(nodes.map((node, index) => [node, simulationNodes[index]]));
+    const simulationEdges = edges.map((edge) => ({
+        ...edge,
+        source: cloneByNode.get(edge.source) as KChartGraphNode<T>,
+        target: cloneByNode.get(edge.target) as KChartGraphNode<T>
+    }));
+    if (simulationNodes.length > 1) {
+        const cloneIndexes = new Map(simulationNodes.map((node, index) => [node, index]));
+        const simulation = forceSimulation(simulationNodes)
+            .force('link', forceLink<KChartGraphNode<T>, KChartGraphEdge<T>>(simulationEdges)
+                .distance(options.linkDistance)
+                .strength(0.58))
+            .force('charge', forceManyBody().strength(options.chargeStrength ?? -360))
+            .force('center', forceCenter(width / 2, height / 2))
+            .force('collision', forceCollide<KChartGraphNode<T>>()
+                .radius((node) => radii[cloneIndexes.get(node) ?? 0] + (options.collisionPadding ?? 8)))
+            .stop();
+        const gravity = Math.max(0, options.gravity ?? 0);
+        if (gravity > 0) {
+            simulation
+                .force('x', forceX(width / 2).strength(gravity))
+                .force('y', forceY(height / 2).strength(gravity));
+        }
+        simulation.randomSource(() => 0.5);
+        const iterations = Math.max(1, Math.floor(options.iterations ?? 220));
+        for (let index = 0; index < iterations; index += 1) simulation.tick();
+    }
+    return {
+        positions: simulationNodes.map((node, index) => ({
+            x: clampNodeCoordinate(node.x, width, radii[index], 8),
+            y: clampNodeCoordinate(node.y, height, radii[index], 8)
+        })),
+        radiusScale: 1
+    };
+};
+
+const orderLayerIndexes = <T = any>(
+    nodes: Array<KChartGraphNode<T>>,
+    edges: Array<KChartGraphEdge<T>>,
+    ranks: number[]
+): number[][] => {
+    const nodeIndexes = new Map(nodes.map((node, index) => [node, index]));
+    const neighbors = nodes.map(() => [] as number[]);
+    edges.forEach((edge) => {
+        const sourceIndex = nodeIndexes.get(edge.source);
+        const targetIndex = nodeIndexes.get(edge.target);
+        if (sourceIndex === undefined || targetIndex === undefined || sourceIndex === targetIndex) return;
+        neighbors[sourceIndex].push(targetIndex);
+        neighbors[targetIndex].push(sourceIndex);
+    });
+    const layersByRank = new Map<number, number[]>();
+    nodes.forEach((node, index) => {
+        const rank = ranks[index] ?? 0;
+        const layer = layersByRank.get(rank) ?? [];
+        layer.push(index);
+        layersByRank.set(rank, layer);
+    });
+    const orderedLayers = Array.from(layersByRank.entries())
+        .sort(([left], [right]) => left - right)
+        .map(([, layer]) => layer);
+    const sweep = (start: number, end: number, step: number, towardEarlierRanks: boolean): void => {
+        const positions = new Map<number, number>();
+        orderedLayers.forEach((layer) => layer.forEach((nodeIndex, index) => positions.set(nodeIndex, index)));
+        for (let layerIndex = start; layerIndex !== end; layerIndex += step) {
+            const layer = orderedLayers[layerIndex];
+            const priorPositions = new Map(layer.map((nodeIndex, index) => [nodeIndex, index]));
+            layer.sort((left, right) => {
+                const barycenter = (nodeIndex: number): number => {
+                    const relevant = neighbors[nodeIndex].filter((neighborIndex) => towardEarlierRanks
+                        ? (ranks[neighborIndex] ?? 0) < (ranks[nodeIndex] ?? 0)
+                        : (ranks[neighborIndex] ?? 0) > (ranks[nodeIndex] ?? 0));
+                    if (!relevant.length) return priorPositions.get(nodeIndex) ?? 0;
+                    return relevant.reduce((sum, neighborIndex) => sum + (positions.get(neighborIndex) ?? 0), 0)
+                        / relevant.length;
+                };
+                return barycenter(left) - barycenter(right)
+                    || (priorPositions.get(left) ?? 0) - (priorPositions.get(right) ?? 0);
+            });
+            layer.forEach((nodeIndex, index) => positions.set(nodeIndex, index));
+        }
+    };
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+        sweep(1, orderedLayers.length, 1, true);
+        sweep(orderedLayers.length - 2, -1, -1, false);
+    }
+    return orderedLayers;
+};
+
+interface PackedLayerLine {
+    indexes: number[];
+    width: number;
+    height: number;
+    radius: number;
+    bottomDepth: number;
+}
+
+interface PackedLayer {
+    lines: PackedLayerLine[];
+    height: number;
+}
+
+export const applyLayeredLayout = <T = any>(
+    nodes: Array<KChartGraphNode<T>>,
+    edges: Array<KChartGraphEdge<T>>,
+    options: KChartGraphLayeredLayoutOptions<T>
+): KChartGraphLayoutResult => {
+    if (!nodes.length) return {positions: [], radiusScale: 1};
+    const width = Math.max(1, options.width);
+    const height = Math.max(1, options.height);
+    const baseRadii = nodes.map((node, index) => Math.max(0, options.radius(node, index)));
+    const footprintWidths = nodes.map((node, index) => Math.max(
+        baseRadii[index] * 2,
+        Math.max(0, options.labelWidth?.(node, index) ?? 0)
+    ));
+    const footprintHeights = nodes.map((node, index) => (
+        baseRadii[index] * 2 + Math.max(0, options.labelHeight?.(node, index) ?? 0)
+    ));
+    const orderedLayers = orderLayerIndexes(nodes, edges, options.ranks);
+    const collisionGap = Math.max(0, options.collisionPadding ?? 8) * 2;
+    const rankGap = Math.max(0, options.rankGap ?? 72);
+    const outerPadding = 8;
+    const availableWidth = Math.max(0, width - outerPadding * 2);
+    const layers = orderedLayers.map((layer) => {
+        const lines: PackedLayerLine[] = [];
+        layer.forEach((nodeIndex) => {
+            const itemWidth = footprintWidths[nodeIndex];
+            let line = lines[lines.length - 1];
+            if (!line || line.width + collisionGap + itemWidth > availableWidth + Number.EPSILON) {
+                line = {indexes: [], width: 0, height: 0, radius: 0, bottomDepth: 0};
+                lines.push(line);
+            }
+            if (line.indexes.length) line.width += collisionGap;
+            line.indexes.push(nodeIndex);
+            line.width += itemWidth;
+            line.radius = Math.max(line.radius, baseRadii[nodeIndex]);
+            line.bottomDepth = Math.max(
+                line.bottomDepth,
+                footprintHeights[nodeIndex] - baseRadii[nodeIndex]
+            );
+            line.height = line.radius + line.bottomDepth;
+        });
+        return {
+            lines,
+            height: lines.reduce((sum, line) => sum + line.height, 0)
+                + collisionGap * Math.max(0, lines.length - 1)
+        };
+    });
+    const packedHeight = outerPadding * 2
+        + layers.reduce((sum, layer) => sum + layer.height, 0)
+        + rankGap * Math.max(0, layers.length - 1);
+    const packedWidth = outerPadding * 2 + Math.max(
+        0,
+        ...layers.flatMap((layer) => layer.lines.map((line) => line.width))
+    );
+    const scale = Math.max(0, Math.min(1, width / packedWidth, height / packedHeight));
+    const scaledHeight = packedHeight * scale;
+    const positions = nodes.map(() => ({x: width / 2, y: height / 2}));
+    const itemGap = collisionGap * scale;
+    let yCursor = (height - scaledHeight) / 2 + outerPadding * scale;
+    layers.forEach((layer, layerIndex) => {
+        layer.lines.forEach((line, lineIndex) => {
+            let xCursor = (width - line.width * scale) / 2;
+            line.indexes.forEach((nodeIndex) => {
+                const radius = baseRadii[nodeIndex] * scale;
+                const itemWidth = footprintWidths[nodeIndex] * scale;
+                positions[nodeIndex] = {x: xCursor + itemWidth / 2, y: yCursor + line.radius * scale};
+                xCursor += itemWidth + itemGap;
+            });
+            yCursor += line.height * scale;
+            if (lineIndex < layer.lines.length - 1) yCursor += itemGap;
+        });
+        if (layerIndex < layers.length - 1) yCursor += rankGap * scale;
+    });
+    return {positions, radiusScale: scale};
+};
+
+const applyCircularLayout = <T = any>(
+    nodes: Array<KChartGraphNode<T>>,
+    width: number,
+    height: number,
+    radius: (node: KChartGraphNode<T>) => number
+): KChartGraphLayoutResult => {
+    const initialRadius = Math.max(24, Math.min(width, height) * 0.3);
+    return {
+        positions: nodes.map((node, index) => {
+            const angle = (Math.PI * 2 * index) / Math.max(1, nodes.length) - Math.PI / 2;
+            const nodeRadius = Math.max(0, radius(node));
+            return {
+                x: clampNodeCoordinate(width / 2 + Math.cos(angle) * initialRadius, width, nodeRadius, 8),
+                y: clampNodeCoordinate(height / 2 + Math.sin(angle) * initialRadius, height, nodeRadius, 8)
+            };
+        }),
+        radiusScale: 1
+    };
+};
+
 export const createGraphSeries = <T = any>(
     configuration: KChartGraphSeriesConfiguration<T>
 ): KChartSeries<T> => {
@@ -213,13 +598,28 @@ export const createGraphSeries = <T = any>(
     let resolvedGraph: KChartResolvedGraph<T> = {nodes: [], edges: []};
     let graphTransform: ZoomTransform = zoomIdentity;
     let lastData: T[] | undefined;
+    let lastRows: T[] = [];
     let lastDataSignature = -1;
+    let lastLayoutSignature = -1;
     let lastWidth = -1;
     let lastHeight = -1;
+    let layeredNodeScale = 1;
+    let nodeIndexById = new Map<string, number>();
+    let edgeIndexById = new Map<string, number>();
     const selectedIds = new Set<string>();
     let hoveredId: string | undefined;
     let resolveNodeRadius: (node: KChartGraphNode<T>) => number = () => configuration.nodeMinRadius ?? 8;
     let resolveEdgeWidth: (edge: KChartGraphEdge<T>) => number = () => configuration.edgeMinWidth ?? 1;
+    let resolveNodeColor: (node: KChartGraphNode<T>, index: number) => string = () => configuration.color ?? defaultGraphPalette[0];
+    let resolveEdgeColor: (edge: KChartGraphEdge<T>, index: number) => string = () => (
+        typeof configuration.edgeColor === 'string'
+            ? configuration.edgeColor
+            : 'rgba(158, 181, 199, 0.58)'
+    );
+    let resolveEdgeDash: (edge: KChartGraphEdge<T>, index: number) => string | null | undefined = () => (
+        typeof configuration.edgeDash === 'string' ? configuration.edgeDash : undefined
+    );
+    let reapplyInteractionStyle: () => void = () => undefined;
 
     const series = createCustomSeries<T>({
         selector: configuration.selector,
@@ -233,68 +633,126 @@ export const createGraphSeries = <T = any>(
             const width = Math.max(1, plotSize.width);
             const height = Math.max(1, plotSize.height);
             const dataSignature = resolveGraphDataSignature(data, configuration);
-            const layoutChanged = data !== lastData
-                || dataSignature !== lastDataSignature
-                || width !== lastWidth
-                || height !== lastHeight;
-            if (layoutChanged) {
+            const rowsChanged = data !== lastData
+                || data.length !== lastRows.length
+                || data.some((row, index) => row !== lastRows[index]);
+            const graphChanged = rowsChanged || dataSignature !== lastDataSignature;
+            if (graphChanged) {
                 resolvedGraph = resolveGraphData(data, configuration);
                 lastData = data;
+                lastRows = data.slice();
                 lastDataSignature = dataSignature;
-                lastWidth = width;
-                lastHeight = height;
                 selectedIds.forEach((id) => {
                     if (!resolvedGraph.nodes.some((node) => node.id === id)) selectedIds.delete(id);
                 });
             }
             const nodes = resolvedGraph.nodes;
             const edges = resolvedGraph.edges;
-            const nodeMinRadius = configuration.nodeMinRadius ?? 9;
+            nodeIndexById = new Map(nodes.map((node, index) => [node.id, index]));
+            edgeIndexById = new Map(edges.map((edge, index) => [edge.id, index]));
+            const layout = configuration.layout ?? 'force';
+            const nodeMinRadius = Math.max(0, configuration.nodeMinRadius ?? 9);
             const nodeMaxRadius = Math.max(nodeMinRadius, configuration.nodeMaxRadius ?? 28);
             const edgeMinWidth = configuration.edgeMinWidth ?? 1;
             const edgeMaxWidth = Math.max(edgeMinWidth, configuration.edgeMaxWidth ?? 7);
-            const edgeColor = configuration.edgeColor ?? 'rgba(158, 181, 199, 0.58)';
+            const defaultEdgeColor = 'rgba(158, 181, 199, 0.58)';
+            const edgeBaseColor = configuration.edgeColor ?? defaultEdgeColor;
+            const markerColor = typeof edgeBaseColor === 'string' ? edgeBaseColor : defaultEdgeColor;
             const nodeStroke = configuration.nodeStroke ?? 'rgba(246, 250, 255, 0.92)';
             const palette = configuration.palette?.length ? configuration.palette : defaultGraphPalette;
             const categories = new Map<string, number>();
             const nodeRadiusScale = createLinearResolver(nodes.map((node) => node.value), nodeMinRadius, nodeMaxRadius, true);
+            const baseNodeRadius = (node: KChartGraphNode<T>): number => nodeRadiusScale(node.value);
             const edgeWidthScale = createLinearResolver(edges.map((edge) => edge.value), edgeMinWidth, edgeMaxWidth);
-            resolveNodeRadius = (node) => nodeRadiusScale(node.value);
             resolveEdgeWidth = (edge) => edgeWidthScale(edge.value);
-
-            nodes.forEach((node, index) => {
+            nodes.forEach((node) => {
                 if (node.category && !categories.has(node.category)) {
                     categories.set(node.category, categories.size);
                 }
-                if (!layoutChanged) return;
-                const angle = (Math.PI * 2 * index) / Math.max(1, nodes.length) - Math.PI / 2;
-                const initialRadius = Math.max(24, Math.min(width, height) * 0.3);
-                node.x = width / 2 + Math.cos(angle) * initialRadius;
-                node.y = height / 2 + Math.sin(angle) * initialRadius;
             });
+            resolveNodeColor = (node, index) => {
+                if (typeof configuration.nodeColor === 'function') return configuration.nodeColor(node, index);
+                if (configuration.nodeColor) return configuration.nodeColor;
+                if (node.category) return palette[(categories.get(node.category) ?? 0) % palette.length];
+                return configuration.color ?? color;
+            };
+            resolveEdgeColor = (edge, index) => (
+                typeof edgeBaseColor === 'function' ? edgeBaseColor(edge, index) : edgeBaseColor
+            );
+            resolveEdgeDash = (edge, index) => (
+                typeof configuration.edgeDash === 'function'
+                    ? configuration.edgeDash(edge, index)
+                    : configuration.edgeDash
+            );
 
-            if (layoutChanged && (configuration.layout ?? 'force') === 'force' && nodes.length > 1) {
-                const simulation = forceSimulation(nodes)
-                    .force('link', forceLink<KChartGraphNode<T>, KChartGraphEdge<T>>(edges)
-                        .distance(configuration.linkDistance ?? Math.max(72, Math.min(width, height) / 4))
-                        .strength(0.58))
-                    .force('charge', forceManyBody().strength(configuration.chargeStrength ?? -360))
-                    .force('center', forceCenter(width / 2, height / 2))
-                    .force('collision', forceCollide<KChartGraphNode<T>>()
-                        .radius((node) => resolveNodeRadius(node) + (configuration.collisionPadding ?? 8)))
-                    .stop();
-                simulation.randomSource(() => 0.5);
-                const iterations = Math.max(1, Math.floor(configuration.iterations ?? 220));
-                for (let index = 0; index < iterations; index += 1) {
-                    simulation.tick();
+            const labelConfiguration = typeof configuration.labels === 'boolean'
+                ? {visible: configuration.labels}
+                : configuration.labels ?? {visible: true};
+            const labelFontSize = labelConfiguration.fontSize ?? 11;
+            const nodeLabelVisible = nodes.map((node) => (
+                labelConfiguration.visible !== false
+                && node.value >= (configuration.labelThreshold ?? 0)
+            ));
+            const nodeLabelText = nodes.map((node) => (
+                labelConfiguration.formatter?.(node) ?? node.label
+            ));
+
+            const nodeRanks = layout === 'layered'
+                ? resolveNodeRanks(nodes, edges, configuration.nodeRank)
+                : [];
+            const layoutSignature = resolveLayoutSignature(configuration, nodeRanks);
+            const layoutChanged = graphChanged
+                || layoutSignature !== lastLayoutSignature
+                || width !== lastWidth
+                || height !== lastHeight;
+            const linkDistance = configuration.linkDistance ?? Math.max(72, Math.min(width, height) / 4);
+            if (layoutChanged) {
+                let layoutResult: KChartGraphLayoutResult;
+                if (layout === 'layered') {
+                    layoutResult = applyLayeredLayout(
+                        nodes,
+                        edges,
+                        {
+                            width,
+                            height,
+                            radius: baseNodeRadius,
+                            ranks: nodeRanks,
+                            collisionPadding: configuration.collisionPadding,
+                            rankGap: linkDistance,
+                            labelWidth: (_node, index) => nodeLabelVisible[index]
+                                ? estimateGraphLabelWidth(nodeLabelText[index], labelFontSize)
+                                : 0,
+                            labelHeight: (_node, index) => nodeLabelVisible[index]
+                                ? 15 + labelFontSize * 0.3
+                                : 0
+                        }
+                    );
+                } else if (layout === 'force') {
+                    layoutResult = applyForceLayout(nodes, edges, {
+                        width,
+                        height,
+                        radius: baseNodeRadius,
+                        linkDistance,
+                        chargeStrength: configuration.chargeStrength,
+                        gravity: configuration.gravity,
+                        collisionPadding: configuration.collisionPadding,
+                        iterations: configuration.iterations
+                    });
+                } else {
+                    layoutResult = applyCircularLayout(nodes, width, height, baseNodeRadius);
                 }
+                layeredNodeScale = layoutResult.radiusScale;
+                layoutResult.positions.forEach((position, index) => {
+                    nodes[index].x = position.x;
+                    nodes[index].y = position.y;
+                });
+                resolveNodeRadius = (node) => nodeRadiusScale(node.value) * layeredNodeScale;
+                lastLayoutSignature = layoutSignature;
+                lastWidth = width;
+                lastHeight = height;
+            } else {
+                resolveNodeRadius = (node) => nodeRadiusScale(node.value) * layeredNodeScale;
             }
-
-            nodes.forEach((node) => {
-                const radius = resolveNodeRadius(node);
-                node.x = Math.max(radius + 8, Math.min(width - radius - 8, node.x));
-                node.y = Math.max(radius + 8, Math.min(height - radius - 8, node.y));
-            });
 
             const markerPrefix = `kchart-graph-${safeSvgId(configuration.selector)}-${instanceId}`;
             const symbols = configuration.edgeSymbols ?? (configuration.directed ? 'none-arrow' : 'none-none');
@@ -321,7 +779,7 @@ export const createGraphSeries = <T = any>(
                 .data([undefined])
                 .join('path')
                 .attr('d', 'M0,-5L10,0L0,5Z')
-                .style('fill', edgeColor);
+                .style('fill', markerColor);
 
             defs.selectAll<SVGMarkerElement, unknown>(`marker#${markerPrefix}-circle`)
                 .data(showStartCircle || showEndCircle ? [undefined] : [])
@@ -338,7 +796,7 @@ export const createGraphSeries = <T = any>(
                 .data([undefined])
                 .join('circle')
                 .attr('r', 3)
-                .style('fill', edgeColor);
+                .style('fill', markerColor);
 
             group.selectAll<SVGRectElement, unknown>('rect.kchart-graph-interaction')
                 .data([undefined])
@@ -385,7 +843,7 @@ export const createGraphSeries = <T = any>(
                     })
                     .style('stroke', (edge) => hasFocus && (focusIds.has(edge.source.id) || focusIds.has(edge.target.id))
                         ? '#eaf7ff'
-                        : edgeColor);
+                        : resolveEdgeColor(edge, edgeIndexById.get(edge.id) ?? 0));
                 nodeLayer.selectAll<SVGGElement, KChartGraphNode<T>>('g.kchart-graph-node')
                     .style('opacity', (node) => !hasFocus || isConnected(node.id, focusIds)
                         ? 1
@@ -396,6 +854,7 @@ export const createGraphSeries = <T = any>(
                         ? Math.max(3, configuration.nodeStrokeWidth ?? 1.5)
                         : configuration.nodeStrokeWidth ?? 1.5);
             };
+            reapplyInteractionStyle = applyInteractionStyle;
 
             edgeLayer.selectAll<SVGPathElement, KChartGraphEdge<T>>('path.kchart-graph-edge')
                 .data(edges, (edge) => edge.id)
@@ -409,7 +868,8 @@ export const createGraphSeries = <T = any>(
                         ? `url(#${markerPrefix}-circle)`
                         : null)
                 .style('fill', 'none')
-                .style('stroke', edgeColor)
+                .style('stroke', (edge) => resolveEdgeColor(edge, edgeIndexById.get(edge.id) ?? 0))
+                .style('stroke-dasharray', (edge) => resolveEdgeDash(edge, edgeIndexById.get(edge.id) ?? 0))
                 .style('stroke-width', (edge) => resolveEdgeWidth(edge))
                 .style('opacity', (configuration.edgeOpacity ?? 0.72) * (animation.enabled ? animation.progress : 1))
                 .each(function appendEdgeTitle(edge) {
@@ -470,11 +930,7 @@ export const createGraphSeries = <T = any>(
                 .join('circle')
                 .attr('class', 'kchart-graph-node-circle')
                 .attr('r', (node) => resolveNodeRadius(node) * (animation.enabled ? animation.progress : 1))
-                .style('fill', (node) => {
-                    if (!node.category) return configuration.color ?? color;
-                    const categoryIndex = categories.get(node.category) ?? 0;
-                    return palette[categoryIndex % palette.length];
-                })
+                .style('fill', (node) => resolveNodeColor(node, nodeIndexById.get(node.id) ?? 0))
                 .style('fill-opacity', configuration.nodeOpacity ?? 0.92)
                 .style('stroke', nodeStroke)
                 .style('stroke-width', configuration.nodeStrokeWidth ?? 1.5);
@@ -484,22 +940,17 @@ export const createGraphSeries = <T = any>(
                 .join('title')
                 .text((node) => `${node.label}: ${node.value}`);
 
-            const labelConfiguration = typeof configuration.labels === 'boolean'
-                ? {visible: configuration.labels}
-                : configuration.labels ?? {visible: true};
             nodeGroups.selectAll<SVGTextElement, KChartGraphNode<T>>('text.kchart-graph-node-label')
-                .data((node) => labelConfiguration.visible !== false && node.value >= (configuration.labelThreshold ?? 0)
-                    ? [node]
-                    : [])
+                .data((node) => nodeLabelVisible[nodeIndexById.get(node.id) ?? 0] ? [node] : [])
                 .join('text')
                 .attr('class', 'kchart-graph-node-label')
-                .attr('y', (node) => resolveNodeRadius(node) + 15)
+                .attr('y', (node) => resolveNodeRadius(node) + 15 * (layout === 'layered' ? layeredNodeScale : 1))
                 .attr('text-anchor', 'middle')
                 .style('fill', labelConfiguration.color ?? '#edf3f8')
-                .style('font-size', `${labelConfiguration.fontSize ?? 11}px`)
+                .style('font-size', `${labelFontSize * (layout === 'layered' ? layeredNodeScale : 1)}px`)
                 .style('font-weight', labelConfiguration.fontWeight ?? 700)
                 .style('pointer-events', 'none')
-                .text((node) => labelConfiguration.formatter?.(node) ?? node.label);
+                .text((node) => nodeLabelText[nodeIndexById.get(node.id) ?? 0]);
 
             applyInteractionStyle();
 
@@ -531,13 +982,15 @@ export const createGraphSeries = <T = any>(
         },
         tooltip({mouseX, mouseY}) {
             let activeNode: KChartGraphNode<T> | undefined;
+            let activeNodeIndex = -1;
             let activeDistance = Number.POSITIVE_INFINITY;
-            resolvedGraph.nodes.forEach((node) => {
+            resolvedGraph.nodes.forEach((node, index) => {
                 const x = graphTransform.applyX(node.x);
                 const y = graphTransform.applyY(node.y);
                 const distance = Math.hypot(mouseX - x, mouseY - y);
                 if (distance <= resolveNodeRadius(node) * graphTransform.k + 8 && distance < activeDistance) {
                     activeNode = node;
+                    activeNodeIndex = index;
                     activeDistance = distance;
                 }
             });
@@ -547,14 +1000,15 @@ export const createGraphSeries = <T = any>(
                     x: graphTransform.applyX(activeNode.x),
                     y: graphTransform.applyY(activeNode.y),
                     distance: activeDistance,
-                    color: configuration.color,
+                    color: resolveNodeColor(activeNode, activeNodeIndex),
                     html: `<strong>${activeNode.label}</strong><br/>Connected metric: ${activeNode.value}${activeNode.category ? `<br/>Category: ${activeNode.category}` : ''}`
                 };
             }
 
             let activeEdge: KChartGraphEdge<T> | undefined;
+            let activeEdgeIndex = -1;
             let edgeDistance = Number.POSITIVE_INFINITY;
-            resolvedGraph.edges.forEach((edge) => {
+            resolvedGraph.edges.forEach((edge, index) => {
                 const distance = distanceToSegment(
                     mouseX,
                     mouseY,
@@ -565,6 +1019,7 @@ export const createGraphSeries = <T = any>(
                 );
                 if (distance <= Math.max(7, resolveEdgeWidth(edge) * graphTransform.k + 4) && distance < edgeDistance) {
                     activeEdge = edge;
+                    activeEdgeIndex = index;
                     edgeDistance = distance;
                 }
             });
@@ -574,21 +1029,31 @@ export const createGraphSeries = <T = any>(
                 x: graphTransform.applyX((activeEdge.source.x + activeEdge.target.x) / 2),
                 y: graphTransform.applyY((activeEdge.source.y + activeEdge.target.y) / 2),
                 distance: edgeDistance,
-                color: configuration.edgeColor,
+                color: resolveEdgeColor(activeEdge, activeEdgeIndex),
                 html: `<strong>${activeEdge.source.label} → ${activeEdge.target.label}</strong><br/>Metric: ${activeEdge.value}`
             };
         },
         clearTooltip({seriesGroup}: KChartLayerContext) {
             seriesGroup.selectAll(`g.${configuration.selector} path.kchart-graph-edge`)
-                .style('stroke', configuration.edgeColor ?? 'rgba(158, 181, 199, 0.58)');
+                .style('stroke', (edge: KChartGraphEdge<T>) => resolveEdgeColor(edge, edgeIndexById.get(edge.id) ?? 0))
+                .style('stroke-dasharray', (edge: KChartGraphEdge<T>) => (
+                    resolveEdgeDash(edge, edgeIndexById.get(edge.id) ?? 0)
+                ));
+            reapplyInteractionStyle();
         },
         destroy({seriesGroup}: KChartLayerContext) {
             seriesGroup.selectAll(`g.${configuration.selector}`).on('.zoom', null);
             resolvedGraph = {nodes: [], edges: []};
             lastData = undefined;
+            lastRows = [];
             lastDataSignature = -1;
+            lastLayoutSignature = -1;
             lastWidth = -1;
             lastHeight = -1;
+            layeredNodeScale = 1;
+            nodeIndexById.clear();
+            edgeIndexById.clear();
+            reapplyInteractionStyle = () => undefined;
             selectedIds.clear();
             hoveredId = undefined;
             graphTransform = zoomIdentity;

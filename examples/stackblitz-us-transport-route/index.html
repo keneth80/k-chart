@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart US Transport Route</title>
+  </head>
+  <body>
+    <main class="route-lab is-route-animating">
+      <div id="map" class="route-map"></div>
+      <svg id="route-overlay" class="route-overlay" aria-label="Seattle to New York multimodal route"></svg>
+
+      <header class="route-toolbar">
+        <div>
+          <strong>US multimodal corridor</strong>
+          <span>Seattle to New York</span>
+        </div>
+        <button id="animation-toggle" type="button" aria-pressed="true">
+          <i aria-hidden="true">II</i>
+          Route animation
+        </button>
+      </header>
+
+      <aside id="route-legend" class="route-legend" aria-label="Transport route legend"></aside>
+      <div id="route-callout" class="route-callout" aria-live="polite"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

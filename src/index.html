@@ -42,6 +42,12 @@
                     <button type="button" class="sidebar-item" data-sidebar-example="contributor-activity">Range Navigator</button>
                 </div>
                 <div class="sidebar-section">
+                    <h2>Analysis</h2>
+                    <button type="button" class="sidebar-item" data-sidebar-example="dual-axis-combo">Dual-axis Combo</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="pareto">Pareto</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="calendar-heatmap">Calendar Heatmap</button>
+                </div>
+                <div class="sidebar-section">
                     <h2>Stock</h2>
                     <button type="button" class="sidebar-item" data-sidebar-example="canvas-candlestick">Canvas Candlestick</button>
                 </div>
@@ -74,6 +80,7 @@
                     <h2>Map</h2>
                     <button type="button" class="sidebar-item" data-sidebar-example="world-activity-map">World Activity</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="world-cluster-map">World Clusters</button>
+                    <button type="button" class="sidebar-item" data-sidebar-example="subcell-heatmap">Subcell Heat Field</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="globe-map">Globe Zoom</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="globe-map-drilldown">Globe Map</button>
                     <button type="button" class="sidebar-item" data-sidebar-example="cesium-route">Cesium Route</button>
@@ -184,6 +191,21 @@
                             <strong>Range Navigator</strong>
                             <span class="sparkline columns-a"></span>
                         </button>
+                        <button type="button" class="example-card" data-example="dual-axis-combo" data-chart-type="combo" data-renderer="svg">
+                            <span class="example-card-type">SVG Combo</span>
+                            <strong>Dual-axis Combo</strong>
+                            <span class="sparkline line-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="pareto" data-chart-type="analysis" data-renderer="svg">
+                            <span class="example-card-type">SVG Analysis</span>
+                            <strong>Pareto</strong>
+                            <span class="sparkline columns-b"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="calendar-heatmap" data-chart-type="heatmap" data-renderer="svg">
+                            <span class="example-card-type">Custom SVG</span>
+                            <strong>Calendar Heatmap</strong>
+                            <span class="sparkline dots-a"></span>
+                        </button>
                         <button type="button" class="example-card" data-example="canvas-candlestick" data-chart-type="stock" data-renderer="canvas">
                             <span class="example-card-type">Canvas</span>
                             <strong>Candlestick</strong>
@@ -293,6 +315,11 @@
                             <span class="example-card-type">MapLibre</span>
                             <strong>World Clusters</strong>
                             <span class="sparkline dots-a"></span>
+                        </button>
+                        <button type="button" class="example-card" data-example="subcell-heatmap" data-chart-type="map" data-renderer="maplibre">
+                            <span class="example-card-type">MapLibre + Canvas</span>
+                            <strong>Subcell Heat Field</strong>
+                            <span class="sparkline area-a"></span>
                         </button>
                         <button type="button" class="example-card" data-example="globe-map" data-chart-type="map" data-renderer="svg">
                             <span class="example-card-type">SVG</span>

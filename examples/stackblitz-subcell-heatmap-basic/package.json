@@ -1,0 +1,23 @@
+{
+  "name": "kchart-stackblitz-subcell-heatmap-basic",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.tests.json && node --test tests/*.test.mjs",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@keneth80/k-chart": "1.26.1",
+    "@keneth80/k-chart-maplibre": "0.2.0",
+    "maplibre-gl": "6.11.2"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "typescript": "^6.0.3",
+    "vite": "^7.1.12"
+  }
+}

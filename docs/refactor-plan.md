@@ -1,14 +1,22 @@
-# KChart Refactor Plan
+# KChart Architecture Refactor Record
+
+> Status: completed. This document records the class-free modularization that
+> produced the current public runtime; it is not an active feature roadmap.
 
 ## Current Structure
 
 ```txt
 src/
  ├─ index.ts       public export surface
- ├─ kchart.ts      class-free chart runtime
- ├─ main.ts        playground demo
- ├─ style.css      playground and chart theme
- └─ types/         local asset/type declarations
+ ├─ kchart.ts      compatibility barrel for functional imports
+ ├─ core/          contracts, state, scales, layers, and lifecycle
+ ├─ series/        SVG, Canvas, WebGL, and custom renderers
+ ├─ options/       guide lines, spec areas, navigator, and notes
+ ├─ presets/       simple chart factories and fluent builder
+ ├─ worker/        OffscreenCanvas worker entry
+ ├─ utils/         public renderer-independent algorithms
+ ├─ internal/      runtime implementation helpers
+ └─ ai/            chart planning schema and compiler
 ```
 
 ## Runtime Responsibility Split
@@ -38,24 +46,32 @@ import {
 } from '@keneth80/k-chart';
 ```
 
-`src/index.ts` exports only `src/kchart.ts`, so package consumers do not receive the old class-based API.
+`src/index.ts` exports the supported functional root API. The `package.json`
+exports map exposes documented category subpaths, while `src/kchart.ts`
+preserves compatible functional imports. Legacy class implementations are not
+part of the public package surface.
 
 ## Completed Migration
 
-1. Added `src/kchart.ts` as the functional runtime.
-2. Replaced the public package surface with KChart-only exports.
-3. Replaced legacy playground entry with KChart examples.
-4. Removed legacy class-based chart source from `src/component`.
-5. Reduced package `files` so published tarballs include only KChart runtime output.
-6. Reduced runtime dependencies to the D3 modules used by `src/kchart.ts`.
-7. Added built-in Canvas 2D line and point renderer factories.
-8. Added built-in WebGL point renderer factory.
-9. Added title, grid, legend, and axis title display options.
-10. Added basic nearest-point tooltip support.
+1. Replaced the legacy class implementation with `createKChart(...)` and
+   `KChartController`.
+2. Split runtime ownership into `core`, `series`, `options`, `presets`,
+   `worker`, `utils`, and `internal` modules.
+3. Added SVG, Canvas 2D, WebGL, and Custom Series renderers behind one series
+   contract.
+4. Added zoom/pan, tooltip and cursor modes, worker rendering, animation,
+   range navigation, and focused regression tests.
+5. Added simple preset factories while retaining direct composition for custom
+   visualization.
+6. Kept Three.js, Cesium, and MapLibre integrations in optional packages.
 
-## Remaining Roadmap
+## Ongoing Compatibility Principles
 
-1. Add zoom/pan behavior as a runtime plugin.
-2. Add richer tooltip modes, fixed tooltip positioning, and crosshair support.
-3. Add built-in WebGL line renderer.
-4. Add focused tests for scale resolution, resize, SVG line render, Canvas/WebGL renderers, tooltip, and custom renderer context.
+- Preserve documented functional root and subpath imports across compatible
+  releases.
+- Keep renderer and optional-adapter dependencies isolated so consumers load
+  only the capabilities they use.
+- Add behavior in the module that owns it and cover public contracts with
+  focused regression tests.
+- Record future feature work in issues or release plans rather than in this
+  completed migration record.

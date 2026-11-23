@@ -1,5 +1,77 @@
 # Changelog
 
+## 1.27.0 - 2026-09-27
+
+### Added
+
+- Added a MapLibre subcell scalar-field example that bilinearly interpolates
+  51 x 51 node samples inside each 0.5-degree cell, preserves missing values,
+  and keeps the fixed 0-100 color scale across time and zoom.
+- Added standalone field tests and a StackBlitz-ready project covering frame
+  changes, grid-only visibility toggling, map lifecycle cleanup, and the
+  distinction between numeric zero and unobserved data.
+- Added a top-down `layered` graph layout with explicit or topology-derived
+  node ranks, strongly connected component handling, and dense-row wrapping.
+- Added graph callbacks for node colors, edge colors, edge dash patterns, and
+  optional force-layout gravity while preserving existing force defaults.
+
+### Changed
+
+- Reorganized the README around a concise value proposition, four primary trust
+  badges, four first-step links, an early Quick Start, and a small representative
+  StackBlitz set.
+- Moved detailed renderer, adapter, AI, import-surface, custom-tooltip, and
+  advanced API guidance into focused documentation, leaving the root README as
+  a concise onboarding and navigation page.
+- Updated the four representative StackBlitz projects to use KChart 1.26.1.
+- Corrected development-port, React-wrapper, release-package, security-reporting,
+  architecture-snapshot, and public API compatibility wording across contributor
+  and integration documentation.
+- Made layered graph packing account for label bounds and scale labels, nodes,
+  and spacing together in constrained panels.
+
+### Fixed
+
+- Invalidated graph data and layout caches for same-array row replacement,
+  in-place source/target/value/category changes, and dynamic rank changes.
+- Preserved callback edge styling and active node-selection emphasis after
+  tooltip cleanup.
+
+### Tests
+
+- Added graph regression coverage for force-layout compatibility, layered
+  ordering and cycles, dense label packing, callback indexes and styles,
+  tooltip colors, selection restoration, and in-place data updates.
+- Verified the graph demo at desktop and 820px widths with no label overlap,
+  clipping, horizontal overflow, or graph runtime errors.
+
+### Removed
+
+- Removed the unconfigured coverage badge and the obsolete duplicate
+  `README 2.md` after confirming that it was unreferenced and described the former
+  package name, port, and class-based API.
+
+## 1.26.1 - 2026-09-07
+
+### Added
+
+- Added Dual-axis Combo and Pareto examples that combine SVG columns and
+  lines with independent left and right value axes.
+- Added a Calendar Heatmap example with 181 accessible daily cells, five
+  intensity levels, and date/value tooltips.
+- Added standalone StackBlitz-ready projects and README links for all three
+  analysis examples.
+
+### Changed
+
+- Added an Analysis section to the main playground so the new examples are
+  available directly from the sidebar and example gallery.
+
+### Tests
+
+- Verified the root typecheck, production build, unit suite, standalone Vite
+  builds, and desktop/mobile rendering for each new example.
+
 ## 1.26.0 - 2026-08-27
 
 ### Added

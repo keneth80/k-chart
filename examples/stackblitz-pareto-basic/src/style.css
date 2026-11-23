@@ -1,0 +1,31 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1d2826;
+  background: #f4f6f3;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #f4f6f3; }
+.quality-shell { width: min(1120px, calc(100vw - 32px)); margin: 0 auto; padding: 34px 0; }
+.quality-header { max-width: 760px; margin-bottom: 20px; }
+.eyebrow { margin: 0 0 7px; color: #26766a; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+h1 { margin: 0; font-size: 34px; line-height: 1.12; }
+.quality-header p:last-child { margin: 10px 0 0; color: #5d6966; line-height: 1.55; }
+.chart-panel { min-height: 520px; padding: 20px; overflow: hidden; border: 1px solid #d5dbd5; border-radius: 8px; background: #ffffff; box-shadow: 0 16px 40px rgba(38, 62, 57, 0.08); }
+.threshold-key { display: flex; align-items: center; justify-content: flex-end; gap: 7px; min-height: 20px; color: #71413c; font-size: 11px; font-weight: 800; }
+.threshold-key i { width: 24px; border-top: 2px dashed #c3483e; }
+#chart { width: 100%; height: 480px; }
+#chart .kchart-svg text { font-family: inherit; }
+#chart .domain, #chart .tick line { stroke: #a7b1ae; }
+#chart .tick text, #chart .kchart-axis-title { fill: #51605c !important; }
+#chart .kchart-title { fill: #1d2826 !important; }
+#chart .kchart-legend text { fill: #344540 !important; }
+
+@media (max-width: 640px) {
+  .quality-shell { width: calc(100vw - 20px); padding: 22px 0; }
+  h1 { font-size: 28px; }
+  .chart-panel { min-height: 504px; padding: 8px; }
+  .threshold-key { justify-content: flex-start; padding-left: 4px; }
+  #chart { height: 480px; }
+  #chart .kchart-axis-bottom .tick:nth-of-type(even) text { display: none; }
+}

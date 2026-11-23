@@ -6,21 +6,21 @@
 
 - Package: `@keneth80/k-chart`
 - Current public API style: class-free functional runtime
-- Current release baseline: `1.6.0` published on 2026-06-18
-- Current integration branch at handoff: `develop`
-- Release tag: `v1.6.0`
+- Current release baseline: `1.27.0`
+- Current integration branch at handoff: `main`
+- Release tag: `v1.27.0`
 - Published packages:
-  - `@keneth80/k-chart@1.6.0`
-- MapLibre publication status:
-  - `npm publish --access public` accepted `@keneth80/k-chart-maplibre@0.1.0`.
-  - Registry lookup still returned `E404` immediately afterward; verify package visibility before depending on the public package.
+  - `@keneth80/k-chart@1.27.0`
+  - `@keneth80/k-chart-react@0.2.1` (official React wrapper, maintained in [keneth80/k-chart-react](https://github.com/keneth80/k-chart-react))
+  - `@keneth80/k-chart-maplibre@0.2.0`
+  - `@keneth80/k-chart-cesium@0.1.5`
+  - `@keneth80/k-chart-three@0.1.0`
 - Main source entry: `src/index.ts`
 - Backward-compatible barrel: `src/kchart.ts`
 - Core runtime: `src/core/create-kchart.ts`
 - Shared contracts: `src/core/contracts.ts`
 - Worker entry: `src/kchart-render.worker.ts`
-- Public playground source link: intentionally removed because the playground repository may become private.
-- Local playground target: `http://127.0.0.1:9011`
+- Public playground: `https://k-chart-playground.vercel.app/`
 - Library demo target: `http://127.0.0.1:9003`
 
 ## High-Level Code Graph
@@ -114,7 +114,7 @@ sequenceDiagram
 
 ## Public API Surface
 
-Primary exports come from `src/kchart.ts` through `src/index.ts`.
+Primary exports come from `src/index.ts`. `src/kchart.ts` remains a compatibility barrel for supported functional imports; it is not a legacy class runtime.
 
 ### Chart Runtime
 
@@ -147,7 +147,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 
 ### Performance APIs
 
-- `downsampleLTTB<T>(data, threshold, xAccessor, yAccessor)`
+- `downsampleLTTB<T>(data, threshold, xAccessor, yAccessor)` and the pixel-column min/max strategy
 - `startKChartRenderWorker(scope?)`
 - Series-level `downsample`
 - Series-level `asyncRender`
@@ -157,7 +157,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Area | Main Location | Responsibility |
 | --- | --- | --- |
 | Public exports | `src/index.ts` | Re-export public KChart API. |
-| Types and config contracts | `src/kchart.ts` top section | Define axes, series, tooltip, zoom, option, and controller contracts. |
+| Types and config contracts | `src/core/contracts.ts` | Define axes, series, tooltip, zoom, option, and controller contracts. |
 | Container and layers | `createLayers`, `ensureCanvas` | Create/reuse SVG root, plot groups, overlay, Canvas, and WebGL canvas layers. |
 | Layout | `resolveSize`, `resolveEffectiveMargin` | Calculate size and dynamic top margin for title, legend, and option labels. |
 | Scales and axes | `resolveAxisDomain`, `resolveScales`, `renderAxes` | Build D3 scales and render axes/titles. |
@@ -165,7 +165,7 @@ Options can be passed through the unified `config.options` array. Legacy direct 
 | Legend | `renderLegend` | Render selectable series legend and update visibility. |
 | Tooltip and cursor guide | `renderTooltip` | Hit-test series, show tooltip, draw cursor line and value labels. |
 | Zoom | `renderZoom`, `resolveZoomedAxes`, `resolveSelectionZoomAxes` | Wheel zoom, mobile gesture zoom, drag pan, selection zoom, double-click reset. |
-| Downsampling | `downsampleLTTB`, `resolveSeriesRenderData` | Reduce line data before rendering while preserving shape. |
+| Downsampling | `src/internal/downsample.ts`, `src/utils/downsample-lttb.ts` | Reduce line data with LTTB or pixel-column min/max before rendering while preserving important shape. |
 | SVG series | `createLineSeries` | Render SVG line/dot visuals. |
 | Canvas series | `createCanvasLineSeries`, `createCanvasPointSeries` | Render Canvas 2D line/point visuals. |
 | WebGL series | `createWebglLineSeries`, `createWebglPointSeries` | Render WebGL line/point visuals. |
@@ -227,11 +227,11 @@ Important state fields:
 
 ### External Packages Around This Library
 
-- `@keneth80/k-chart-react`: separate React wrapper package.
+- `@keneth80/k-chart-react@0.2.1`: separately published official React wrapper package. Repository: [keneth80/k-chart-react](https://github.com/keneth80/k-chart-react).
 - `@keneth80/k-chart-maplibre`: optional flat-map adapter package stored in this repository under `packages/k-chart-maplibre`.
 - `@keneth80/k-chart-cesium`: optional CesiumJS globe and movement-route adapter stored in this repository under `packages/k-chart-cesium`.
 - KChart Next playground: separate app used for examples, editable configuration, and AI Builder. Its GitHub source link should not be exposed from public library docs while it is private or planned private.
-- Three.js integration is currently an optional custom-series example on `feature/three-constellation-series`, not a core runtime dependency. The demo uses `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
+- `@keneth80/k-chart-three` is a published optional adapter, not a core runtime dependency. Its examples use `InstancedMesh`, `LineSegments`, `OrbitControls`, and `Raycaster`.
 
 ## Known Design Decisions
 
@@ -263,7 +263,7 @@ marker press
   -> release after movement: cancel activation
 ```
 
-## Release 1.7.1 Scope
+## Historical Release 1.7.1 Scope
 
 - Automatic globe drilldown keeps the selected city label and map coordinate consistent.
 - Wheel and button zoom use registered marker coordinates when entering the flat map.
@@ -289,24 +289,6 @@ npm run dev
 
 Then open `http://127.0.0.1:9003/`.
 
-## Next Good Work Items
-
-- Split `src/kchart.ts` into smaller modules once API behavior is stable:
-  - `core/types.ts`
-  - `core/layout.ts`
-  - `core/scales.ts`
-  - `core/interactions.ts`
-  - `series/svg.ts`
-  - `series/canvas.ts`
-  - `series/webgl.ts`
-  - `options/*.ts`
-- Add unit tests for:
-  - `downsampleLTTB`
-  - `resolveEffectiveMargin`
-  - zoom domain calculation
-  - option array normalization
-- Add browser-level regression checks for:
-  - legend hit visibility
-  - stacked/column tooltip behavior
-  - topology hover behavior in the playground/wrapper layer
-- Keep release notes in `CHANGELOG.md` aligned with npm versions.
+Current feature work is tracked in GitHub issues and `CHANGELOG.md`. Keep this
+snapshot aligned with package versions and module ownership when the public
+architecture changes.

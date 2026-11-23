@@ -28,6 +28,35 @@ configuration. Series implementations depend on shared core contracts. The core
 runtime does not contain concrete line, point, candlestick, WebGL, or globe
 series implementations.
 
+## Granular Imports And Bundle Scope
+
+Category entry points keep imports readable while allowing applications to load only the parts they use:
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core';
+import {createLineChart, chartConfig} from '@keneth80/k-chart/presets';
+import {createCanvasLineSeries} from '@keneth80/k-chart/series';
+import {createGuideLineOption} from '@keneth80/k-chart/options';
+import {downsampleLTTB} from '@keneth80/k-chart/utils';
+import {startKChartRenderWorker} from '@keneth80/k-chart/worker';
+```
+
+Concrete entry points are available when a build should expose the narrowest possible dependency surface:
+
+```ts
+import {createKChart} from '@keneth80/k-chart/core/create-kchart';
+import type {
+    KChartAxis,
+    KChartController,
+    KChartSeries
+} from '@keneth80/k-chart/core/contracts';
+import {createLineSeries} from '@keneth80/k-chart/series/svg-line';
+import {createCanvasLineSeries} from '@keneth80/k-chart/series/canvas-line';
+import {createWebglLineSeries} from '@keneth80/k-chart/series/webgl-line';
+```
+
+The root and category entry points are the convenient defaults. Concrete imports are useful when bundle analysis shows that a narrower entry point materially reduces the application bundle. Three.js, MapLibre, and Cesium remain separate optional packages and are not bundled unless the application imports them.
+
 ## Goal
 
 KChart의 새 public API는 class adapter가 아니라 class-free runtime입니다. UI에서는 `new BasicChart(...)` 같은 인스턴스를 직접 만들지 않고 `createKChart(...)`로 controller를 생성합니다.
@@ -999,6 +1028,7 @@ createWorldCountryMapSeries<Country>({
 - [World Activity Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-activity-map?title=KChart%20World%20Activity%20Map&file=src/main.ts)
 - [World Photo Marker Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-photo-marker-map?title=KChart%20World%20Photo%20Marker%20Map&file=src/main.ts)
 - [World Cluster Map StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-world-cluster-map?title=KChart%20World%20Cluster%20Map&file=src/main.ts)
+- [Subcell Scalar Field StackBlitz](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts)
 
 ## Display Options
 
@@ -1124,6 +1154,53 @@ Renderer context 주요 필드:
 - `color`: series 기본 색상
 - `getCanvas(name)`: Canvas 2D layer
 - `getWebglCanvas(name)`: WebGL canvas layer
+
+### Custom Tooltip Hit Testing
+
+A custom series can combine fields from its source datum and return application-specific tooltip HTML. The `tooltip(context)` callback receives the current data, resolved scales, and pointer coordinates; return `undefined` when no mark is hit.
+
+```ts
+type Point = {
+    x: number;
+    value: number;
+    label: string;
+    a: number;
+    b: number;
+};
+
+const stackedSeries = createCustomSeries<Point>({
+    selector: 'stacked-column',
+    displayName: 'Stacked Column',
+    xField: 'x',
+    yField: 'value',
+    render({group, data, xScale, yScale}) {
+        // Draw stacked rectangles with the chart scales.
+    },
+    tooltip({data, scales, mouseX}) {
+        const xScale = scales.find((scale) => scale.field === 'x');
+        const yScale = scales.find((scale) => scale.field === 'value');
+        if (!xScale || !yScale) {
+            return undefined;
+        }
+
+        const hit = data.find((point) => {
+            const x = xScale.scale(point.x);
+            return Math.abs(mouseX - x) < 12;
+        });
+        if (!hit) {
+            return undefined;
+        }
+
+        return {
+            data: hit,
+            x: xScale.scale(hit.x),
+            y: yScale.scale(hit.value),
+            distance: 0,
+            html: `<strong>${hit.label}</strong><br/>A: ${hit.a}<br/>B: ${hit.b}`
+        };
+    }
+});
+```
 
 ### Three.js renderer 연결
 

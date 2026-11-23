@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KChart Pareto Basic</title>
+  </head>
+  <body>
+    <main class="quality-shell">
+      <header class="quality-header">
+        <p class="eyebrow">Distribution quality</p>
+        <h1>Fulfillment incident priorities</h1>
+        <p>Incidents are ranked by frequency; the cumulative line shows where corrective work has the greatest reach.</p>
+      </header>
+      <section class="chart-panel" aria-label="Pareto chart of fulfillment incidents">
+        <div class="threshold-key"><i></i>80% focus threshold</div>
+        <div id="chart"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
