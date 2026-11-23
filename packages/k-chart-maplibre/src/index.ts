@@ -426,6 +426,9 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             if (!map || !source || !cluster || !visible) {
                 return;
             }
+            // The click's pointerdown marks the next camera transition as user-driven,
+            // but cluster expansion below is an adapter-owned programmatic transition.
+            userInputDeadline = 0;
             const currentMap = map;
             const requestGeneration = interactionGeneration;
             let expansionZoom: number;

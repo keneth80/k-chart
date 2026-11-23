@@ -350,6 +350,7 @@ const defaultController = createMapLibreFlatMap({
         properties: {cluster_id: 9, point_count: 75}
     };
     const clusterEvent = {point: {x: 1, y: 1}, features: [clusterFeature]};
+    map.options.container.dispatchEvent({type: 'pointerdown'});
     await map.handlers.get(`click:${CLUSTER_LAYER_ID}`)(clusterEvent);
     assert.deepEqual(map.lastEase, {center: [12, 34], zoom: 7});
     assert.equal(clusterClickContext.clusterId, 9);
