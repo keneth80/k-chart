@@ -64,7 +64,10 @@ const globe = createCesiumGlobe({
     lat: 14,
     height: 28000000
   },
-  realisticAtmosphere: true
+  realisticAtmosphere: true,
+  onMoveEnd: ({lon, lat, x, y}) => {
+    console.log("Globe center", {lon, lat, x, y});
+  }
 });
 
 globe.addRoute({
@@ -87,6 +90,12 @@ globe.addRoute({
   }
 });
 ```
+
+`onMoveEnd` runs once after a changed user camera gesture or Cesium navigation
+control finishes. `x` and `y` are the canvas center in CSS pixels. The adapter
+uses `camera.pickEllipsoid()` and then rendered-globe picking for `lon`/`lat`;
+both values are `null` when the center misses the globe. Initial view, resize,
+route `flyTo`, and tracked-entity camera movement are excluded.
 
 ## First-view camera
 

@@ -95,6 +95,9 @@ const map = createMapLibreFlatMap({
         visible: true,
         location: true,
         backButton: true
+    },
+    onMoveEnd: ({lon, lat, x, y}) => {
+        console.log('Map center', {lon, lat, x, y});
     }
 });
 
@@ -191,6 +194,11 @@ the last color or radius specified for that threshold wins.
 Toolbar controls remain fully visible by default for backward compatibility.
 `toolbar.visible` hides the entire toolbar, while `toolbar.location` and
 `toolbar.backButton` independently hide the location label or globe-back button.
+
+`onMoveEnd` runs once after a changed user pan, wheel/pinch zoom, double click, or
+navigation-control move finishes. It receives the canvas center in CSS pixels and
+the result of `map.unproject()` at that point. Initialization, `show()`, `flyTo()`,
+`resize()`, and built-in cluster expansion `easeTo()` do not invoke it.
 
 ## Place Data Utilities
 

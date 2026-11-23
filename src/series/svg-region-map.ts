@@ -20,6 +20,10 @@ import type {
     KChartGeoRegionMapSeriesConfiguration,
     KChartSeries
 } from '../core/contracts';
+import {
+    hasNumericViewChanged,
+    resolveProjectedMapMoveEndContext
+} from '../internal/map-move-end';
 import {createCustomSeries} from './custom';
 
 const WORLD_COUNTRY_GEOJSON = topojsonFeature(
@@ -437,6 +441,9 @@ export const createGeoRegionMapSeries = <T = any>(
 ): KChartSeries<T> => {
     let regionZoomTransform: ZoomTransform = zoomIdentity;
     let legendColorScale: ((value: number) => string) | undefined;
+    let detachZoomListeners: (() => void) | undefined;
+    let pendingAttachTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let attachGeneration = 0;
     const legendGradientId = `kchart-region-map-gradient-${++regionLegendSequence}`;
 
     const getLocalPoint = (x: number, y: number): [number, number] => [
@@ -808,6 +815,17 @@ export const createGeoRegionMapSeries = <T = any>(
                 .attr('transform', regionZoomTransform.toString());
             overlayGroup.selectAll<SVGGElement, unknown>(`g.${configuration.selector}-zoom-controls`).raise();
         };
+        const notifyMoveEnd = (): void => {
+            configuration.onMoveEnd?.(resolveProjectedMapMoveEndContext(
+                projection,
+                width,
+                height,
+                ([x, y]) => [
+                    (x - regionZoomTransform.x) / regionZoomTransform.k,
+                    (y - regionZoomTransform.y) / regionZoomTransform.k
+                ]
+            ));
+        };
 
         const renderZoomControls = (): void => {
             const controls = zoomConfiguration.controls;
@@ -837,6 +855,11 @@ export const createGeoRegionMapSeries = <T = any>(
                 .on('click', (event: MouseEvent, item) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    const previousView = [
+                        regionZoomTransform.x,
+                        regionZoomTransform.y,
+                        regionZoomTransform.k
+                    ];
                     const nextScale = item.key === 'in'
                         ? regionZoomTransform.k * (1 + controls.step)
                         : item.key === 'out'
@@ -856,6 +879,13 @@ export const createGeoRegionMapSeries = <T = any>(
                             );
                     applyZoomTransform(nextTransform);
                     renderZoomControls();
+                    if (hasNumericViewChanged(previousView, [
+                        regionZoomTransform.x,
+                        regionZoomTransform.y,
+                        regionZoomTransform.k
+                    ])) {
+                        notifyMoveEnd();
+                    }
                 });
 
             buttons.selectAll<SVGRectElement, unknown>('rect')
@@ -885,11 +915,24 @@ export const createGeoRegionMapSeries = <T = any>(
         };
 
         if (!zoomConfiguration.enabled) {
+            attachGeneration += 1;
+            if (pendingAttachTimer !== undefined) {
+                globalThis.clearTimeout(pendingAttachTimer);
+                pendingAttachTimer = undefined;
+            }
+            detachZoomListeners?.();
+            detachZoomListeners = undefined;
             overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
+            overlayGroup.selectAll(`rect.${configuration.selector}-zoom-overlay`).remove();
             return;
         }
 
+        const currentAttachGeneration = ++attachGeneration;
         const attachZoom = (): void => {
+            pendingAttachTimer = undefined;
+            if (currentAttachGeneration !== attachGeneration) {
+                return;
+            }
             let overlay = overlayGroup.select<SVGRectElement>('rect.kchart-tooltip-overlay');
             if (!overlay.node()) {
                 overlay = overlayGroup.selectAll<SVGRectElement, unknown>(`rect.${configuration.selector}-zoom-overlay`)
@@ -905,6 +948,7 @@ export const createGeoRegionMapSeries = <T = any>(
             if (!overlayNode) {
                 return;
             }
+            let gestureStartView: [number, number, number] | undefined;
             const zoomBehavior = zoom<SVGRectElement, unknown>()
                 .scaleExtent([minZoom, maxZoom])
                 .filter((event: any) => {
@@ -913,12 +957,35 @@ export const createGeoRegionMapSeries = <T = any>(
                     if (event.type === 'touchstart' || event.type === 'touchmove') return zoomConfiguration.pan;
                     return true;
                 })
+                .on('start', (event) => {
+                    gestureStartView = event.sourceEvent ? [
+                        regionZoomTransform.x,
+                        regionZoomTransform.y,
+                        regionZoomTransform.k
+                    ] : undefined;
+                })
                 .on('zoom', (event) => {
                     applyZoomTransform(event.transform);
                     renderZoomControls();
+                })
+                .on('end', (event) => {
+                    const previousView = gestureStartView;
+                    gestureStartView = undefined;
+                    if (!event.sourceEvent || !previousView) {
+                        return;
+                    }
+                    if (hasNumericViewChanged(previousView, [
+                        regionZoomTransform.x,
+                        regionZoomTransform.y,
+                        regionZoomTransform.k
+                    ])) {
+                        notifyMoveEnd();
+                    }
                 });
 
+            detachZoomListeners?.();
             overlay.call(zoomBehavior as any);
+            detachZoomListeners = () => overlay.on('.zoom', null);
             (overlayNode as any).__zoom = regionZoomTransform;
             renderZoomControls();
         };
@@ -926,7 +993,7 @@ export const createGeoRegionMapSeries = <T = any>(
         if (typeof queueMicrotask === 'function') {
             queueMicrotask(attachZoom);
         } else {
-            setTimeout(attachZoom, 0);
+            pendingAttachTimer = globalThis.setTimeout(attachZoom, 0);
         }
     },
     tooltip({seriesGroup, mouseX, mouseY}) {
@@ -975,8 +1042,16 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke-width', configuration.strokeWidth ?? 1.2);
     },
     destroy({overlayGroup}) {
+        attachGeneration += 1;
+        if (pendingAttachTimer !== undefined) {
+            globalThis.clearTimeout(pendingAttachTimer);
+            pendingAttachTimer = undefined;
+        }
+        detachZoomListeners?.();
+        detachZoomListeners = undefined;
         overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
         overlayGroup.selectAll(`g.${configuration.selector}-color-legend`).remove();
+        overlayGroup.selectAll(`rect.${configuration.selector}-zoom-overlay`).remove();
     }
     });
 };

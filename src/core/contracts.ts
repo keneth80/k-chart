@@ -642,6 +642,13 @@ export interface KChartGlobeDrilldownContext<T = any> {
     exit: () => void;
 }
 
+export interface KChartMapMoveEndContext {
+    lon: number | null;
+    lat: number | null;
+    x: number;
+    y: number;
+}
+
 export type KChartGlobeDrilldownMode = 'map' | 'zoom' | 'external-map';
 
 export type KChartGlobeTransitionType = 'warp' | 'cloud' | 'none';
@@ -705,6 +712,7 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     markerStrokeWidth?: number;
     markerOpacity?: number;
     onMarkerClick?: (context: KChartGlobeMarkerClickContext<T>) => void;
+    onMoveEnd?: (context: KChartMapMoveEndContext) => void;
 }
 
 export interface KChartGeoRegionMapContext<T = any> {
@@ -834,6 +842,7 @@ export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
         formatter?: (context: KChartGeoRegionMapContext<T>) => string;
     };
     onRegionClick?: (context: KChartGeoRegionMapClickContext<T>) => void;
+    onMoveEnd?: (context: KChartMapMoveEndContext) => void;
 }
 
 export interface KChartWebglPointSeriesConfiguration<T = any> {

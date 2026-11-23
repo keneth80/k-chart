@@ -1,5 +1,7 @@
 import {
+    Cartesian2,
     Cartesian3,
+    Cartographic,
     ClockRange,
     Color,
     Credit,
@@ -22,6 +24,13 @@ import {
     type TerrainProvider
 } from '@cesium/engine';
 import { Viewer } from '@cesium/widgets';
+
+export interface KChartMapMoveEndContext {
+    lon: number | null;
+    lat: number | null;
+    x: number;
+    y: number;
+}
 
 export interface KChartCesiumRoutePoint {
     lat: number;
@@ -138,6 +147,7 @@ export interface KChartCesiumConfiguration {
     animation?: boolean;
     initialView?: KChartCesiumInitialView;
     realisticAtmosphere?: boolean | KChartCesiumAtmosphereConfiguration;
+    onMoveEnd?: (context: KChartMapMoveEndContext) => void;
 }
 
 export interface KChartCesiumRouteHandle<T = KChartCesiumRoutePoint> {
@@ -423,6 +433,190 @@ export const createCesiumGlobe = (
     applyInitialView(viewer, configuration.initialView);
     const routes = new Map<string, RouteState>();
     const clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    let pointerInputActive = false;
+    let pendingTransientUserInput = false;
+    let activeUserMoveStart: readonly number[] | undefined;
+    let userInputTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let programmaticMove = false;
+    let programmaticMoveStarted = false;
+    let programmaticMoveGeneration = 0;
+    let programmaticMoveTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+
+    const clearUserInput = (): void => {
+        pointerInputActive = false;
+        pendingTransientUserInput = false;
+        if (userInputTimer !== undefined) {
+            globalThis.clearTimeout(userInputTimer);
+            userInputTimer = undefined;
+        }
+    };
+    const clearProgrammaticMove = (expectedGeneration?: number): void => {
+        if (
+            expectedGeneration !== undefined
+            && expectedGeneration !== programmaticMoveGeneration
+        ) {
+            return;
+        }
+        programmaticMove = false;
+        programmaticMoveStarted = false;
+        if (programmaticMoveTimer !== undefined) {
+            globalThis.clearTimeout(programmaticMoveTimer);
+            programmaticMoveTimer = undefined;
+        }
+    };
+    const interruptProgrammaticMoveForUser = (): void => {
+        if (!programmaticMove) return;
+        viewer.camera.cancelFlight?.();
+        clearProgrammaticMove();
+        activeUserMoveStart = undefined;
+    };
+    const markTransientUserInput = (): void => {
+        interruptProgrammaticMoveForUser();
+        pendingTransientUserInput = true;
+        if (userInputTimer !== undefined) {
+            globalThis.clearTimeout(userInputTimer);
+        }
+        userInputTimer = globalThis.setTimeout(() => {
+            pendingTransientUserInput = false;
+            userInputTimer = undefined;
+        }, 1200);
+    };
+    const targetsSceneCanvas = (event: PointerEvent): boolean => {
+        if (event.target === viewer.scene.canvas) {
+            return true;
+        }
+        return typeof event.composedPath === 'function'
+            && event.composedPath().includes(viewer.scene.canvas);
+    };
+    const handlePointerDown = (event: PointerEvent): void => {
+        interruptProgrammaticMoveForUser();
+        if (targetsSceneCanvas(event)) {
+            pointerInputActive = true;
+            return;
+        }
+        // Cesium toolbar buttons start their camera animation from the click
+        // dispatched after pointerup, so retain short-lived user attribution.
+        pointerInputActive = false;
+        markTransientUserInput();
+    };
+    const handlePointerEnd = (): void => {
+        pointerInputActive = false;
+    };
+    const captureCameraView = (): readonly number[] => [
+        viewer.camera.positionWC.x,
+        viewer.camera.positionWC.y,
+        viewer.camera.positionWC.z,
+        viewer.camera.directionWC.x,
+        viewer.camera.directionWC.y,
+        viewer.camera.directionWC.z,
+        viewer.camera.upWC.x,
+        viewer.camera.upWC.y,
+        viewer.camera.upWC.z
+    ];
+    const hasCameraViewChanged = (
+        previous: readonly number[],
+        next: readonly number[]
+    ): boolean => previous.some((value, index) => Math.abs(value - next[index]) > 1e-9);
+    const resolveMoveEndContext = (): KChartMapMoveEndContext => {
+        const canvas = viewer.scene.canvas;
+        const x = canvas.clientWidth / 2;
+        const y = canvas.clientHeight / 2;
+        const center = new Cartesian2(x, y);
+        const ellipsoid = viewer.scene.globe.ellipsoid;
+        let picked = viewer.camera.pickEllipsoid(center, ellipsoid);
+        if (!picked) {
+            const ray = viewer.camera.getPickRay(center);
+            if (ray) {
+                picked = viewer.scene.globe.pick(ray, viewer.scene);
+            }
+        }
+        const cartographic = picked
+            ? Cartographic.fromCartesian(picked, ellipsoid)
+            : undefined;
+        return {
+            lon: cartographic ? CesiumMath.toDegrees(cartographic.longitude) : null,
+            lat: cartographic ? CesiumMath.toDegrees(cartographic.latitude) : null,
+            x,
+            y
+        };
+    };
+    const handleCameraMoveStart = (): void => {
+        if (programmaticMove) {
+            programmaticMoveStarted = true;
+            activeUserMoveStart = undefined;
+            return;
+        }
+        if (viewer.trackedEntity) {
+            clearUserInput();
+            activeUserMoveStart = undefined;
+            return;
+        }
+        if (activeUserMoveStart || (!pointerInputActive && !pendingTransientUserInput)) {
+            return;
+        }
+        activeUserMoveStart = captureCameraView();
+        pendingTransientUserInput = false;
+    };
+    const handleCameraMoveEnd = (): void => {
+        if (programmaticMove) {
+            clearProgrammaticMove();
+            clearUserInput();
+            activeUserMoveStart = undefined;
+            return;
+        }
+        const previousView = activeUserMoveStart;
+        activeUserMoveStart = undefined;
+        if (
+            viewer.trackedEntity
+            || !previousView
+            || !hasCameraViewChanged(previousView, captureCameraView())
+        ) {
+            return;
+        }
+        configuration.onMoveEnd?.(resolveMoveEndContext());
+    };
+    const runProgrammaticCameraMove = <TResult>(move: () => TResult): TResult => {
+        clearUserInput();
+        activeUserMoveStart = undefined;
+        clearProgrammaticMove();
+        const generation = ++programmaticMoveGeneration;
+        programmaticMove = true;
+        let result: TResult;
+        try {
+            result = move();
+        } catch (error) {
+            clearProgrammaticMove(generation);
+            throw error;
+        }
+        if (
+            result
+            && typeof (result as unknown as {then?: unknown}).then === 'function'
+        ) {
+            if (programmaticMove) {
+                programmaticMoveTimer = globalThis.setTimeout(
+                    () => clearProgrammaticMove(generation),
+                    30_000
+                );
+            }
+            void Promise.resolve(result).finally(() => clearProgrammaticMove(generation));
+        } else if (programmaticMove && programmaticMoveStarted) {
+            programmaticMoveTimer = globalThis.setTimeout(
+                () => clearProgrammaticMove(generation),
+                5000
+            );
+        } else if (programmaticMove) {
+            clearProgrammaticMove(generation);
+        }
+        return result;
+    };
+
+    container.addEventListener('pointerdown', handlePointerDown, true);
+    container.addEventListener('pointerup', handlePointerEnd, true);
+    container.addEventListener('pointercancel', handlePointerEnd, true);
+    container.addEventListener('wheel', markTransientUserInput, true);
+    container.addEventListener('keydown', markTransientUserInput, true);
+    viewer.camera.moveStart.addEventListener(handleCameraMoveStart);
+    viewer.camera.moveEnd.addEventListener(handleCameraMoveEnd);
 
     const removeRoute = (id: string): void => {
         const route = routes.get(id);
@@ -541,6 +735,8 @@ export const createCesiumGlobe = (
             viewer.clock.shouldAnimate = animation.autoPlay;
             viewer.timeline?.zoomTo(start, stop);
             if (animation.trackCamera) {
+                clearUserInput();
+                activeUserMoveStart = undefined;
                 viewer.trackedEntity = movingEntity;
             }
         }
@@ -555,7 +751,7 @@ export const createCesiumGlobe = (
         };
         routes.set(routeConfiguration.id, state);
         if (routeConfiguration.flyToOnAdd !== false) {
-            void viewer.flyTo([lineEntity, ...sampleEntities]);
+            void runProgrammaticCameraMove(() => viewer.flyTo([lineEntity, ...sampleEntities]));
         }
         return state;
     };
@@ -578,17 +774,19 @@ export const createCesiumGlobe = (
             viewer.clock.shouldAnimate = false;
         },
         track() {
+            clearUserInput();
+            activeUserMoveStart = undefined;
             if (state.movingEntity) viewer.trackedEntity = state.movingEntity;
         },
         stopTracking() {
             if (viewer.trackedEntity === state.movingEntity) viewer.trackedEntity = undefined;
         },
         flyTo() {
-            return viewer.flyTo([
+            return runProgrammaticCameraMove(() => viewer.flyTo([
                 state.lineEntity,
                 ...state.sampleEntities,
                 ...(state.movingEntity ? [state.movingEntity] : [])
-            ]);
+            ]));
         },
         remove() {
             removeRoute(state.configuration.id);
@@ -625,22 +823,34 @@ export const createCesiumGlobe = (
             viewer.clock.shouldAnimate = false;
         },
         resize() {
+            clearUserInput();
+            activeUserMoveStart = undefined;
             viewer.resize();
         },
         flyToRoute(id) {
             const route = routes.get(id);
             return route
-                ? viewer.flyTo([
+                ? runProgrammaticCameraMove(() => viewer.flyTo([
                     route.lineEntity,
                     ...route.sampleEntities,
                     ...(route.movingEntity ? [route.movingEntity] : [])
-                ])
+                ]))
                 : Promise.resolve(false);
         },
         getViewer() {
             return viewer;
         },
         destroy() {
+            clearUserInput();
+            clearProgrammaticMove();
+            activeUserMoveStart = undefined;
+            container.removeEventListener('pointerdown', handlePointerDown, true);
+            container.removeEventListener('pointerup', handlePointerEnd, true);
+            container.removeEventListener('pointercancel', handlePointerEnd, true);
+            container.removeEventListener('wheel', markTransientUserInput, true);
+            container.removeEventListener('keydown', markTransientUserInput, true);
+            viewer.camera.moveStart.removeEventListener(handleCameraMoveStart);
+            viewer.camera.moveEnd.removeEventListener(handleCameraMoveEnd);
             cleanupAtmosphere();
             clickHandler.destroy();
             routes.clear();
