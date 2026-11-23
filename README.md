@@ -200,6 +200,7 @@ Optional integrations stay outside the core dependency graph and are included on
 | Three.js | [`@keneth80/k-chart-three`](packages/k-chart-three/README.md) | 3D scenes using the Custom Series context |
 | MapLibre | [`@keneth80/k-chart-maplibre`](packages/k-chart-maplibre/README.md) | Interactive vector maps, chart overlays, and the [subcell scalar-field example](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts) |
 | Cesium | [`@keneth80/k-chart-cesium`](packages/k-chart-cesium/README.md) | 3D globe and geospatial visualization |
+| Grafana | [KChart Panel](https://grafana.com/grafana/plugins/keneth80-kchart-panel/) | KChart-powered Line, Column, Area, Scatter, and Candlestick panels for Grafana dashboards |
 
 ## Features And Guides
 
@@ -233,6 +234,7 @@ The demo runs at `http://127.0.0.1:9003/`. Before opening a pull request, run th
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 - [GitHub Releases](https://github.com/keneth80/k-chart/releases)
+- [KChart Panel for Grafana](https://grafana.com/grafana/plugins/keneth80-kchart-panel/)
 
 ## License
 
