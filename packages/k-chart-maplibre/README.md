@@ -6,6 +6,21 @@ MapLibre GL JS adapter for KChart globe drilldown. It replaces the internal SVG 
 npm install @keneth80/k-chart @keneth80/k-chart-maplibre maplibre-gl
 ```
 
+The adapter ships both ESM and CommonJS entry points. MapLibre GL JS 5 and 6
+are supported; modern bundlers automatically select the ESM entry required by
+MapLibre GL JS 6.
+
+MapLibre GL JS 6 is ESM-only and requires an explicit worker URL in webpack and
+Next.js applications:
+
+```ts
+import {setWorkerUrl} from 'maplibre-gl';
+
+setWorkerUrl(
+    new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString()
+);
+```
+
 ## Complete Example
 
 ```ts

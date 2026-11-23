@@ -170,6 +170,11 @@ class FakeMap {
         this.moveCamera(options, {originalEvent: {type: 'pointerdown'}});
     }
 
+    simulateNativeUserMove(options) {
+        this.options.container.dispatchEvent({type: 'pointerdown'});
+        this.moveCamera(options);
+    }
+
     getCenter() {
         return this.center;
     }
@@ -237,7 +242,7 @@ const fakeMapLibre = {
 const originalLoad = Module._load;
 Module._load = function load(request, parent, isMain) {
     if (request === 'maplibre-gl') {
-        return {__esModule: true, default: fakeMapLibre};
+        return fakeMapLibre;
     }
     return originalLoad.call(this, request, parent, isMain);
 };
@@ -317,12 +322,15 @@ const defaultController = createMapLibreFlatMap({
     map.simulateUserMove({center: [13, 35], zoom: 2});
     assert.deepEqual(moveEndContexts, [{lon: 13, lat: 35, x: 320, y: 180}]);
 
-    map.simulateUserMove({center: [13, 35], zoom: 2});
-    assert.equal(moveEndContexts.length, 1);
+    map.simulateNativeUserMove({center: [14, 36], zoom: 2.5});
+    assert.deepEqual(moveEndContexts[1], {lon: 14, lat: 36, x: 320, y: 180});
+
+    map.simulateUserMove({center: [14, 36], zoom: 2.5});
+    assert.equal(moveEndContexts.length, 2);
 
     controller.flyTo({lat: 40, lon: 15, zoom: 4});
     controller.resize();
-    assert.equal(moveEndContexts.length, 1);
+    assert.equal(moveEndContexts.length, 2);
 
     const clusterLayer = map.getLayer(CLUSTER_LAYER_ID);
     assert.deepEqual(clusterLayer.paint['circle-color'], [
@@ -348,7 +356,7 @@ const defaultController = createMapLibreFlatMap({
     assert.equal(clusterClickContext.pointCount, 75);
     assert.equal(clusterClickContext.expansionZoom, 7);
     assert.equal(clusterClickContext.map, map);
-    assert.equal(moveEndContexts.length, 1);
+    assert.equal(moveEndContexts.length, 2);
 
     map.handlers.get(`mouseenter:${CLUSTER_LAYER_ID}`)(clusterEvent);
     const nextClusterFeature = {

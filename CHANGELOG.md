@@ -1,5 +1,26 @@
 # Changelog
 
+## @keneth80/k-chart-maplibre 0.3.1 - 2026-11-23
+
+### Fixed
+
+- Added dual ESM and CommonJS package entry points so MapLibre GL JS 6 works
+  with modern bundlers while MapLibre GL JS 5 CommonJS consumers remain
+  supported.
+- Preserved user move-end callbacks when MapLibre GL JS 6 omits
+  `originalEvent` from camera events by correlating the immediately preceding
+  pointer, wheel, or keyboard input.
+- Documented the explicit MapLibre 6 worker URL required by Next.js and
+  webpack applications.
+
+### Tests
+
+- Added an ESM import smoke test against MapLibre GL JS 6 and runtime coverage
+  for native-input camera events, programmatic movement exclusion, and listener
+  cleanup.
+- Verified the adapter in the Next.js playground with SVG, MapLibre, and Cesium
+  move-end interactions on desktop and mobile layouts.
+
 ## 1.28.0 - 2026-11-23
 
 ### Added
