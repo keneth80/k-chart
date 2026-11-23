@@ -30,7 +30,19 @@ class FakeElement {
     }
 
     addEventListener(type, listener) {
-        this.listeners.set(type, listener);
+        const listeners = this.listeners.get(type) ?? new Set();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+    }
+
+    removeEventListener(type, listener) {
+        this.listeners.get(type)?.delete(listener);
+    }
+
+    dispatchEvent(event) {
+        for (const listener of this.listeners.get(event.type) ?? []) {
+            listener(event);
+        }
     }
 
     remove() {
@@ -67,10 +79,16 @@ class FakeMap {
 
     constructor(options) {
         this.options = options;
-        this.canvas = {style: {}};
+        this.canvas = new FakeElement();
+        this.canvas.clientWidth = 640;
+        this.canvas.clientHeight = 360;
         this.handlers = new Map();
         this.layers = [];
         this.sources = new Map();
+        this.center = {lng: options.center[0], lat: options.center[1]};
+        this.zoom = options.zoom;
+        this.bearing = 0;
+        this.pitch = 0;
         FakeMap.instances.push(this);
     }
 
@@ -97,7 +115,21 @@ class FakeMap {
     }
 
     on(type, layerId, listener) {
+        if (typeof layerId === 'function') {
+            this.handlers.set(type, layerId);
+            return;
+        }
         this.handlers.set(`${type}:${layerId}`, listener);
+    }
+
+    off(type, listener) {
+        if (this.handlers.get(type) === listener) {
+            this.handlers.delete(type);
+        }
+    }
+
+    emit(type, event = {}) {
+        this.handlers.get(type)?.(event);
     }
 
     queryRenderedFeatures() {
@@ -110,18 +142,59 @@ class FakeMap {
 
     jumpTo(options) {
         this.lastJump = options;
+        this.moveCamera(options);
     }
 
     easeTo(options) {
         this.lastEase = options;
+        this.moveCamera(options);
     }
 
     flyTo(options) {
         this.lastFly = options;
+        this.moveCamera(options);
+    }
+
+    moveCamera(options, event = {}) {
+        this.emit('movestart', event);
+        if (options.center) {
+            this.center = {lng: options.center[0], lat: options.center[1]};
+        }
+        if (options.zoom !== undefined) this.zoom = options.zoom;
+        if (options.bearing !== undefined) this.bearing = options.bearing;
+        if (options.pitch !== undefined) this.pitch = options.pitch;
+        this.emit('moveend');
+    }
+
+    simulateUserMove(options) {
+        this.moveCamera(options, {originalEvent: {type: 'pointerdown'}});
+    }
+
+    getCenter() {
+        return this.center;
+    }
+
+    getZoom() {
+        return this.zoom;
+    }
+
+    getBearing() {
+        return this.bearing;
+    }
+
+    getPitch() {
+        return this.pitch;
+    }
+
+    unproject() {
+        return this.center;
     }
 
     resize() {
         this.resizeCount = (this.resizeCount ?? 0) + 1;
+        this.emit('movestart');
+        this.bearing += 1;
+        this.emit('moveend');
     }
 
     loaded() {
@@ -201,6 +274,7 @@ const defaultController = createMapLibreFlatMap({
     let clusterClickContext;
     const hoverContexts = [];
     let clickedPlace;
+    const moveEndContexts = [];
     const controller = createMapLibreFlatMap({
         container: '#world-map',
         style: {version: 8, sources: {}, layers: []},
@@ -226,6 +300,9 @@ const defaultController = createMapLibreFlatMap({
         onClusterHover: (context) => hoverContexts.push(context),
         onPlaceClick: ({place}) => {
             clickedPlace = place;
+        },
+        onMoveEnd: (context) => {
+            moveEndContexts.push(context);
         }
     });
     const place = {id: 'seoul', name: 'Seoul', lat: 37.5, lon: 127};
@@ -235,6 +312,17 @@ const defaultController = createMapLibreFlatMap({
     assert.equal(map.options.renderWorldCopies, false);
     assert.deepEqual(map.options.maxBounds, [[-180, -85], [180, 85]]);
     assert.equal(host.children[0].children[1].hidden, true);
+    assert.equal(moveEndContexts.length, 0);
+
+    map.simulateUserMove({center: [13, 35], zoom: 2});
+    assert.deepEqual(moveEndContexts, [{lon: 13, lat: 35, x: 320, y: 180}]);
+
+    map.simulateUserMove({center: [13, 35], zoom: 2});
+    assert.equal(moveEndContexts.length, 1);
+
+    controller.flyTo({lat: 40, lon: 15, zoom: 4});
+    controller.resize();
+    assert.equal(moveEndContexts.length, 1);
 
     const clusterLayer = map.getLayer(CLUSTER_LAYER_ID);
     assert.deepEqual(clusterLayer.paint['circle-color'], [
@@ -260,6 +348,7 @@ const defaultController = createMapLibreFlatMap({
     assert.equal(clusterClickContext.pointCount, 75);
     assert.equal(clusterClickContext.expansionZoom, 7);
     assert.equal(clusterClickContext.map, map);
+    assert.equal(moveEndContexts.length, 1);
 
     map.handlers.get(`mouseenter:${CLUSTER_LAYER_ID}`)(clusterEvent);
     const nextClusterFeature = {
@@ -313,6 +402,10 @@ const defaultController = createMapLibreFlatMap({
     assert.equal(clickedPlace, place);
     assert.deepEqual(FakePopup.instances[0].coordinates, [place.lon, place.lat]);
     assert.equal(FakePopup.instances[0].map, map);
+
+    controller.destroy();
+    assert.equal(map.handlers.has('movestart'), false);
+    assert.equal(map.handlers.has('moveend'), false);
 
     console.log('MapLibre configuration runtime tests passed.');
 })().catch((error) => {

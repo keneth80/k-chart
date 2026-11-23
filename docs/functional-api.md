@@ -675,6 +675,9 @@ const chart = createKChart<CityPoint>({
             markerColor: '#5db8ff',
             onMarkerClick: ({ data }) => {
                 window.open(data.url, '_blank', 'noopener,noreferrer');
+            },
+            onMoveEnd: ({lon, lat, x, y}) => {
+                console.log('Globe center', {lon, lat, x, y});
             }
         })
     ]
@@ -682,6 +685,8 @@ const chart = createKChart<CityPoint>({
 ```
 
 `draggable` 기본값은 `true`입니다. `zoom` 기본값은 비활성화이며, `zoom: true` 또는 `zoom: { enabled: true }`로 켤 수 있습니다. `min`과 `max`는 기본 globe scale에 곱해지는 배율입니다. `controls: true`를 지정하면 `+`, 현재 배율, `-` 버튼이 표시되고 현재 배율 버튼은 1x로 리셋합니다. `controls: { visible: true, x, y }`의 `x`, `y`는 차트 전체 SVG의 오른쪽/위쪽 edge 기준 offset입니다. `drilldown` 기본값은 비활성화이며, `drilldown: { enabled: true, mode: 'zoom', focusZoom: 2.7 }`로 켜면 선택 좌표가 중앙에 오도록 지구본을 회전하고 확대합니다. `transition` 기본값은 `'warp'`입니다. 구름 전환은 `duration`으로 총 시간을 지정하거나 `coverDuration`과 `revealDuration`으로 덮이는 시간과 걷히는 시간을 각각 지정할 수 있습니다. `respectReducedMotion`의 기본값은 `true`이며 운영체제의 동작 줄이기 설정에서 최대 1.2초로 단축합니다. 지정한 시간을 항상 그대로 사용하려면 `respectReducedMotion: false`를 설정합니다. `color`, `density`, `blur`로 구름의 색상과 밀도를 조절할 수 있습니다. 기존 평면 지도 전환이 필요하면 `mode: 'map'`과 `zoomScale`을 사용합니다. 자동 전환은 `autoMapOnZoom`, `mapZoomThreshold`, `globeZoomThreshold`로 제어합니다. 두 임계값을 다르게 두는 이유는 경계 배율에서 지구본과 지도가 반복 전환되는 현상을 막기 위한 hysteresis입니다. `resetControl`이 true이면 포커스 상태에서 `G` 버튼으로 이전 지구본 상태로 돌아갑니다. `landGeoJson`에 GeoJSON feature, feature collection, 또는 feature 배열을 넘기면 기본 land layer 대신 해당 path를 구면 위에 그립니다. `landMode: 'countries'`를 지정하면 기본 fill layer도 국가 feature 단위로 분리되어 나라별 색상 callback을 적용할 수 있습니다.
+
+`onMoveEnd`는 drag, pinch, wheel, zoom button으로 뷰가 실제 변경된 뒤 한 번 호출됩니다. context의 `x`, `y`는 drawable 중심 CSS pixel이고 `lon`, `lat`는 현재 globe 또는 drilldown map projection의 중심입니다. 초기 render, resize, marker drilldown 같은 애플리케이션 전환에는 호출되지 않습니다.
 
 실제 도로·건물 타일 지도가 필요한 경우 `mode: 'external-map'`을 사용합니다. 이 모드에서는 KChart가 내부 SVG 평면도를 그리지 않고 `onEnter` 콜백에 `{ data, lat, lon, exit }`를 전달합니다. `@keneth80/k-chart-maplibre` 어댑터는 이 컨텍스트를 받아 MapLibre 지도를 표시하며, 어댑터의 `G` 버튼은 `exit()`을 호출해 지구본으로 복귀합니다. MapLibre는 지도 렌더러이므로 주소 변환과 맛집 검색은 Kakao Local API, Naver Maps, MapTiler Geocoding 등 별도 공급자에서 받아 장소 좌표 데이터로 전달해야 합니다.
 
@@ -937,6 +942,9 @@ createKChart<Region>({
             },
             tooltip: {
                 formatter: ({label, value}) => `<strong>${label}</strong><br/>value: ${value}`
+            },
+            onMoveEnd: ({lon, lat}) => {
+                console.log('Map center', {lon, lat});
             }
         })
     ]
@@ -944,6 +952,8 @@ createKChart<Region>({
 ```
 
 `zoom`은 지역 지도 전용 확대/이동 옵션입니다. `enabled: true`이면 mouse wheel로 확대/축소하고 drag로 지도를 이동할 수 있습니다. `controls: {visible: true}`를 지정하면 오른쪽 상단에 `+`, 현재 배율, `-` 버튼이 표시됩니다. `scaleExtent`는 최소/최대 배율이며, `wheel`과 `pan`을 각각 꺼서 입력 방식을 제한할 수 있습니다. 지도 라벨은 비교적 좁은 화면에서 `callout` 선이 복잡해질 수 있으므로, 한국 시도 choropleth처럼 경계 내부에 값을 보여줄 때는 `labels.mode: 'centroid'`를 권장합니다.
+
+`onMoveEnd`는 사용자 zoom/pan/button 조작으로 transform이 바뀐 경우에만 호출됩니다. `{lon, lat, x, y}`의 `x`, `y`는 drawable 중심 CSS pixel이며, `lon`, `lat`는 zoom transform을 역적용한 뒤 projection으로 역변환한 중심 좌표입니다.
 
 전세계 국가 지도는 `world-atlas` 110m country geometry를 내장한 `createWorldCountryMapSeries()`로 더 짧게 만들 수 있습니다. country 이름은 `world-atlas`의 `properties.name`과 맞춰야 합니다.
 

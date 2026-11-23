@@ -18,6 +18,10 @@ import type {
     KChartSeries,
     KChartSvgGlobeSeriesConfiguration
 } from '../core/contracts';
+import {
+    hasNumericViewChanged,
+    resolveProjectedMapMoveEndContext
+} from '../internal/map-move-end';
 import {createCustomSeries} from './custom';
 
 const clampNumber = (value: number, min: number, max: number): number =>
@@ -129,6 +133,11 @@ const resolveGlobeZoomControlsConfiguration = (
 };
 
 type ResolvedGlobeTransitionConfiguration = Required<KChartGlobeTransitionConfiguration>;
+
+type GlobeMoveViewState = {
+    mode: 'globe' | 'map' | 'external-map';
+    values: [number, number, number, number, number, number];
+};
 
 const resolveGlobeTransitionConfiguration = (
     transition: KChartGlobeDrilldownConfiguration<any>['transition'],
@@ -323,6 +332,8 @@ export const createSvgGlobeSeries = <T = any>(
     let cloudTransitionToken = 0;
     let wheelZoomReference: [number, number] | undefined;
     let wheelZoomReferenceTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    let wheelMoveStartView: GlobeMoveViewState | undefined;
+    let pointerMoveStartView: GlobeMoveViewState | undefined;
     let hoveredMarkerTarget: { data: T; lat: number; lon: number; projected: [number, number] } | undefined;
     let markerPress: {
         pointerId: number;
@@ -371,6 +382,33 @@ export const createSvgGlobeSeries = <T = any>(
                 return inverted && Number.isFinite(inverted[0]) && Number.isFinite(inverted[1])
                     ? inverted
                     : [-rotation[0], -rotation[1]];
+            };
+            const captureMoveView = (): GlobeMoveViewState => ({
+                mode: viewMode,
+                values: [
+                    rotation[0],
+                    rotation[1],
+                    rotation[2],
+                    zoomLevel,
+                    focusedPoint?.lon ?? Number.NaN,
+                    focusedPoint?.lat ?? Number.NaN
+                ]
+            });
+            const hasMoveViewChanged = (previous: GlobeMoveViewState): boolean =>
+                previous.mode !== viewMode
+                || hasNumericViewChanged(previous.values, captureMoveView().values);
+            const notifyMoveEnd = (): void => {
+                const activeProjection = viewMode === 'map' ? mapProjection : globeProjection;
+                configuration.onMoveEnd?.(resolveProjectedMapMoveEndContext(
+                    activeProjection,
+                    width,
+                    height
+                ));
+            };
+            const finishUserMove = (previous: GlobeMoveViewState | undefined): void => {
+                if (previous && hasMoveViewChanged(previous)) {
+                    notifyMoveEnd();
+                }
             };
             const getFirstTwoPointerDistance = (): number => {
                 const points = Array.from(activePointers.values());
@@ -508,11 +546,14 @@ export const createSvgGlobeSeries = <T = any>(
                 lat: number;
                 lon: number;
                 projected: [number, number];
-            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number, moveCamera = true): void => {
+            }, mode: KChartGlobeDrilldownMode = drilldownConfiguration.mode, restoreZoomLevel?: number, moveCamera = true, preserveWheelMove = false): void => {
                 if (!drilldownConfiguration.enabled || externalMapTransitioning) {
                     return;
                 }
                 clearWheelZoomReference();
+                if (!preserveWheelMove) {
+                    wheelMoveStartView = undefined;
+                }
                 hoveredMarkerTarget = undefined;
                 if (warpTimer !== undefined) {
                     globalThis.clearTimeout(warpTimer);
@@ -708,8 +749,9 @@ export const createSvgGlobeSeries = <T = any>(
                 }, drilldownConfiguration.transition.duration);
                 draw();
             };
-            const exitDrilldown = (restoreState = true): void => {
+            const exitDrilldown = (restoreState = true, onCompleted?: () => void): void => {
                 if (viewMode === 'globe' && !focusedPoint) {
+                    onCompleted?.();
                     return;
                 }
                 if (warpTimer !== undefined) {
@@ -735,11 +777,12 @@ export const createSvgGlobeSeries = <T = any>(
                     runCloudTransition(completeExit, () => {
                         externalMapTransitioning = false;
                         draw();
+                        onCompleted?.();
                     });
                     return;
                 }
                 externalMapTransitioning = false;
-                void completeExit();
+                void completeExit().finally(onCompleted);
             };
             const resolveAutoMapTarget = (reference?: [number, number]): {
                 data: T;
@@ -804,7 +847,8 @@ export const createSvgGlobeSeries = <T = any>(
                             target,
                             drilldownConfiguration.mode,
                             Math.min(zoomLevel, exitThreshold),
-                            false
+                            false,
+                            true
                         );
                         return true;
                     }
@@ -1303,19 +1347,23 @@ export const createSvgGlobeSeries = <T = any>(
                     .on('click', (event: MouseEvent, datum) => {
                         event.preventDefault();
                         event.stopPropagation();
+                        const previousView = captureMoveView();
                         if (datum.key === 'in') {
                             applyGlobeZoom(zoomLevel * (1 + zoomControlsConfiguration.step));
+                            finishUserMove(previousView);
                             return;
                         }
                         if (datum.key === 'out') {
                             applyGlobeZoom(zoomLevel / (1 + zoomControlsConfiguration.step));
+                            finishUserMove(previousView);
                             return;
                         }
                         if (datum.key === 'globe') {
-                            exitDrilldown();
+                            exitDrilldown(true, () => finishUserMove(previousView));
                             return;
                         }
                         applyGlobeZoom(1);
+                        finishUserMove(previousView);
                     });
 
                 controlButtonsEnter.append('rect')
@@ -1364,9 +1412,11 @@ export const createSvgGlobeSeries = <T = any>(
             if (zoomConfiguration.enabled && zoomConfiguration.wheel) {
                 globeLayer.on('wheel.kchart-globe-zoom', (event: WheelEvent) => {
                     event.preventDefault();
+                    wheelMoveStartView ??= captureMoveView();
                     if (!wheelZoomReference) {
                         const currentPoint = pointer(event, globeLayer.node() as any) as [number, number];
-                        const reference = globeProjection.invert?.(currentPoint) as [number, number] | null | undefined;
+                        const activeProjection = viewMode === 'map' ? mapProjection : globeProjection;
+                        const reference = activeProjection.invert?.(currentPoint) as [number, number] | null | undefined;
                         if (reference && Number.isFinite(reference[0]) && Number.isFinite(reference[1])) {
                             wheelZoomReference = reference;
                         }
@@ -1374,12 +1424,15 @@ export const createSvgGlobeSeries = <T = any>(
                     if (wheelZoomReferenceTimer !== undefined) {
                         globalThis.clearTimeout(wheelZoomReferenceTimer);
                     }
-                    wheelZoomReferenceTimer = globalThis.setTimeout(() => {
-                        wheelZoomReference = undefined;
-                        wheelZoomReferenceTimer = undefined;
-                    }, 180);
                     const zoomDelta = Math.exp(-event.deltaY * zoomConfiguration.wheelSensitivity);
                     applyGlobeZoom(zoomLevel * zoomDelta, wheelZoomReference, hoveredMarkerTarget);
+                    wheelZoomReferenceTimer = globalThis.setTimeout(() => {
+                        const previousView = wheelMoveStartView;
+                        wheelMoveStartView = undefined;
+                        wheelZoomReference = undefined;
+                        wheelZoomReferenceTimer = undefined;
+                        finishUserMove(previousView);
+                    }, 180);
                 });
             }
 
@@ -1392,6 +1445,7 @@ export const createSvgGlobeSeries = <T = any>(
                         )) {
                             return;
                         }
+                        pointerMoveStartView ??= captureMoveView();
                         const currentPoint = pointer(event, group.node() as any) as [number, number];
                         if (zoomConfiguration.enabled && zoomConfiguration.pinch) {
                             activePointers.set(event.pointerId, currentPoint);
@@ -1436,6 +1490,8 @@ export const createSvgGlobeSeries = <T = any>(
                         draw();
                     })
                     .on('pointerup.kchart-globe-drag pointercancel.kchart-globe-drag', (event: PointerEvent) => {
+                        const wasPinching = activePointers.size >= 2;
+                        const wasDragging = dragging;
                         activePointers.delete(event.pointerId);
                         if (activePointers.size < 2) {
                             pinchStartDistance = 0;
@@ -1445,6 +1501,11 @@ export const createSvgGlobeSeries = <T = any>(
                         settledCenter = resolveGlobeCenter();
                         (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
                         draw();
+                        if (wasDragging || (wasPinching && activePointers.size < 2) || activePointers.size === 0) {
+                            const previousView = pointerMoveStartView;
+                            pointerMoveStartView = undefined;
+                            finishUserMove(previousView);
+                        }
                     });
             }
         },
@@ -1466,6 +1527,10 @@ export const createSvgGlobeSeries = <T = any>(
             cloudCanvas = undefined;
             cloudHost = undefined;
             wheelZoomReference = undefined;
+            wheelMoveStartView = undefined;
+            pointerMoveStartView = undefined;
+            activePointers.clear();
+            dragging = false;
             hoveredMarkerTarget = undefined;
             markerPress = undefined;
             if (wheelZoomReferenceTimer !== undefined) {

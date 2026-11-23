@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.28.0 - 2026-11-23
+
+### Added
+
+- Added optional `onMoveEnd` callbacks to SVG globe and region maps,
+  `@keneth80/k-chart-maplibre` 0.3.0, and
+  `@keneth80/k-chart-cesium` 0.2.0.
+- Added a consistent move-end payload containing the geographic center
+  (`lon`, `lat`) and center screen coordinates (`x`, `y`) after
+  changed user pan, zoom, touch, or navigation-control interactions.
+- Added the published [KChart Panel for Grafana](https://grafana.com/grafana/plugins/keneth80-kchart-panel/)
+  to the optional integrations and project resources in the root README.
+
+### Changed
+
+- Kept initialization, resize-only work, route tracking, and application-driven
+  camera moves from emitting user move-end callbacks.
+- Coalesced settled user interaction reporting across SVG, MapLibre, and Cesium
+  while preserving each renderer's existing interaction behavior.
+
+### Tests
+
+- Added MapLibre and Cesium runtime coverage for user movement, unchanged views,
+  programmatic movement exclusion, navigation controls, geographic picking, and
+  listener cleanup.
+- Added shared projection tests and verified the root unit suite, package builds,
+  production demo build, package contents, and desktop/mobile playground examples.
+
 ## 1.27.0 - 2026-09-27
 
 ### Added

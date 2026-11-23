@@ -648,6 +648,7 @@ WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달�
 | `bubbles` | `KChartGeoRegionMapBubble[]` | `[]` | 위도/경도 기반 원형 bubble marker입니다. `value` 또는 `radius`로 크기를 조절합니다. |
 | `markers` | `KChartGeoRegionMapMarker[]` | `[]` | 위도/경도 기반 사진/라벨/pin marker입니다. `imageUrl`, `labelPosition`, `onClick`을 지원합니다. |
 | `tooltip` | `boolean \| { formatter }` | enabled | region tooltip입니다. |
+| `onMoveEnd` | `(context: KChartMapMoveEndContext) => void` | - | 사용자 wheel/pan/zoom button 이동이 실제로 끝났을 때 중심 좌표를 전달합니다. |
 
 `zoom: {enabled: true, controls: {visible: true}, scaleExtent: [1, 7]}`처럼 지정하면 축이 없는 지도에서도 확대/축소와 drag 이동을 사용할 수 있습니다. `wheel`은 mouse wheel zoom, `pan`은 drag pan 입력을 제어합니다. `labels.mode: 'callout'`은 작은 지도의 라벨 선이 복잡해질 수 있으므로, choropleth 지도에서는 `centroid`와 짧은 label formatter를 우선 권장합니다.
 
@@ -669,6 +670,13 @@ WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달�
 | `markerRadius` | `number \| (point) => number` | implementation default | marker 크기입니다. |
 | `markerColor` | `string \| (point) => string` | implementation default | marker 색상입니다. |
 | `onMarkerClick` | `(context) => void` | - | marker click callback입니다. `data`, `lat`, `lon`, `x`, `y`, `event`를 받습니다. |
+| `onMoveEnd` | `(context: KChartMapMoveEndContext) => void` | - | 사용자 drag/pinch/wheel/zoom button 이동이 실제로 끝났을 때 현재 projection 중심을 전달합니다. |
+
+`KChartMapMoveEndContext`는 `{lon, lat, x, y}`입니다. `x`, `y`는 drawable 또는 canvas 좌상단 기준 CSS pixel 중심이며, `lon`, `lat`는 그 지점의 경도/위도입니다. SVG 지도와 MapLibre에서는 중심을 역투영하고, Cesium에서 지구 표면을 pick하지 못한 경우에만 `lon`, `lat`가 `null`일 수 있습니다.
+
+### Map Adapters: move completion
+
+`KChartMapLibreConfiguration.onMoveEnd`와 `KChartCesiumConfiguration.onMoveEnd`도 같은 context를 사용합니다. MapLibre callback은 native gesture/navigation control의 `moveend`를 보고하지만 `show`, `flyTo`, cluster expansion `easeTo`, 초기화와 resize는 제외합니다. Cesium callback은 사용자 카메라 이동 완료를 보고하며 초기 view, route `flyTo`, tracking, resize는 제외합니다.
 
 ## Downsampling Configuration
 

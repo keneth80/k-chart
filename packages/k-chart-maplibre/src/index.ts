@@ -6,6 +6,7 @@ import type {
     Map as MapLibreMap,
     MapGeoJSONFeature,
     MapLayerMouseEvent,
+    MapLibreEvent,
     MapMouseEvent,
     StyleSpecification
 } from 'maplibre-gl';
@@ -70,6 +71,13 @@ export interface KChartMapLibreClusterHoverContext extends KChartMapLibreCluster
     hovered: boolean;
 }
 
+export interface KChartMapMoveEndContext {
+    lon: number | null;
+    lat: number | null;
+    x: number;
+    y: number;
+}
+
 export interface KChartMapLibreConfiguration<T extends KChartMapLibrePlace> {
     container: string | HTMLElement;
     style: string | StyleSpecification;
@@ -90,6 +98,7 @@ export interface KChartMapLibreConfiguration<T extends KChartMapLibrePlace> {
         event: MapMouseEvent;
         map: MapLibreMap;
     }) => void;
+    onMoveEnd?: (context: KChartMapMoveEndContext) => void;
 }
 
 export interface KChartMapLibreController<T extends KChartMapLibrePlace> {
@@ -247,6 +256,52 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
     let hoveredCluster: Omit<KChartMapLibreClusterContext, 'event' | 'map'> | undefined;
     let interactionGeneration = 0;
     let visible = false;
+    let activeUserMoveStart: readonly number[] | undefined;
+    const captureMapView = (currentMap: MapLibreMap): readonly number[] => {
+        const center = currentMap.getCenter();
+        return [
+            center.lng,
+            center.lat,
+            currentMap.getZoom(),
+            currentMap.getBearing(),
+            currentMap.getPitch()
+        ];
+    };
+    const hasMapViewChanged = (
+        previous: readonly number[],
+        next: readonly number[]
+    ): boolean => previous.some((value, index) => Math.abs(value - next[index]) > 1e-9);
+    const handleMoveStart = (
+        event: MapLibreEvent<MouseEvent | TouchEvent | WheelEvent | undefined>
+    ): void => {
+        if (!map || !visible) {
+            activeUserMoveStart = undefined;
+            return;
+        }
+        if (activeUserMoveStart || !event.originalEvent) {
+            return;
+        }
+        activeUserMoveStart = captureMapView(map);
+    };
+    const handleMoveEnd = (): void => {
+        const previousView = activeUserMoveStart;
+        activeUserMoveStart = undefined;
+        if (!map || !visible || !previousView) {
+            return;
+        }
+        if (!hasMapViewChanged(previousView, captureMapView(map))) {
+            return;
+        }
+        const canvas = map.getCanvas();
+        const x = canvas.clientWidth / 2;
+        const y = canvas.clientHeight / 2;
+        const center = map.unproject([x, y]);
+        configuration.onMoveEnd?.({lon: center.lng, lat: center.lat, x, y});
+    };
+    const detachMapMoveListeners = (): void => {
+        map?.off('movestart', handleMoveStart);
+        map?.off('moveend', handleMoveEnd);
+    };
 
     const findPlace = (id: unknown): T | undefined =>
         places.find((place) => String(place.id) === String(id));
@@ -453,6 +508,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             maxZoom: configuration.maxZoom ?? 19,
             ...worldOptions
         });
+        map.on('movestart', handleMoveStart);
+        map.on('moveend', handleMoveEnd);
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
         readyPromise = new Promise((resolve, reject) => {
             map?.once('load', () => {
@@ -468,7 +525,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
         return readyPromise;
     };
 
-    backButton.addEventListener('click', () => exit?.());
+    const handleBackButtonClick = (): void => exit?.();
+    backButton.addEventListener('click', handleBackButtonClick);
 
     return {
         async show(options) {
@@ -493,6 +551,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
                 interactionGeneration += 1;
                 overlay.hidden = true;
                 exit = undefined;
+                activeUserMoveStart = undefined;
+                detachMapMoveListeners();
                 map?.remove();
                 map = undefined;
                 readyPromise = undefined;
@@ -504,6 +564,7 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             interactionGeneration += 1;
             overlay.hidden = true;
             exit = undefined;
+            activeUserMoveStart = undefined;
         },
         setPlaces(nextPlaces) {
             places = [...nextPlaces];
@@ -516,7 +577,8 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             updateSource();
         },
         flyTo(options) {
-            map?.flyTo({
+            if (!map) return;
+            map.flyTo({
                 center: [options.lon, options.lat],
                 zoom: options.zoom ?? configuration.initialZoom ?? 12,
                 duration: 900,
@@ -524,11 +586,15 @@ export const createMapLibreFlatMap = <T extends KChartMapLibrePlace>(
             });
         },
         resize() {
+            activeUserMoveStart = undefined;
             map?.resize();
         },
         destroy() {
             visible = false;
             interactionGeneration += 1;
+            activeUserMoveStart = undefined;
+            backButton.removeEventListener('click', handleBackButtonClick);
+            detachMapMoveListeners();
             map?.remove();
             map = undefined;
             readyPromise = undefined;

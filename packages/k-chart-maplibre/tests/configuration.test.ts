@@ -43,6 +43,11 @@ const configuration = {
     onPlaceClick: ({place}) => {
         const region: string = place.region;
         void region;
+    },
+    onMoveEnd: ({lon, lat, x, y}) => {
+        const nullableCoordinates: Array<number | null> = [lon, lat];
+        const screenCoordinates: number[] = [x, y];
+        void [nullableCoordinates, screenCoordinates];
     }
 } satisfies KChartMapLibreConfiguration<TestPlace>;
 
