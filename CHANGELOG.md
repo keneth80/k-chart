@@ -1,5 +1,33 @@
 # Changelog
 
+## @keneth80/k-chart-three 0.2.0 - 2026-11-23
+
+### Added
+
+- Added an on-demand textured Three.js globe series with pointer drag rotation,
+  shortest-path center transitions, settled center callbacks, and exported
+  latitude/longitude and subsolar-point utilities.
+- Added optional night-light texture blending and a configurable Fresnel
+  atmosphere so applications can render satellite-style day and city-light
+  night views without bundling image assets in KChart.
+- Added typed latitude/longitude data markers rendered as one instanced mesh,
+  with constant or data-driven color, radius, and surface offset.
+- Added Seoul, Europe, and Americas presets to the demo together with live
+  settled coordinates, real city markers, and NASA-derived texture attribution.
+
+### Fixed
+
+- Restored DPR-scaled WebGL backing buffers and redrew on repeated same-size
+  KChart renders, preventing a reused globe canvas from being cleared.
+- Explicitly released the renderer WebGL context during teardown.
+
+### Tests
+
+- Added coordinate, marker preparation, 2026 solstice/equinox, interaction
+  threshold, same-size redraw, context release, and cleanup coverage.
+- Verified package type checking, tests, build, the root test/build suite, and
+  the interactive globe in a real browser.
+
 ## @keneth80/k-chart-maplibre 0.3.2 - 2026-11-23
 
 ### Fixed

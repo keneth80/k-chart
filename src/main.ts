@@ -27,6 +27,8 @@ import type {
     KChartCesiumRoutePoint
 } from '../packages/k-chart-cesium/src';
 import {
+    calculateSubsolarPoint,
+    createThreeGlobeSeries,
     createThreeWaferSeries,
     createWaferDies
 } from '../packages/k-chart-three/src';
@@ -99,6 +101,7 @@ type DemoKind =
     | 'tooltip-note'
     | 'topology'
     | 'three-constellation'
+    | 'three-globe'
     | 'three-wafer'
     | 'world-activity-map'
     | 'world-cluster-map'
@@ -604,6 +607,25 @@ let chart: KChartController<DemoPoint> | null = null;
 let activeKind: DemoKind = 'line';
 let scrollableDoughnutCompactLayout = false;
 let realtimeTimer: number | undefined;
+let threeGlobeSeries: ReturnType<typeof createThreeGlobeSeries<DemoPoint>> | undefined;
+let threeGlobeStatus: HTMLElement | undefined;
+
+const THREE_GLOBE_DAY_TEXTURE = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
+const THREE_GLOBE_NIGHT_TEXTURE = 'https://threejs.org/examples/textures/planets/earth_lights_2048.png';
+const threeGlobePresets = [
+    { label: 'Seoul', center: { lat: 37.57, lon: 126.98 } },
+    { label: 'Europe', center: { lat: 48.86, lon: 2.35 } },
+    { label: 'Americas', center: { lat: 40.71, lon: -74.01 } }
+] as const;
+const THREE_FLAT_WORLD_VIEW = {
+    center: {lat: 0, lon: 0},
+    zoom: 1,
+    lighting: 'night'
+} as const;
+const THREE_FLAT_REGION_ZOOM = 3.2;
+
+const formatThreeGlobeCenter = ({lat, lon}: {lat: number; lon: number}): string =>
+    `${lat >= 0 ? 'N' : 'S'} ${Math.abs(lat).toFixed(2)}° · ${lon >= 0 ? 'E' : 'W'} ${Math.abs(lon).toFixed(2)}°`;
 
 const examples: ExampleMeta[] = [
     { kind: 'line', title: 'SVG line renderer' },
@@ -633,6 +655,7 @@ const examples: ExampleMeta[] = [
     { kind: 'tooltip-note', title: 'Pinned tooltip notes', dataLabel: 'hover + memo' },
     { kind: 'topology', title: 'Topology renderer' },
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
+    { kind: 'three-globe', title: 'Earth at night', dataLabel: 'globe + world map · 5 geolocated markers' },
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'world-activity-map', title: '글로벌 시장 활동 현황', dataLabel: 'country activity index' },
     { kind: 'world-cluster-map', title: 'Global operations cluster map', dataLabel: `${worldClusterPlaces.length} live locations` },
@@ -664,6 +687,90 @@ let cesiumController: KChartCesiumController | undefined;
 let subcellHeatmapApp: MountedSubcellHeatmapApp | undefined;
 let subcellHeatmapGeneration = 0;
 let subcellHeatmapAbort: AbortController | undefined;
+
+const mountThreeGlobeControls = (): void => {
+    if (!chartRoot || !threeGlobeSeries) {
+        return;
+    }
+    const controls = document.createElement('div');
+    controls.className = 'three-globe-controls';
+    controls.setAttribute('aria-label', 'Earth projection and center controls');
+
+    const controlGroups = document.createElement('div');
+    controlGroups.className = 'three-globe-control-groups';
+
+    const projectionSwitch = document.createElement('div');
+    projectionSwitch.className = 'three-globe-projection-switch';
+    projectionSwitch.setAttribute('role', 'group');
+    projectionSwitch.setAttribute('aria-label', 'Earth projection');
+    const projectionButtons = new Map<'globe' | 'flat', HTMLButtonElement>();
+
+    const updateProjectionButtons = (): void => {
+        const projection = threeGlobeSeries?.getProjection() ?? 'globe';
+        projectionButtons.forEach((button, value) => {
+            button.setAttribute('aria-pressed', String(value === projection));
+        });
+    };
+
+    ([
+        {value: 'globe', label: 'Globe'},
+        {value: 'flat', label: 'World map'}
+    ] as const).forEach(({value, label}) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', () => {
+            threeGlobeSeries?.setProjection(value);
+            if (value === 'flat') {
+                threeGlobeSeries?.setFlatView(THREE_FLAT_WORLD_VIEW);
+                if (threeGlobeStatus) {
+                    threeGlobeStatus.textContent = 'World map · full extent';
+                }
+            } else if (threeGlobeSeries && threeGlobeStatus) {
+                threeGlobeStatus.textContent = `Globe · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
+            }
+            updateProjectionButtons();
+        });
+        projectionButtons.set(value, button);
+        projectionSwitch.appendChild(button);
+    });
+
+    const presets = document.createElement('div');
+    presets.className = 'three-globe-presets';
+    threeGlobePresets.forEach((preset) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = preset.label;
+        button.addEventListener('click', () => {
+            threeGlobeSeries?.setCenter(preset.center, {duration: 600});
+            if (threeGlobeSeries?.getProjection() === 'flat') {
+                threeGlobeSeries.setFlatView({
+                    center: preset.center,
+                    zoom: THREE_FLAT_REGION_ZOOM,
+                    lighting: 'night'
+                });
+            }
+            if (threeGlobeStatus) {
+                const projectionLabel = threeGlobeSeries?.getProjection() === 'flat'
+                    ? 'Flat map'
+                    : 'Globe';
+                threeGlobeStatus.textContent = `${projectionLabel} · ${preset.label} · ${formatThreeGlobeCenter(preset.center)}`;
+            }
+        });
+        presets.appendChild(button);
+    });
+
+    controlGroups.append(projectionSwitch, presets);
+
+    threeGlobeStatus = document.createElement('output');
+    threeGlobeStatus.className = 'three-globe-status';
+    threeGlobeStatus.setAttribute('aria-live', 'polite');
+    threeGlobeStatus.textContent = `Globe · Seoul · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
+    updateProjectionButtons();
+    controls.append(controlGroups, threeGlobeStatus);
+    chartRoot.appendChild(controls);
+};
 
 const setupSubcellHeatmapDemo = async (
     generation: number,
@@ -2078,6 +2185,9 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
     if (kind === 'world-activity-map') {
         return worldActivityData;
     }
+    if (kind === 'three-globe') {
+        return globeData;
+    }
     if (isGlobeMapExample(kind)) {
         return globeData;
     }
@@ -2098,7 +2208,7 @@ const resolveDemoData = (kind: DemoKind): DemoPoint[] => {
 };
 
 const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
-    if (isGlobeMapExample(kind) || kind === 'world-activity-map' || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'doughnut-scroll-legend' || kind === 'graph' || kind === 'sankey' || kind === 'tree' || kind === 'treemap') {
+    if (isGlobeMapExample(kind) || kind === 'world-activity-map' || kind === 'three-constellation' || kind === 'three-globe' || kind === 'three-wafer' || kind === 'cesium-route' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || kind === 'doughnut-scroll-legend' || kind === 'graph' || kind === 'sankey' || kind === 'tree' || kind === 'treemap') {
         return [];
     }
     if (kind === 'column') {
@@ -2236,6 +2346,40 @@ const createAxes = (kind: DemoKind): KChartAxis<DemoPoint>[] => {
 };
 
 const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
+    if (kind === 'three-globe') {
+        threeGlobeSeries = createThreeGlobeSeries<DemoPoint>({
+            selector: 'demo-three-globe',
+            displayName: 'Earth at night',
+            dayTexture: THREE_GLOBE_DAY_TEXTURE,
+            nightTexture: THREE_GLOBE_NIGHT_TEXTURE,
+            projection: 'globe',
+            flatMap: THREE_FLAT_WORLD_VIEW,
+            initialCenter: threeGlobePresets[0].center,
+            subsolar: calculateSubsolarPoint(new Date()),
+            transitionDuration: 600,
+            globeScale: 1.04,
+            atmosphere: {
+                color: '#4f8dff',
+                intensity: 1.15,
+                power: 3.2
+            },
+            markers: {
+                fields: {lat: 'lat', lon: 'lon'},
+                color: (point) => point.category === 'Asia' ? '#58e0c2' : '#ffcf70',
+                radius: (point) => 0.0045 + point.radius * 0.0007,
+                surfaceOffset: 0.012
+            },
+            onCenterChange: (center) => {
+                if (threeGlobeStatus) {
+                    const projectionLabel = threeGlobeSeries?.getProjection() === 'flat'
+                        ? 'Flat map'
+                        : 'Globe';
+                    threeGlobeStatus.textContent = `${projectionLabel} · Drag settled · ${formatThreeGlobeCenter(center)}`;
+                }
+            }
+        });
+        return [threeGlobeSeries];
+    }
     if (kind === 'world-activity-map') {
         return [createWorldCountryMapSeries<DemoPoint>({
             selector: 'demo-world-activity-map',
@@ -2761,7 +2905,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
     const isTree = kind === 'tree';
     const isTreemap = kind === 'treemap';
     const isThreeConstellation = kind === 'three-constellation';
-    const isThreeScene = isThreeConstellation || kind === 'three-wafer';
+    const isThreeScene = isThreeConstellation || kind === 'three-globe' || kind === 'three-wafer';
     const isGlobeMap = isGlobeMapExample(kind);
     const isWorldActivityMap = kind === 'world-activity-map';
     const isCalendarHeatmap = kind === 'calendar-heatmap';
@@ -2804,7 +2948,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             : isTreemap
                 ? 520
             : isThreeScene
-                ? 520
+                ? kind === 'three-globe' ? 560 : 520
             : isScrollableDoughnut
                 ? isCompactScrollableDoughnut ? 650 : 500
                 : isCalendarHeatmap
@@ -2823,7 +2967,9 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                 : isTreemap
                     ? { top: 72, right: 24, bottom: 24, left: 24 }
                 : isThreeScene
-                    ? { top: 74, right: 20, bottom: 20, left: 20 }
+                    ? kind === 'three-globe'
+                        ? { top: 58, right: 12, bottom: 74, left: 12 }
+                        : { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap || isWorldActivityMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
                     : isCalendarHeatmap
@@ -3147,6 +3293,25 @@ return createGraphSeries({
     onNodeClick: (node) => console.log(node.label)
 })`;
     }
+    if (kind === 'three-globe') {
+        return `createThreeGlobeSeries({
+    selector: 'demo-three-globe',
+    displayName: 'Earth at night',
+    dayTexture: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+    nightTexture: 'https://threejs.org/examples/textures/planets/earth_lights_2048.png',
+    projection: 'globe',
+    flatMap: { center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' },
+    initialCenter: { lat: 37.57, lon: 126.98 },
+    subsolar: calculateSubsolarPoint(new Date()),
+    transitionDuration: 600,
+    atmosphere: {
+        color: '#4f8dff',
+        intensity: 1.15,
+        power: 3.2
+    },
+    onCenterChange: ({ lat, lon }) => console.log(lat, lon)
+})`;
+    }
     if (kind === 'three-wafer') {
         return `createThreeWaferSeries({
     selector: 'demo-three-wafer',
@@ -3424,6 +3589,73 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'three-globe') {
+        return `import { createKChart } from '@keneth80/k-chart';
+import {
+    calculateSubsolarPoint,
+    createThreeGlobeSeries
+} from '@keneth80/k-chart-three';
+import '@keneth80/k-chart-three/style.css';
+
+const locations = [
+    { name: 'Seoul', lat: 37.5665, lon: 126.9780, region: 'Asia', priority: 3 },
+    { name: 'London', lat: 51.5072, lon: -0.1276, region: 'Europe', priority: 2 },
+    { name: 'New York', lat: 40.7128, lon: -74.0060, region: 'Americas', priority: 2 },
+    { name: 'Sydney', lat: -33.8688, lon: 151.2093, region: 'Oceania', priority: 2 },
+    { name: 'Sao Paulo', lat: -23.5505, lon: -46.6333, region: 'Americas', priority: 1 }
+];
+
+const globe = createThreeGlobeSeries<(typeof locations)[number]>({
+    selector: 'earth-at-night',
+    dayTexture: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
+    nightTexture: 'https://threejs.org/examples/textures/planets/earth_lights_2048.png',
+    projection: 'globe',
+    flatMap: { center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' },
+    initialCenter: { lat: 37.57, lon: 126.98 },
+    subsolar: calculateSubsolarPoint(new Date()),
+    transitionDuration: 600,
+    atmosphere: { color: '#4f8dff', intensity: 1.15, power: 3.2 },
+    markers: {
+        fields: { lat: 'lat', lon: 'lon' },
+        color: (point) => point.region === 'Asia' ? '#58e0c2' : '#ffcf70',
+        radius: (point) => 0.006 + point.priority * 0.0012,
+        surfaceOffset: 0.012
+    },
+    onCenterChange: ({ lat, lon }) => {
+        console.info('Drag settled', lat, lon);
+    }
+});
+
+const chart = createKChart({
+    selector: '#chart-div',
+    data: locations,
+    margin: { top: 58, right: 12, bottom: 74, left: 12 },
+    grid: { visible: false },
+    legend: { visible: false },
+    tooltip: { visible: false },
+    axes: [],
+    series: [globe]
+}).render();
+
+// Preset buttons move along the shortest longitude path.
+document.querySelector('[data-globe-center="seoul"]')
+    ?.addEventListener('click', () => {
+        globe.setCenter({ lat: 37.57, lon: 126.98 }, { duration: 600 });
+    });
+
+// Switch to a full-world equirectangular map without rebuilding the chart.
+document.querySelector('[data-earth-projection="flat"]')
+    ?.addEventListener('click', () => {
+        globe.setProjection('flat');
+        globe.setFlatView({ center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' });
+    });
+
+document.querySelector('[data-earth-projection="globe"]')
+    ?.addEventListener('click', () => globe.setProjection('globe'));
+
+// Textures are NASA-derived Blue Marble / Earth at night assets hosted by Three.js.
+// Keep attribution with the application; KChart does not bundle texture images.`;
+    }
     if (kind === 'subcell-heatmap') {
         return `import { createMapLibreFlatMap } from '@keneth80/k-chart-maplibre';
 import '@keneth80/k-chart-maplibre/style.css';
@@ -4274,6 +4506,8 @@ const renderExample = (kind: DemoKind): void => {
     scrollableDoughnutCompactLayout = kind === 'doughnut-scroll-legend'
         && (chartRoot.clientWidth || 760) < 680;
     chart?.destroy();
+    threeGlobeSeries = undefined;
+    threeGlobeStatus = undefined;
     subcellHeatmapApp?.destroy();
     subcellHeatmapApp = undefined;
     cesiumController?.destroy();
@@ -4290,6 +4524,7 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('sankey-chart', kind === 'sankey');
     chartRoot.classList.toggle('tree-chart', kind === 'tree');
     chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
+    chartRoot.classList.toggle('three-globe-chart', kind === 'three-globe');
     chartRoot.classList.toggle('doughnut-scroll-chart', kind === 'doughnut-scroll-legend');
     chartRoot.classList.toggle('subcell-heatmap-chart', kind === 'subcell-heatmap');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
@@ -4313,6 +4548,9 @@ const renderExample = (kind: DemoKind): void => {
         void setupCesiumDemo();
     } else {
         chart = createDemoChart(kind).render();
+        if (kind === 'three-globe') {
+            mountThreeGlobeControls();
+        }
         if (kind === 'doughnut-scroll-legend') {
             renderScrollableDoughnutLegend();
         }

@@ -4,6 +4,48 @@ import {
     createCustomSeries,
     type KChartSeries
 } from '@keneth80/k-chart';
+import {
+    bindGlobeDrag,
+    calculateSubsolarPoint,
+    cubicEaseOut,
+    latLonToEquirectangular,
+    latLonToVector,
+    normalizeCenter,
+    normalizeFlatMapView,
+    normalizeProjection,
+    prepareGlobeMarkers,
+    rotationFor,
+    shortestLongitudeDelta,
+    type KThreeFlatMapConfiguration,
+    type KThreeFlatMapLighting,
+    type KThreeFlatMapView,
+    type KThreeGlobeProjection,
+    type KThreeGlobeMarkerConfiguration,
+    type KThreePreparedGlobeMarker,
+    type LatLon
+} from './globe-utils';
+
+export {
+    calculateSubsolarPoint,
+    dragCenter,
+    latLonToEquirectangular,
+    latLonToVector,
+    normalizeFlatMapView,
+    prepareGlobeMarkers,
+    rotationFor,
+    wrapLon
+} from './globe-utils';
+export type {
+    KThreeFlatMapConfiguration,
+    KThreeFlatMapLighting,
+    KThreeFlatMapView,
+    KThreeGlobeProjection,
+    KThreeGlobeMarkerAccessor,
+    KThreeGlobeMarkerConfiguration,
+    KThreeGlobeMarkerFields,
+    KThreePreparedGlobeMarker,
+    LatLon
+} from './globe-utils';
 
 export type KThreeTuple3 = [number, number, number];
 
@@ -16,6 +58,7 @@ export interface KThreeSceneConfiguration {
     alpha?: boolean;
     antialias?: boolean;
     pixelRatio?: number;
+    canvasCursor?: string;
     camera?: {
         fov?: number;
         near?: number;
@@ -132,6 +175,47 @@ export interface KThreeWaferSeriesConfiguration<T = KThreeWaferDie>
     scene?: Omit<KThreeSceneConfiguration, 'canvas' | 'container' | 'width' | 'height'>;
 }
 
+export type KThreeGlobeTexture = string | CanvasImageSource | THREE.Texture;
+
+export interface KThreeGlobeAtmosphereConfiguration {
+    color?: THREE.ColorRepresentation;
+    intensity?: number;
+    power?: number;
+}
+
+export interface KThreeGlobeSeriesConfiguration<T = unknown> {
+    selector: string;
+    displayName?: string;
+    canvasName?: string;
+    dayTexture: KThreeGlobeTexture;
+    nightTexture?: KThreeGlobeTexture;
+    projection?: KThreeGlobeProjection;
+    flatMap?: KThreeFlatMapConfiguration;
+    initialCenter?: LatLon;
+    subsolar?: Date | LatLon | null;
+    onCenterChange?: (center: LatLon) => void;
+    transitionDuration?: number;
+    atmosphere?: boolean | KThreeGlobeAtmosphereConfiguration;
+    globeScale?: number;
+    markers?: KThreeGlobeMarkerConfiguration<T>;
+}
+
+export interface KThreeGlobeTransitionOptions {
+    duration?: number;
+    animate?: boolean;
+}
+
+export interface KThreeGlobeSeriesHandle<T = unknown> extends KChartSeries<T> {
+    getCenter(): LatLon;
+    setCenter(center: LatLon, options?: KThreeGlobeTransitionOptions): void;
+    getProjection(): KThreeGlobeProjection;
+    setProjection(projection: KThreeGlobeProjection): void;
+    getFlatView(): KThreeFlatMapView;
+    setFlatView(view: KThreeFlatMapConfiguration): void;
+    setSubsolar(point: LatLon | null): void;
+    setDate(date: Date | null): void;
+}
+
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
     pass: '#22f59a',
     warn: '#ffd166',
@@ -191,18 +275,36 @@ const addLights = (scene: THREE.Scene, mode: KThreeSceneConfiguration['lights'])
     }
 };
 
-const activateThreeCanvasInteraction = (canvas: HTMLCanvasElement): void => {
+const activateThreeCanvasInteraction = (
+    canvas: HTMLCanvasElement,
+    cursor = 'grab'
+): void => {
+    canvas.classList.add('kchart-three-canvas');
     canvas.style.position = canvas.style.position || 'absolute';
     canvas.style.pointerEvents = 'auto';
     canvas.style.setProperty('z-index', '8', 'important');
     canvas.style.touchAction = 'none';
-    canvas.style.cursor = 'grab';
+    canvas.style.cursor = cursor;
 };
 
-const scheduleThreeCanvasInteraction = (canvas: HTMLCanvasElement): void => {
-    activateThreeCanvasInteraction(canvas);
-    requestAnimationFrame(() => activateThreeCanvasInteraction(canvas));
-    window.setTimeout(() => activateThreeCanvasInteraction(canvas), 0);
+const scheduleThreeCanvasInteraction = (
+    canvas: HTMLCanvasElement,
+    cursor?: string
+): (() => void) => {
+    const scheduledCursor = cursor ?? 'grab';
+    const restoreInteraction = (): void => {
+        // Do not overwrite a projection switch that changed the cursor after scheduling.
+        if (!canvas.style.cursor || canvas.style.cursor === scheduledCursor) {
+            activateThreeCanvasInteraction(canvas, scheduledCursor);
+        }
+    };
+    activateThreeCanvasInteraction(canvas, scheduledCursor);
+    const frame = window.requestAnimationFrame(restoreInteraction);
+    const timeout = window.setTimeout(restoreInteraction, 0);
+    return () => {
+        window.cancelAnimationFrame(frame);
+        window.clearTimeout(timeout);
+    };
 };
 
 export const createKThreeScene = <T = unknown>(
@@ -216,14 +318,19 @@ export const createKThreeScene = <T = unknown>(
     }
     host.style.position = host.style.position || 'relative';
     canvas.classList.add('kchart-three-canvas');
-    scheduleThreeCanvasInteraction(canvas);
+    const cancelScheduledCanvasInteraction = scheduleThreeCanvasInteraction(
+        canvas,
+        configuration.canvasCursor
+    );
 
     const renderer = new THREE.WebGLRenderer({
         canvas,
         antialias: configuration.antialias ?? true,
         alpha: configuration.alpha ?? true
     });
-    renderer.setPixelRatio(configuration.pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2));
+    const resolvePixelRatio = (): number =>
+        configuration.pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(resolvePixelRatio());
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(configuration.backgroundColor ?? '#08111f', configuration.alpha === false ? 1 : 0);
 
@@ -301,6 +408,7 @@ export const createKThreeScene = <T = unknown>(
             controller.render();
         },
         resize(width = host.clientWidth || configuration.width || 640, height = host.clientHeight || configuration.height || 420) {
+            renderer.setPixelRatio(resolvePixelRatio());
             renderer.setSize(width, height, false);
             camera.aspect = width / Math.max(height, 1);
             camera.updateProjectionMatrix();
@@ -330,11 +438,13 @@ export const createKThreeScene = <T = unknown>(
         },
         destroy() {
             controller.stop();
+            cancelScheduledCanvasInteraction();
             canvas.removeEventListener('pointermove', handlePointerMove);
             canvas.removeEventListener('click', handleClick);
             objects.forEach((object) => object.destroy?.());
             controls?.dispose();
             renderer.dispose();
+            renderer.forceContextLoss();
             if (!configuration.canvas) {
                 canvas.remove();
             }
@@ -349,6 +459,716 @@ export const createKThreeScene = <T = unknown>(
         controller.start();
     }
     return controller;
+};
+
+interface KThreeGlobeObject<T> extends KThreeObject<T> {
+    getDiameter(): number;
+    setCenter(center: LatLon): void;
+    setProjection(projection: KThreeGlobeProjection): void;
+    setFlatView(view: KThreeFlatMapView): void;
+    setSubsolar(point: LatLon | null): void;
+}
+
+const GLOBE_VERTEX_SHADER = `
+    varying vec2 vUv;
+    varying vec3 vDir;
+
+    void main() {
+        vUv = uv;
+        float latitude = (uv.y - 0.5) * 3.141592653589793;
+        float longitude = (uv.x - 0.5) * 6.283185307179586;
+        float cosLatitude = cos(latitude);
+        vDir = vec3(
+            cosLatitude * cos(longitude),
+            sin(latitude),
+            -cosLatitude * sin(longitude)
+        );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const GLOBE_FRAGMENT_SHADER = `
+    uniform sampler2D uDayTexture;
+    uniform sampler2D uNightTexture;
+    uniform float uHasNightTexture;
+    uniform float uHasSubsolar;
+    uniform float uLightingMode;
+    uniform vec3 uSubsolarDirection;
+    varying vec2 vUv;
+    varying vec3 vDir;
+
+    void main() {
+        vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
+        vec3 fallbackNight = dayColor * 0.16 + vec3(0.004, 0.008, 0.020);
+        vec3 nightColor = uHasNightTexture > 0.5
+            ? texture2D(uNightTexture, vUv).rgb
+            : fallbackNight;
+        float daylight = uHasSubsolar > 0.5
+            ? smoothstep(-0.08, 0.12, dot(normalize(vDir), normalize(uSubsolarDirection)))
+            : 1.0;
+        if (uLightingMode < 0.5) {
+            daylight = 0.0;
+        } else if (uLightingMode < 1.5) {
+            daylight = 1.0;
+        }
+        gl_FragColor = vec4(mix(nightColor, dayColor, daylight), 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+    }
+`;
+
+const ATMOSPHERE_VERTEX_SHADER = `
+    varying vec3 vWorldNormal;
+    varying vec3 vWorldPosition;
+
+    void main() {
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    }
+`;
+
+const ATMOSPHERE_FRAGMENT_SHADER = `
+    uniform vec3 uColor;
+    uniform float uIntensity;
+    uniform float uPower;
+    varying vec3 vWorldNormal;
+    varying vec3 vWorldPosition;
+
+    void main() {
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        float rim = pow(max(0.0, 1.0 - abs(dot(normalize(vWorldNormal), viewDirection))), uPower);
+        gl_FragColor = vec4(uColor, rim * uIntensity);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+    }
+`;
+
+const isThreeTexture = (value: KThreeGlobeTexture): value is THREE.Texture =>
+    Boolean((value as THREE.Texture).isTexture);
+
+const resolveSubsolar = (value: Date | LatLon | null | undefined): LatLon | null => {
+    if (value instanceof Date) {
+        return calculateSubsolarPoint(value);
+    }
+    return value ? normalizeCenter(value, 90) : null;
+};
+
+const createThreeGlobeObject = <T>(
+    configuration: KThreeGlobeSeriesConfiguration<T>,
+    initialCenter: LatLon,
+    initialSubsolar: LatLon | null,
+    initialProjection: KThreeGlobeProjection,
+    initialFlatView: KThreeFlatMapView,
+    requestRender: () => void
+): KThreeGlobeObject<T> => {
+    const globeScale = Number.isFinite(configuration.globeScale)
+        ? Math.max(0.1, configuration.globeScale as number)
+        : 1;
+    const ownedTextures = new Set<THREE.Texture>();
+    let context: KThreeSceneContext<T> | undefined;
+    let rootGroup: THREE.Group | undefined;
+    let globeGroup: THREE.Group | undefined;
+    let flatGroup: THREE.Group | undefined;
+    let globeGeometry: THREE.SphereGeometry | undefined;
+    let flatGeometry: THREE.PlaneGeometry | undefined;
+    let earthMaterial: THREE.ShaderMaterial | undefined;
+    let atmosphereGeometry: THREE.SphereGeometry | undefined;
+    let atmosphereMaterial: THREE.ShaderMaterial | undefined;
+    let markerGeometry: THREE.SphereGeometry | undefined;
+    let markerMaterial: THREE.MeshBasicMaterial | undefined;
+    let markerMesh: THREE.InstancedMesh | undefined;
+    let markerData: readonly T[] | undefined;
+    let markers: KThreePreparedGlobeMarker<T>[] = [];
+    let center = initialCenter;
+    let subsolar = initialSubsolar;
+    let projection = initialProjection;
+    let flatView = initialFlatView;
+    let globeDiameter = 1;
+    let destroyed = false;
+
+    const textureLoader = new THREE.TextureLoader();
+    const resolveTexture = (source: KThreeGlobeTexture): THREE.Texture => {
+        if (isThreeTexture(source)) {
+            return source;
+        }
+        if (typeof source === 'string') {
+            const texture = textureLoader.load(
+                source,
+                (loadedTexture) => {
+                    loadedTexture.colorSpace = THREE.SRGBColorSpace;
+                    if (destroyed) {
+                        loadedTexture.dispose();
+                        return;
+                    }
+                    requestRender();
+                },
+                undefined,
+                () => {
+                    if (!destroyed) {
+                        requestRender();
+                    }
+                }
+            );
+            texture.colorSpace = THREE.SRGBColorSpace;
+            ownedTextures.add(texture);
+            return texture;
+        }
+        const texture = new THREE.Texture(source);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        ownedTextures.add(texture);
+        return texture;
+    };
+
+    const updateRotation = (): void => {
+        globeGroup?.quaternion.copy(rotationFor(center));
+    };
+
+    const updateSubsolarUniform = (): void => {
+        if (!earthMaterial) {
+            return;
+        }
+        earthMaterial.uniforms.uHasSubsolar.value = subsolar ? 1 : 0;
+        if (subsolar) {
+            (earthMaterial.uniforms.uSubsolarDirection.value as THREE.Vector3)
+                .copy(latLonToVector(subsolar));
+        }
+    };
+
+    const updateLightingUniform = (): void => {
+        if (!earthMaterial) {
+            return;
+        }
+        const lighting: KThreeFlatMapLighting = projection === 'globe'
+            ? 'dynamic'
+            : flatView.lighting;
+        earthMaterial.uniforms.uLightingMode.value = lighting === 'night'
+            ? 0
+            : lighting === 'day'
+                ? 1
+                : 2;
+    };
+
+    const updateFlatTransform = (): void => {
+        if (!flatGroup) {
+            return;
+        }
+        const centerPosition = latLonToEquirectangular(
+            flatView.center,
+            globeScale * 2
+        );
+        flatGroup.scale.set(flatView.zoom, flatView.zoom, 1);
+        flatGroup.position.set(
+            -centerPosition.x * flatView.zoom,
+            -centerPosition.y * flatView.zoom,
+            0
+        );
+    };
+
+    const removeMarkerMesh = (): void => {
+        if (!markerMesh) {
+            return;
+        }
+        markerMesh.parent?.remove(markerMesh);
+        markerMesh.dispose();
+        markerMesh = undefined;
+    };
+
+    const updateMarkerMatrices = (): void => {
+        if (!markerMesh) {
+            return;
+        }
+        const matrix = new THREE.Matrix4();
+        const quaternion = new THREE.Quaternion();
+        const scale = new THREE.Vector3();
+        markers.forEach((marker, index) => {
+            let position: THREE.Vector3;
+            if (projection === 'globe') {
+                position = latLonToVector(
+                    marker,
+                    globeScale * (1 + marker.surfaceOffset)
+                );
+            } else {
+                position = latLonToEquirectangular(
+                    {lat: marker.lat, lon: flatView.center.lon},
+                    globeScale * 2,
+                    globeScale * (0.008 + marker.surfaceOffset)
+                );
+                position.x += shortestLongitudeDelta(
+                    flatView.center.lon,
+                    marker.lon
+                ) * globeScale * 2 / 360;
+            }
+            const markerScale = globeScale * marker.radius;
+            if (projection === 'flat') {
+                scale.set(
+                    markerScale / flatView.zoom,
+                    markerScale / flatView.zoom,
+                    markerScale
+                );
+            } else {
+                scale.setScalar(markerScale);
+            }
+            matrix.compose(position, quaternion, scale);
+            markerMesh?.setMatrixAt(index, matrix);
+        });
+        markerMesh.instanceMatrix.needsUpdate = true;
+        markerMesh.computeBoundingSphere();
+    };
+
+    const updateProjectionGroups = (): void => {
+        updateLightingUniform();
+        if (globeGroup) {
+            globeGroup.visible = projection === 'globe';
+        }
+        if (flatGroup) {
+            flatGroup.visible = projection === 'flat';
+        }
+        if (markerMesh) {
+            markerMesh.parent?.remove(markerMesh);
+            (projection === 'globe' ? globeGroup : flatGroup)?.add(markerMesh);
+            updateMarkerMatrices();
+        }
+    };
+
+    const updateMarkers = (data: readonly T[]): void => {
+        if (
+            !configuration.markers
+            || !globeGroup
+            || !flatGroup
+            || !markerGeometry
+            || !markerMaterial
+        ) {
+            return;
+        }
+        markers = prepareGlobeMarkers(data, configuration.markers);
+        removeMarkerMesh();
+        if (!markers.length) {
+            return;
+        }
+
+        markerMesh = new THREE.InstancedMesh(markerGeometry, markerMaterial, markers.length);
+        markerMesh.name = 'kchart-three-globe-markers';
+        const color = new THREE.Color();
+        markers.forEach((marker, index) => {
+            markerMesh?.setColorAt(index, color.set(marker.color));
+        });
+        if (markerMesh.instanceColor) {
+            markerMesh.instanceColor.needsUpdate = true;
+        }
+        (projection === 'globe' ? globeGroup : flatGroup).add(markerMesh);
+        updateMarkerMatrices();
+    };
+
+    const updateCameraAndDiameter = (nextContext: KThreeSceneContext<T>): void => {
+        const bounds = nextContext.canvas.getBoundingClientRect();
+        const pixelRatio = Math.max(nextContext.renderer.getPixelRatio(), 1);
+        const width = bounds.width || nextContext.canvas.width / pixelRatio || 1;
+        const height = bounds.height || nextContext.canvas.height / pixelRatio || 1;
+        const tangent = Math.tan(THREE.MathUtils.degToRad(nextContext.camera.fov) / 2);
+        if (projection === 'flat') {
+            const aspect = width / Math.max(height, 1);
+            const fittedHeight = Math.max(globeScale, globeScale * 2 / aspect);
+            const cameraDistance = fittedHeight / (2 * tangent) * 1.02;
+            nextContext.camera.position.set(0, 0, cameraDistance);
+            nextContext.camera.near = Math.max(0.001, cameraDistance / 100);
+            nextContext.camera.far = cameraDistance + globeScale * 4;
+            nextContext.camera.lookAt(0, 0, 0);
+            nextContext.camera.updateProjectionMatrix();
+            return;
+        }
+
+        const unitDiameter = Math.max(1, Math.min(width, height) * 0.82);
+        const projectionRatio = Math.max(unitDiameter * tangent / height, 0.001);
+        const cameraDistance = globeScale * Math.sqrt(
+            1 + 1 / (projectionRatio * projectionRatio)
+        );
+        nextContext.camera.position.set(0, 0, cameraDistance);
+        nextContext.camera.near = Math.max(0.01, cameraDistance - globeScale * 2);
+        nextContext.camera.far = cameraDistance + globeScale * 4;
+        nextContext.camera.lookAt(0, 0, 0);
+        nextContext.camera.updateProjectionMatrix();
+        const tangentDistance = Math.sqrt(Math.max(
+            cameraDistance * cameraDistance - globeScale * globeScale,
+            0.001
+        ));
+        globeDiameter = globeScale / tangentDistance * height / tangent;
+    };
+
+    return {
+        attach(nextContext) {
+            context = nextContext;
+            destroyed = false;
+            rootGroup = new THREE.Group();
+            rootGroup.name = 'kchart-three-earth';
+            globeGroup = new THREE.Group();
+            globeGroup.name = 'kchart-three-globe';
+            flatGroup = new THREE.Group();
+            flatGroup.name = 'kchart-three-flat-map';
+            rootGroup.add(globeGroup, flatGroup);
+
+            const dayTexture = resolveTexture(configuration.dayTexture);
+            const nightTexture = configuration.nightTexture
+                ? resolveTexture(configuration.nightTexture)
+                : dayTexture;
+            globeGeometry = new THREE.SphereGeometry(globeScale, 96, 64);
+            flatGeometry = new THREE.PlaneGeometry(globeScale * 2, globeScale, 1, 1);
+            earthMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    uDayTexture: {value: dayTexture},
+                    uNightTexture: {value: nightTexture},
+                    uHasNightTexture: {value: configuration.nightTexture ? 1 : 0},
+                    uHasSubsolar: {value: subsolar ? 1 : 0},
+                    uLightingMode: {value: 2},
+                    uSubsolarDirection: {value: new THREE.Vector3(1, 0, 0)}
+                },
+                vertexShader: GLOBE_VERTEX_SHADER,
+                fragmentShader: GLOBE_FRAGMENT_SHADER,
+                depthWrite: true,
+                depthTest: true,
+                toneMapped: false
+            });
+            const globeMesh = new THREE.Mesh(globeGeometry, earthMaterial);
+            globeMesh.name = 'kchart-three-globe-surface';
+            globeGroup.add(globeMesh);
+            const flatMesh = new THREE.Mesh(flatGeometry, earthMaterial);
+            flatMesh.name = 'kchart-three-flat-map-surface';
+            flatGroup.add(flatMesh);
+            [-1, 1].forEach((worldOffset) => {
+                const wrappedMesh = new THREE.Mesh(flatGeometry, earthMaterial);
+                wrappedMesh.name = `kchart-three-flat-map-wrap-${worldOffset}`;
+                wrappedMesh.position.x = worldOffset * globeScale * 2;
+                flatGroup?.add(wrappedMesh);
+            });
+
+            if (configuration.atmosphere) {
+                const atmosphere = configuration.atmosphere === true
+                    ? {}
+                    : configuration.atmosphere;
+                atmosphereGeometry = new THREE.SphereGeometry(globeScale * 1.045, 96, 64);
+                atmosphereMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uColor: {value: new THREE.Color(atmosphere.color ?? '#68a7ff')},
+                        uIntensity: {value: atmosphere.intensity ?? 0.72},
+                        uPower: {value: atmosphere.power ?? 3}
+                    },
+                    vertexShader: ATMOSPHERE_VERTEX_SHADER,
+                    fragmentShader: ATMOSPHERE_FRAGMENT_SHADER,
+                    transparent: true,
+                    depthWrite: false,
+                    depthTest: true,
+                    side: THREE.BackSide,
+                    blending: THREE.AdditiveBlending,
+                    toneMapped: false
+                });
+                const atmosphereMesh = new THREE.Mesh(
+                    atmosphereGeometry,
+                    atmosphereMaterial
+                );
+                atmosphereMesh.name = 'kchart-three-globe-atmosphere';
+                globeGroup.add(atmosphereMesh);
+            }
+
+            if (configuration.markers) {
+                markerGeometry = new THREE.SphereGeometry(1, 12, 8);
+                markerMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    toneMapped: false
+                });
+            }
+
+            nextContext.scene.add(rootGroup);
+            updateRotation();
+            updateFlatTransform();
+            updateSubsolarUniform();
+            updateProjectionGroups();
+            updateCameraAndDiameter(nextContext);
+        },
+        resize(nextContext) {
+            updateCameraAndDiameter(nextContext);
+        },
+        setData(nextData) {
+            if (nextData === markerData) {
+                return;
+            }
+            markerData = nextData;
+            updateMarkers(nextData);
+        },
+        getDiameter() {
+            return globeDiameter;
+        },
+        setCenter(nextCenter) {
+            center = normalizeCenter(nextCenter);
+            updateRotation();
+        },
+        setProjection(nextProjection) {
+            projection = normalizeProjection(nextProjection);
+            updateProjectionGroups();
+            if (context) {
+                updateCameraAndDiameter(context);
+            }
+        },
+        setFlatView(nextFlatView) {
+            flatView = normalizeFlatMapView(nextFlatView, flatView);
+            updateFlatTransform();
+            updateLightingUniform();
+            if (projection === 'flat') {
+                updateMarkerMatrices();
+            }
+        },
+        setSubsolar(nextSubsolar) {
+            subsolar = nextSubsolar ? normalizeCenter(nextSubsolar, 90) : null;
+            updateSubsolarUniform();
+        },
+        destroy() {
+            destroyed = true;
+            if (rootGroup) {
+                context?.scene.remove(rootGroup);
+            }
+            removeMarkerMesh();
+            globeGeometry?.dispose();
+            flatGeometry?.dispose();
+            earthMaterial?.dispose();
+            atmosphereGeometry?.dispose();
+            atmosphereMaterial?.dispose();
+            markerGeometry?.dispose();
+            markerMaterial?.dispose();
+            ownedTextures.forEach((texture) => texture.dispose());
+            ownedTextures.clear();
+            rootGroup = undefined;
+            globeGroup = undefined;
+            flatGroup = undefined;
+            globeGeometry = undefined;
+            flatGeometry = undefined;
+            earthMaterial = undefined;
+            atmosphereGeometry = undefined;
+            atmosphereMaterial = undefined;
+            markerGeometry = undefined;
+            markerMaterial = undefined;
+            markerData = undefined;
+            markers = [];
+            context = undefined;
+        }
+    };
+};
+
+export const createThreeGlobeSeries = <T = unknown>(
+    configuration: KThreeGlobeSeriesConfiguration<T>
+): KThreeGlobeSeriesHandle<T> => {
+    const transitionDuration = Math.max(0, configuration.transitionDuration ?? 600);
+    let center = normalizeCenter(configuration.initialCenter ?? {lat: 0, lon: 0});
+    let subsolar = resolveSubsolar(configuration.subsolar);
+    let projection = normalizeProjection(configuration.projection);
+    let flatView = normalizeFlatMapView(configuration.flatMap);
+    let controller: KThreeSceneController<T> | undefined;
+    let globeObject: KThreeGlobeObject<T> | undefined;
+    let canvas: HTMLCanvasElement | undefined;
+    let removeDragListeners: (() => void) | undefined;
+    let renderFrame = 0;
+    let tweenFrame = 0;
+    let currentData: readonly T[] | undefined;
+    let destroyed = false;
+
+    const cancelTween = (): void => {
+        if (tweenFrame) {
+            window.cancelAnimationFrame(tweenFrame);
+            tweenFrame = 0;
+        }
+    };
+
+    const requestRender = (): void => {
+        if (destroyed || !controller || renderFrame) {
+            return;
+        }
+        renderFrame = window.requestAnimationFrame(() => {
+            renderFrame = 0;
+            if (!destroyed) {
+                controller?.render();
+            }
+        });
+    };
+
+    const applyCenter = (nextCenter: LatLon): void => {
+        center = normalizeCenter(nextCenter);
+        globeObject?.setCenter(center);
+    };
+
+    const syncCanvasInteraction = (): void => {
+        if (canvas) {
+            activateThreeCanvasInteraction(
+                canvas,
+                projection === 'globe' ? 'grab' : 'default'
+            );
+        }
+    };
+
+    const teardownScene = (): void => {
+        cancelTween();
+        if (renderFrame) {
+            window.cancelAnimationFrame(renderFrame);
+            renderFrame = 0;
+        }
+        removeDragListeners?.();
+        removeDragListeners = undefined;
+        controller?.destroy();
+        controller = undefined;
+        globeObject = undefined;
+        canvas = undefined;
+        currentData = undefined;
+    };
+
+    const setCenter = (
+        nextCenter: LatLon,
+        options: KThreeGlobeTransitionOptions = {}
+    ): void => {
+        const target = normalizeCenter(nextCenter);
+        const duration = Math.max(0, options.duration ?? transitionDuration);
+        const animate = options.animate ?? duration > 0;
+        cancelTween();
+        if (!animate || duration === 0 || !controller) {
+            applyCenter(target);
+            requestRender();
+            return;
+        }
+
+        const start = {...center};
+        const longitudeDelta = shortestLongitudeDelta(start.lon, target.lon);
+        const startedAt = performance.now();
+        const step = (now: number): void => {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            const eased = cubicEaseOut(progress);
+            applyCenter({
+                lat: start.lat + (target.lat - start.lat) * eased,
+                lon: start.lon + longitudeDelta * eased
+            });
+            controller?.render();
+            if (progress < 1 && !destroyed) {
+                tweenFrame = window.requestAnimationFrame(step);
+            } else {
+                tweenFrame = 0;
+                applyCenter(target);
+                controller?.render();
+            }
+        };
+        tweenFrame = window.requestAnimationFrame(step);
+    };
+
+    const series = createCustomSeries<T>({
+        selector: configuration.selector,
+        displayName: configuration.displayName,
+        pointerEvents: 'series',
+        render({getWebglCanvas, data, plotSize}) {
+            destroyed = false;
+            const nextCanvas = getWebglCanvas(configuration.canvasName ?? configuration.selector);
+            // KChart normalizes shared canvas styles before each series render.
+            // Re-apply the interaction layer so repeated chart renders keep drag input enabled.
+            activateThreeCanvasInteraction(
+                nextCanvas,
+                projection === 'globe' ? 'grab' : 'default'
+            );
+            if (!controller || canvas !== nextCanvas) {
+                teardownScene();
+                canvas = nextCanvas;
+                controller = createKThreeScene<T>({
+                    canvas,
+                    width: plotSize.width,
+                    height: plotSize.height,
+                    alpha: true,
+                    backgroundColor: 0x000000,
+                    antialias: true,
+                    pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+                    camera: {
+                        fov: 40,
+                        near: 0.01,
+                        far: 100,
+                        position: [0, 0, 3.2],
+                        lookAt: [0, 0, 0]
+                    },
+                    controls: false,
+                    lights: 'none',
+                    canvasCursor: projection === 'globe' ? 'grab' : 'default',
+                    autoStart: false
+                });
+                globeObject = createThreeGlobeObject(
+                    configuration,
+                    center,
+                    subsolar,
+                    projection,
+                    flatView,
+                    requestRender
+                );
+                controller.add(globeObject);
+                removeDragListeners = bindGlobeDrag(nextCanvas, {
+                    getCenter: () => center,
+                    getDiameter: () => globeObject?.getDiameter() ?? 1,
+                    setCenter: applyCenter,
+                    cancelTween,
+                    requestRender,
+                    isEnabled: () => projection === 'globe',
+                    onCenterChange: configuration.onCenterChange
+                });
+                syncCanvasInteraction();
+            }
+            if (configuration.markers && currentData !== data) {
+                currentData = data;
+                controller.setData(data);
+            }
+            // KChart may reset a reused canvas even when plot dimensions are unchanged.
+            // Reassert DPR/backing size and draw once without starting an animation loop.
+            controller.resize(plotSize.width, plotSize.height);
+        },
+        destroy() {
+            destroyed = true;
+            teardownScene();
+        }
+    });
+
+    return Object.assign(series, {
+        getCenter: (): LatLon => ({...center}),
+        setCenter,
+        getProjection: (): KThreeGlobeProjection => projection,
+        setProjection(nextProjection: KThreeGlobeProjection): void {
+            const normalized = normalizeProjection(nextProjection);
+            if (projection === normalized) {
+                return;
+            }
+            projection = normalized;
+            globeObject?.setProjection(projection);
+            syncCanvasInteraction();
+            requestRender();
+        },
+        getFlatView: (): KThreeFlatMapView => ({
+            center: {...flatView.center},
+            zoom: flatView.zoom,
+            lighting: flatView.lighting
+        }),
+        setFlatView(nextFlatView: KThreeFlatMapConfiguration): void {
+            const normalized = normalizeFlatMapView(nextFlatView, flatView);
+            if (
+                normalized.zoom === flatView.zoom
+                && normalized.center.lat === flatView.center.lat
+                && normalized.center.lon === flatView.center.lon
+                && normalized.lighting === flatView.lighting
+            ) {
+                return;
+            }
+            flatView = normalized;
+            globeObject?.setFlatView(flatView);
+            requestRender();
+        },
+        setSubsolar(nextSubsolar: LatLon | null): void {
+            subsolar = nextSubsolar ? normalizeCenter(nextSubsolar, 90) : null;
+            globeObject?.setSubsolar(subsolar);
+            requestRender();
+        },
+        setDate(date: Date | null): void {
+            subsolar = date ? calculateSubsolarPoint(date) : null;
+            globeObject?.setSubsolar(subsolar);
+            requestRender();
+        }
+    });
 };
 
 const normalizeValue = (value: number | undefined, range: [number, number]): number => {

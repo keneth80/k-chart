@@ -654,6 +654,75 @@ WebGL point는 현재 interleaved buffer `[x, y, size]` 구조로 GPU에 전달�
 
 `bubbles`와 `markers`의 좌표는 일반적인 위도/경도입니다. 내부에서는 `projection([lon, lat])` 순서로 변환하므로 옵션에는 `{lat, lon}`으로 전달하면 됩니다. `markers[].imageUrl`은 원형 `clipPath`로 렌더링되며, `markers[].onClick`은 marker 데이터와 SVG 좌표를 함께 전달합니다.
 
+### Three.js WebGL Globe: `createThreeGlobeSeries`
+
+`@keneth80/k-chart-three`의 선택 시리즈입니다. Three.js는 peer dependency이므로 이 패키지를 설치하고 import한 애플리케이션에만 포함됩니다.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `dayTexture` | `string \| image \| THREE.Texture` | required | 경도 -180°가 왼쪽이고 북극이 위인 equirectangular 낮 텍스처입니다. |
+| `nightTexture` | `string \| image \| THREE.Texture` | - | 밤 영역에 합성할 도시 불빛 텍스처입니다. 없으면 낮 텍스처를 어둡게 처리합니다. |
+| `projection` | `'globe' \| 'flat'` | `'globe'` | 3D 지구본 또는 2:1 equirectangular 평면 세계지도를 선택합니다. 런타임에도 변경할 수 있습니다. |
+| `flatMap` | `{center?, zoom?, lighting?}` | `{center: {lat: 0, lon: 0}, zoom: 1, lighting: 'night'}` | 평면 지도의 중심, 확대 배율, 조명 모드입니다. zoom 1은 전 세계 전체를 표시하며 `lighting`은 `night`, `day`, `dynamic` 중 선택합니다. |
+| `initialCenter` | `{lat, lon}` | `{0, 0}` | 초기 화면 중심입니다. 위도는 ±80°로 제한되고 경도는 -180~180°로 감깁니다. |
+| `subsolar` | `{lat, lon} \| Date \| null` | `null` | 태양 직하점 또는 계산할 시각입니다. null이면 전체가 밝게 표시됩니다. |
+| `transitionDuration` | `number` | `600` | 외부 중심 변경의 ease-out 시간(ms)입니다. |
+| `globeScale` | `number` | `1` | 지구본의 정적 화면 비율입니다. 사용자 확대/축소 기능은 아닙니다. |
+| `atmosphere` | `boolean \| {color, intensity, power}` | disabled | 외곽의 Fresnel 대기광입니다. |
+| `markers` | `{fields, color?, radius?, surfaceOffset?}` | disabled | 차트 데이터의 위도·경도 필드를 `InstancedMesh` 표면 마커로 표시합니다. 스타일 값은 상수 또는 `(datum, index) => value` 접근자입니다. |
+| `onCenterChange` | `(center) => void` | - | 3 CSS px를 초과한 사용자 드래그가 끝날 때만 호출됩니다. |
+
+팩토리는 일반 `KChartSeries`에 `getCenter()`, `setCenter()`, `getProjection()`, `setProjection()`, `getFlatView()`, `setFlatView()`, `setSubsolar()`, `setDate()`가 추가된 핸들을 반환합니다. `setProjection()`은 동일한 텍스처·데이터·Three.js 장면을 유지한 채 지구본과 평면 세계지도를 전환합니다. `setCenter()`는 날짜변경선을 가로지르는 가장 짧은 경도 경로를 사용하며 프로그램 이동은 `onCenterChange`를 호출하지 않습니다. 렌더링은 drag, tween, resize, texture load, 태양 위치 변경 때만 수행되고 유휴 상태에는 animation frame을 유지하지 않습니다.
+
+```ts
+type Location = {
+    name: string;
+    lat: number;
+    lon: number;
+    priority: number;
+};
+
+const locations: Location[] = [
+    {name: 'Seoul', lat: 37.5665, lon: 126.9780, priority: 3},
+    {name: 'London', lat: 51.5072, lon: -0.1276, priority: 2},
+    {name: 'New York', lat: 40.7128, lon: -74.0060, priority: 2}
+];
+
+const globe = createThreeGlobeSeries<Location>({
+    selector: 'earth',
+    dayTexture: blueMarbleUrl,
+    nightTexture: blackMarbleUrl,
+    projection: 'globe',
+    flatMap: {center: {lat: 0, lon: 0}, zoom: 1, lighting: 'night'},
+    initialCenter: {lat: 37.57, lon: 126.98},
+    subsolar: calculateSubsolarPoint(new Date()),
+    atmosphere: {color: '#4f8dff', intensity: 1.15, power: 3.2},
+    markers: {
+        fields: {lat: 'lat', lon: 'lon'},
+        color: '#ffcf70',
+        radius: (point) => 0.006 + point.priority * 0.0012,
+        surfaceOffset: 0.012
+    },
+    onCenterChange: ({lat, lon}) => console.info(lat, lon)
+});
+
+createKChart({
+    selector: '#chart',
+    data: locations,
+    axes: [],
+    series: [globe]
+}).render();
+
+globe.setCenter({lat: 48.86, lon: 2.35}, {duration: 600});
+globe.setProjection('flat');
+globe.setFlatView({center: {lat: 0, lon: 0}, zoom: 1, lighting: 'night'}); // full world
+globe.setFlatView({center: {lat: 37.57, lon: 126.98}, zoom: 3.2}); // regional focus
+globe.setFlatView({lighting: 'dynamic'}); // optional live day/night terminator
+```
+
+텍스처 이미지는 KChart에 포함되지 않습니다. 예제는 NASA 기반 Blue Marble 및 Earth at Night 자산을 참조하며, 실제 서비스는 텍스처의 출처·라이선스·CORS 정책을 애플리케이션에서 관리해야 합니다.
+URL 또는 `CanvasImageSource`로 전달한 텍스처는 시리즈가 생성하고 `destroy()`에서 정리합니다. 이미 생성된 `THREE.Texture`를 전달하면 공유 자산으로 간주하여 자동으로 해제하지 않으므로, 마지막 사용자가 직접 `dispose()`해야 합니다.
+
 ### SVG Globe: `createSvgGlobeSeries`
 
 | Field | Type | Default | Description |
