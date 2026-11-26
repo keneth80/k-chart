@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
     bindGlobeDrag,
+    advanceGlobeCenter,
+    createGlobeSurfaceProjector,
     calculateSubsolarPoint,
     dragCenter,
     latLonToEquirectangular,
@@ -308,7 +310,7 @@ test('cleanup removes listeners, releases capture, and restores canvas styles', 
         cancelTween: () => {},
         requestRender: () => {}
     });
-    assert.equal(canvas.listenerCount(), 4);
+    assert.equal(canvas.listenerCount(), 5);
     assert.equal(canvas.style.touchAction, 'none');
     assert.equal(canvas.style.cursor, 'grab');
 
@@ -320,4 +322,65 @@ test('cleanup removes listeners, releases capture, and restores canvas styles', 
     assert.equal(canvas.releaseCount, 1);
     assert.equal(canvas.style.touchAction, 'pan-y');
     assert.equal(canvas.style.cursor, 'crosshair');
+});
+
+test('axial rotation preserves latitude, wraps longitude, and uses elapsed seconds', () => {
+    assert.deepEqual(advanceGlobeCenter({lat: 37, lon: -179}, 6, 1000), {lat: 37, lon: 175});
+    assert.deepEqual(advanceGlobeCenter({lat: 37, lon: 179}, -6, 1000), {lat: 37, lon: -175});
+    assert.deepEqual(advanceGlobeCenter({lat: 37, lon: 20}, 6, -100), {lat: 37, lon: 20});
+    let center = {lat: 24, lon: 100};
+    for (let index = 0; index < 100; index += 1) {
+        center = advanceGlobeCenter(center, 6, 10);
+    }
+    closeTo(center.lon, 94, 1e-9, 'frame-rate-independent longitude');
+});
+
+test('surface projector matches both endpoints including wrapped views and polar seams', () => {
+    const center = {lat: 37, lon: 126};
+    const flat = {center: {lat: 30, lon: 170}, zoom: 4, lighting: 'night'};
+    const projectGlobe = createGlobeSurfaceProjector(0, center, flat, 2);
+    const projectFlat = createGlobeSurfaceProjector(1, center, flat, 2);
+    for (const lat of [-90, -45, 0, 45, 90]) {
+        for (const lon of [-10, 0, 126, 170, 180, 185, 350]) {
+            const point = {lat, lon};
+            const globe = latLonToVector(point, 2).applyQuaternion(rotationFor(center));
+            closeTo(projectGlobe(point).distanceTo(globe), 0, 1e-12, 'sphere endpoint');
+            const position = projectFlat(point);
+            closeTo(position.x, (lon - 170) / 180 * 2 * 4, 1e-12, 'flat x');
+            closeTo(position.y, (lat - 30) / 180 * 2 * 4, 1e-12, 'flat y');
+            closeTo(position.z, 0, 1e-12, 'flat z');
+            let previous;
+            for (let step = 0; step <= 100; step += 1) {
+                const position = createGlobeSurfaceProjector(step / 100, center, flat, 2)(point, 0.01);
+                assert.ok(position.toArray().every(Number.isFinite));
+                if (previous) {
+                    assert.ok(position.distanceTo(previous) < 0.5, 'continuous surface path');
+                }
+                previous = position;
+            }
+        }
+    }
+    const left = projectFlat({lat: 0, lon: -10});
+    const right = projectFlat({lat: 0, lon: 350});
+    closeTo(right.x - left.x, 16, 1e-12, 'seam endpoints remain separated');
+});
+
+test('auto-rotation public configuration is normalized and defensively copied', () => {
+    const series = createThreeGlobeSeries({selector: 'rotation-contract', dayTexture: 'day.jpg'});
+    assert.deepEqual(series.getAutoRotate(), {speed: 6});
+    const state = series.getAutoRotate();
+    state.speed = 99;
+    assert.deepEqual(series.getAutoRotate(), {speed: 6});
+    series.setAutoRotate(false);
+    assert.equal(series.getAutoRotate(), false);
+    series.setAutoRotate({speed: -12});
+    assert.deepEqual(series.getAutoRotate(), {speed: -12});
+    series.setAutoRotate({speed: NaN});
+    assert.deepEqual(series.getAutoRotate(), {speed: 6});
+    series.setAutoRotate(true);
+    assert.equal(series.getProjectionProgress(), 0);
+    series.setProjection('flat', {animate: false});
+    assert.equal(series.getProjectionProgress(), 1);
+    series.setProjection('globe', {duration: 0});
+    assert.equal(series.getProjectionProgress(), 0);
 });

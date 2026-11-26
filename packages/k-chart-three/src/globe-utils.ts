@@ -198,6 +198,79 @@ export const rotationFor = (center: LatLon): THREE.Quaternion => {
 };
 
 /**
+ * A longitude-cut sphere opens into a cylinder and then a 2:1 plane. The
+ * sin(k*longitude)/k limit avoids singularities at the flat endpoint.
+ * Longitudes are deliberately unwrapped so both UV seam edges remain distinct.
+ */
+export const createGlobeSurfaceProjector = (
+    progress: number,
+    center: LatLon,
+    flatView: KThreeFlatMapView,
+    radius = 1
+): ((point: LatLon, surfaceOffset?: number) => THREE.Vector3) => {
+    const p = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+    const curvature = 1 - p;
+    const metric = curvature + p / Math.PI;
+    const zoom = 1 + (flatView.zoom - 1) * p;
+    const rotation = rotationFor(center)
+        .multiply(rotationFor({lat: 0, lon: flatView.center.lon}).invert())
+        .slerp(new THREE.Quaternion(), p);
+    return (point, surfaceOffset = 0) => {
+        const latitude = clamp(Number.isFinite(point.lat) ? point.lat : 0, -90, 90) * DEG_TO_RAD;
+        const longitude = ((Number.isFinite(point.lon) ? point.lon : 0) - flatView.center.lon) * DEG_TO_RAD;
+        const angle = curvature * longitude;
+        const sineArc = curvature < 1e-8 ? longitude : Math.sin(angle) / curvature;
+        const cosineArc = curvature < 1e-8 ? 0 : -2 * Math.sin(angle / 2) ** 2 / curvature;
+        const ringRadius = curvature * Math.cos(latitude) + p;
+        const position = new THREE.Vector3(
+            ringRadius * metric * sineArc,
+            curvature * Math.sin(latitude) + p * latitude / Math.PI,
+            ringRadius * (metric * cosineArc + curvature)
+        ).applyQuaternion(rotation);
+        position.x *= zoom;
+        position.y = (position.y - p * flatView.center.lat / 180) * zoom;
+        position.multiplyScalar(radius);
+        if (surfaceOffset !== 0) {
+            const dx = ringRadius * metric * Math.cos(angle);
+            const dz = -ringRadius * metric * Math.sin(angle);
+            const ringDerivative = -curvature * Math.sin(latitude);
+            const dy = curvature * Math.cos(latitude) + p / Math.PI;
+            const normal = new THREE.Vector3(
+                -dz * dy,
+                dz * ringDerivative * metric * sineArc
+                    - dx * ringDerivative * (metric * cosineArc + curvature),
+                dx * dy
+            );
+            if (normal.lengthSq() < 1e-20) {
+                normal.set(
+                    Math.cos(latitude) * Math.sin(longitude),
+                    Math.sin(latitude),
+                    Math.cos(latitude) * Math.cos(longitude)
+                );
+            }
+            normal.applyQuaternion(rotation);
+            normal.x /= zoom;
+            normal.y /= zoom;
+            position.addScaledVector(normal.normalize(), radius * surfaceOffset);
+        }
+        return position;
+    };
+};
+
+export type KThreeGlobeAutoRotate = boolean | {speed?: number};
+
+export const normalizeAutoRotate = (
+    value: KThreeGlobeAutoRotate | undefined
+): false | {speed: number} => value === false ? false : {
+    speed: typeof value === 'object' && Number.isFinite(value.speed) ? value.speed as number : 6
+};
+
+export const advanceGlobeCenter = (center: LatLon, speed: number, elapsedMs: number): LatLon => ({
+    lat: center.lat,
+    lon: wrapLon(center.lon - speed * Math.max(0, elapsedMs) / 1000)
+});
+
+/**
  * Applies a grab-style drag. Moving one rendered globe diameter changes the
  * center by 180 degrees.
  */
@@ -266,6 +339,7 @@ export interface GlobeDragBindings {
     cancelTween(): void;
     requestRender(): void;
     isEnabled?(): boolean;
+    onDragChange?(dragging: boolean): void;
     onCenterChange?(center: LatLon): void;
 }
 
@@ -313,6 +387,7 @@ export const bindGlobeDrag = (
         startCenter = bindings.getCenter();
         moved = false;
         bindings.cancelTween();
+        bindings.onDragChange?.(true);
         canvas.style.cursor = 'grabbing';
         canvas.setPointerCapture(event.pointerId);
     };
@@ -344,6 +419,7 @@ export const bindGlobeDrag = (
         event.preventDefault();
         const completedPointerId = pointerId;
         pointerId = undefined;
+        bindings.onDragChange?.(false);
         canvas.style.cursor = idleCursor();
         releaseCapture(completedPointerId);
         if (moved) {
@@ -357,15 +433,18 @@ export const bindGlobeDrag = (
     canvas.addEventListener('pointermove', pointerMove);
     canvas.addEventListener('pointerup', finishPointer);
     canvas.addEventListener('pointercancel', finishPointer);
+    canvas.addEventListener('lostpointercapture', finishPointer);
 
     return () => {
         canvas.removeEventListener('pointerdown', pointerDown);
         canvas.removeEventListener('pointermove', pointerMove);
         canvas.removeEventListener('pointerup', finishPointer);
         canvas.removeEventListener('pointercancel', finishPointer);
+        canvas.removeEventListener('lostpointercapture', finishPointer);
         if (pointerId !== undefined) {
             releaseCapture(pointerId);
             pointerId = undefined;
+            bindings.onDragChange?.(false);
         }
         canvas.style.touchAction = previousTouchAction;
         canvas.style.cursor = previousCursor;

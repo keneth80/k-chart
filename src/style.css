@@ -616,8 +616,8 @@ pre > code {
 }
 
 .container-chart.three-globe-chart {
-    height: 560px;
-    min-height: 560px;
+    height: 640px;
+    min-height: 640px;
     background: #02040a;
 }
 
@@ -682,6 +682,23 @@ pre > code {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.three-globe-rotation {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    color: #eaf2ff;
+    font: 600 12px/1.3 var(--font-ui);
+    white-space: nowrap;
+}
+
+.three-globe-rotation input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #58e0c2;
 }
 
 .three-globe-presets button {

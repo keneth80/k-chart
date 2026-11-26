@@ -704,12 +704,27 @@ const mountThreeGlobeControls = (): void => {
     projectionSwitch.setAttribute('role', 'group');
     projectionSwitch.setAttribute('aria-label', 'Earth projection');
     const projectionButtons = new Map<'globe' | 'flat', HTMLButtonElement>();
+    const rotationControl = document.createElement('label');
+    rotationControl.className = 'three-globe-rotation';
+    const rotationInput = document.createElement('input');
+    rotationInput.type = 'checkbox';
+    rotationInput.checked = threeGlobeSeries.getAutoRotate() !== false;
+    rotationInput.addEventListener('change', () => {
+        threeGlobeSeries?.setAutoRotate(rotationInput.checked);
+        if (threeGlobeSeries && threeGlobeStatus) {
+            threeGlobeStatus.textContent = rotationInput.checked
+                ? 'Globe · Axial rotation'
+                : `Globe · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
+        }
+    });
+    rotationControl.append(rotationInput, document.createTextNode('Axial rotation'));
 
     const updateProjectionButtons = (): void => {
         const projection = threeGlobeSeries?.getProjection() ?? 'globe';
         projectionButtons.forEach((button, value) => {
             button.setAttribute('aria-pressed', String(value === projection));
         });
+        rotationInput.disabled = projection === 'flat';
     };
 
     ([
@@ -721,15 +736,17 @@ const mountThreeGlobeControls = (): void => {
         button.textContent = label;
         button.setAttribute('aria-pressed', 'false');
         button.addEventListener('click', () => {
-            threeGlobeSeries?.setProjection(value);
             if (value === 'flat') {
                 threeGlobeSeries?.setFlatView(THREE_FLAT_WORLD_VIEW);
                 if (threeGlobeStatus) {
                     threeGlobeStatus.textContent = 'World map · full extent';
                 }
             } else if (threeGlobeSeries && threeGlobeStatus) {
-                threeGlobeStatus.textContent = `Globe · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
+                threeGlobeStatus.textContent = rotationInput.checked
+                    ? 'Globe · Axial rotation'
+                    : `Globe · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
             }
+            threeGlobeSeries?.setProjection(value, {duration: 1000});
             updateProjectionButtons();
         });
         projectionButtons.set(value, button);
@@ -761,12 +778,14 @@ const mountThreeGlobeControls = (): void => {
         presets.appendChild(button);
     });
 
-    controlGroups.append(projectionSwitch, presets);
+    controlGroups.append(projectionSwitch, rotationControl, presets);
 
     threeGlobeStatus = document.createElement('output');
     threeGlobeStatus.className = 'three-globe-status';
     threeGlobeStatus.setAttribute('aria-live', 'polite');
-    threeGlobeStatus.textContent = `Globe · Seoul · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
+    threeGlobeStatus.textContent = rotationInput.checked
+        ? 'Globe · Axial rotation'
+        : `Globe · Seoul · ${formatThreeGlobeCenter(threeGlobeSeries.getCenter())}`;
     updateProjectionButtons();
     controls.append(controlGroups, threeGlobeStatus);
     chartRoot.appendChild(controls);
@@ -2353,6 +2372,7 @@ const createSeries = (kind: DemoKind): KChartSeries<DemoPoint>[] => {
             dayTexture: THREE_GLOBE_DAY_TEXTURE,
             nightTexture: THREE_GLOBE_NIGHT_TEXTURE,
             projection: 'globe',
+            autoRotate: {speed: 6},
             flatMap: THREE_FLAT_WORLD_VIEW,
             initialCenter: threeGlobePresets[0].center,
             subsolar: calculateSubsolarPoint(new Date()),
@@ -2948,7 +2968,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             : isTreemap
                 ? 520
             : isThreeScene
-                ? kind === 'three-globe' ? 560 : 520
+                ? kind === 'three-globe' ? 640 : 520
             : isScrollableDoughnut
                 ? isCompactScrollableDoughnut ? 650 : 500
                 : isCalendarHeatmap
@@ -2968,7 +2988,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
                     ? { top: 72, right: 24, bottom: 24, left: 24 }
                 : isThreeScene
                     ? kind === 'three-globe'
-                        ? { top: 58, right: 12, bottom: 74, left: 12 }
+                        ? { top: 58, right: 12, bottom: 200, left: 12 }
                         : { top: 74, right: 20, bottom: 20, left: 20 }
                 : isGlobeMap || isWorldActivityMap
                     ? { top: 74, right: 20, bottom: 20, left: 20 }
@@ -3300,6 +3320,7 @@ return createGraphSeries({
     dayTexture: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
     nightTexture: 'https://threejs.org/examples/textures/planets/earth_lights_2048.png',
     projection: 'globe',
+    autoRotate: { speed: 6 },
     flatMap: { center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' },
     initialCenter: { lat: 37.57, lon: 126.98 },
     subsolar: calculateSubsolarPoint(new Date()),
@@ -3610,6 +3631,7 @@ const globe = createThreeGlobeSeries<(typeof locations)[number]>({
     dayTexture: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg',
     nightTexture: 'https://threejs.org/examples/textures/planets/earth_lights_2048.png',
     projection: 'globe',
+    autoRotate: { speed: 6 },
     flatMap: { center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' },
     initialCenter: { lat: 37.57, lon: 126.98 },
     subsolar: calculateSubsolarPoint(new Date()),
@@ -3629,7 +3651,8 @@ const globe = createThreeGlobeSeries<(typeof locations)[number]>({
 const chart = createKChart({
     selector: '#chart-div',
     data: locations,
-    margin: { top: 58, right: 12, bottom: 74, left: 12 },
+    height: 640,
+    margin: { top: 58, right: 12, bottom: 200, left: 12 },
     grid: { visible: false },
     legend: { visible: false },
     tooltip: { visible: false },
@@ -3646,12 +3669,16 @@ document.querySelector('[data-globe-center="seoul"]')
 // Switch to a full-world equirectangular map without rebuilding the chart.
 document.querySelector('[data-earth-projection="flat"]')
     ?.addEventListener('click', () => {
-        globe.setProjection('flat');
         globe.setFlatView({ center: { lat: 0, lon: 0 }, zoom: 1, lighting: 'night' });
+        globe.setProjection('flat', { duration: 1000 });
     });
 
 document.querySelector('[data-earth-projection="globe"]')
-    ?.addEventListener('click', () => globe.setProjection('globe'));
+    ?.addEventListener('click', () => globe.setProjection('globe', { duration: 1000 }));
+
+// Pause or resume axial rotation without changing the geographic view.
+globe.setAutoRotate(false);
+globe.setAutoRotate({ speed: 6 });
 
 // Textures are NASA-derived Blue Marble / Earth at night assets hosted by Three.js.
 // Keep attribution with the application; KChart does not bundle texture images.`;

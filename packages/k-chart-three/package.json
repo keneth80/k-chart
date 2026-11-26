@@ -20,6 +20,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test tests/*.test.cjs",
+    "test:browser": "playwright test -c ../../tests/browser-three-globe/playwright.config.cjs",
+    "test:demo": "playwright test -c ../../tests/browser-three-globe/demo.config.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prepack": "npm run build"
   },
@@ -39,6 +41,7 @@
   },
   "devDependencies": {
     "@keneth80/k-chart": "file:../..",
+    "@playwright/test": "^1.65.1",
     "@types/three": "^0.185.0",
     "three": "^0.184.0",
     "typescript": "^6.0.3"

@@ -5,12 +5,14 @@ import {
     type KChartSeries
 } from '@keneth80/k-chart';
 import {
+    advanceGlobeCenter,
     bindGlobeDrag,
     calculateSubsolarPoint,
     cubicEaseOut,
-    latLonToEquirectangular,
+    createGlobeSurfaceProjector,
     latLonToVector,
     normalizeCenter,
+    normalizeAutoRotate,
     normalizeFlatMapView,
     normalizeProjection,
     prepareGlobeMarkers,
@@ -20,6 +22,7 @@ import {
     type KThreeFlatMapLighting,
     type KThreeFlatMapView,
     type KThreeGlobeProjection,
+    type KThreeGlobeAutoRotate,
     type KThreeGlobeMarkerConfiguration,
     type KThreePreparedGlobeMarker,
     type LatLon
@@ -36,6 +39,7 @@ export {
     wrapLon
 } from './globe-utils';
 export type {
+    KThreeGlobeAutoRotate,
     KThreeFlatMapConfiguration,
     KThreeFlatMapLighting,
     KThreeFlatMapView,
@@ -190,6 +194,8 @@ export interface KThreeGlobeSeriesConfiguration<T = unknown> {
     dayTexture: KThreeGlobeTexture;
     nightTexture?: KThreeGlobeTexture;
     projection?: KThreeGlobeProjection;
+    /** Eastward axial rotation in degrees/second; defaults to {speed: 6}. */
+    autoRotate?: KThreeGlobeAutoRotate;
     flatMap?: KThreeFlatMapConfiguration;
     initialCenter?: LatLon;
     subsolar?: Date | LatLon | null;
@@ -209,7 +215,11 @@ export interface KThreeGlobeSeriesHandle<T = unknown> extends KChartSeries<T> {
     getCenter(): LatLon;
     setCenter(center: LatLon, options?: KThreeGlobeTransitionOptions): void;
     getProjection(): KThreeGlobeProjection;
-    setProjection(projection: KThreeGlobeProjection): void;
+    setProjection(projection: KThreeGlobeProjection, options?: KThreeGlobeTransitionOptions): void;
+    /** Rendered state: 0 is a globe, 1 is a flat map. */
+    getProjectionProgress(): number;
+    setAutoRotate(value: KThreeGlobeAutoRotate): void;
+    getAutoRotate(): false | {speed: number};
     getFlatView(): KThreeFlatMapView;
     setFlatView(view: KThreeFlatMapConfiguration): void;
     setSubsolar(point: LatLon | null): void;
@@ -464,7 +474,7 @@ export const createKThreeScene = <T = unknown>(
 interface KThreeGlobeObject<T> extends KThreeObject<T> {
     getDiameter(): number;
     setCenter(center: LatLon): void;
-    setProjection(projection: KThreeGlobeProjection): void;
+    setProjectionProgress(progress: number): void;
     setFlatView(view: KThreeFlatMapView): void;
     setSubsolar(point: LatLon | null): void;
 }
@@ -493,25 +503,25 @@ const GLOBE_FRAGMENT_SHADER = `
     uniform float uHasNightTexture;
     uniform float uHasSubsolar;
     uniform float uLightingMode;
+    uniform float uProjectionProgress;
+    uniform float uOpacity;
     uniform vec3 uSubsolarDirection;
     varying vec2 vUv;
     varying vec3 vDir;
 
     void main() {
-        vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
+        vec2 earthUv = vec2(fract(vUv.x), vUv.y);
+        vec3 dayColor = texture2D(uDayTexture, earthUv).rgb;
         vec3 fallbackNight = dayColor * 0.16 + vec3(0.004, 0.008, 0.020);
         vec3 nightColor = uHasNightTexture > 0.5
-            ? texture2D(uNightTexture, vUv).rgb
+            ? texture2D(uNightTexture, earthUv).rgb
             : fallbackNight;
         float daylight = uHasSubsolar > 0.5
             ? smoothstep(-0.08, 0.12, dot(normalize(vDir), normalize(uSubsolarDirection)))
             : 1.0;
-        if (uLightingMode < 0.5) {
-            daylight = 0.0;
-        } else if (uLightingMode < 1.5) {
-            daylight = 1.0;
-        }
-        gl_FragColor = vec4(mix(nightColor, dayColor, daylight), 1.0);
+        float flatDaylight = uLightingMode < 0.5 ? 0.0 : uLightingMode < 1.5 ? 1.0 : daylight;
+        daylight = mix(daylight, flatDaylight, uProjectionProgress);
+        gl_FragColor = vec4(mix(nightColor, dayColor, daylight), uOpacity);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
     }
@@ -570,10 +580,10 @@ const createThreeGlobeObject = <T>(
     let context: KThreeSceneContext<T> | undefined;
     let rootGroup: THREE.Group | undefined;
     let globeGroup: THREE.Group | undefined;
-    let flatGroup: THREE.Group | undefined;
-    let globeGeometry: THREE.SphereGeometry | undefined;
-    let flatGeometry: THREE.PlaneGeometry | undefined;
+    let globeGeometry: THREE.PlaneGeometry | undefined;
     let earthMaterial: THREE.ShaderMaterial | undefined;
+    let wrapMaterial: THREE.ShaderMaterial | undefined;
+    let wrapMeshes: THREE.Mesh[] = [];
     let atmosphereGeometry: THREE.SphereGeometry | undefined;
     let atmosphereMaterial: THREE.ShaderMaterial | undefined;
     let markerGeometry: THREE.SphereGeometry | undefined;
@@ -583,9 +593,10 @@ const createThreeGlobeObject = <T>(
     let markers: KThreePreparedGlobeMarker<T>[] = [];
     let center = initialCenter;
     let subsolar = initialSubsolar;
-    let projection = initialProjection;
+    let projectionProgress = initialProjection === 'flat' ? 1 : 0;
     let flatView = initialFlatView;
     let globeDiameter = 1;
+    let surfaceLongitude: number | undefined;
     let destroyed = false;
 
     const textureLoader = new THREE.TextureLoader();
@@ -622,10 +633,6 @@ const createThreeGlobeObject = <T>(
         return texture;
     };
 
-    const updateRotation = (): void => {
-        globeGroup?.quaternion.copy(rotationFor(center));
-    };
-
     const updateSubsolarUniform = (): void => {
         if (!earthMaterial) {
             return;
@@ -641,30 +648,13 @@ const createThreeGlobeObject = <T>(
         if (!earthMaterial) {
             return;
         }
-        const lighting: KThreeFlatMapLighting = projection === 'globe'
-            ? 'dynamic'
-            : flatView.lighting;
+        const lighting: KThreeFlatMapLighting = flatView.lighting;
+        earthMaterial.uniforms.uProjectionProgress.value = projectionProgress;
         earthMaterial.uniforms.uLightingMode.value = lighting === 'night'
             ? 0
             : lighting === 'day'
                 ? 1
                 : 2;
-    };
-
-    const updateFlatTransform = (): void => {
-        if (!flatGroup) {
-            return;
-        }
-        const centerPosition = latLonToEquirectangular(
-            flatView.center,
-            globeScale * 2
-        );
-        flatGroup.scale.set(flatView.zoom, flatView.zoom, 1);
-        flatGroup.position.set(
-            -centerPosition.x * flatView.zoom,
-            -centerPosition.y * flatView.zoom,
-            0
-        );
     };
 
     const removeMarkerMesh = (): void => {
@@ -683,34 +673,16 @@ const createThreeGlobeObject = <T>(
         const matrix = new THREE.Matrix4();
         const quaternion = new THREE.Quaternion();
         const scale = new THREE.Vector3();
+        const project = createGlobeSurfaceProjector(projectionProgress, center, flatView, globeScale);
         markers.forEach((marker, index) => {
-            let position: THREE.Vector3;
-            if (projection === 'globe') {
-                position = latLonToVector(
-                    marker,
-                    globeScale * (1 + marker.surfaceOffset)
-                );
-            } else {
-                position = latLonToEquirectangular(
-                    {lat: marker.lat, lon: flatView.center.lon},
-                    globeScale * 2,
-                    globeScale * (0.008 + marker.surfaceOffset)
-                );
-                position.x += shortestLongitudeDelta(
-                    flatView.center.lon,
-                    marker.lon
-                ) * globeScale * 2 / 360;
-            }
+            const position = projectionProgress === 0 ? latLonToVector(
+                marker, globeScale * (1 + marker.surfaceOffset)
+            ) : project({
+                lat: marker.lat,
+                lon: flatView.center.lon + shortestLongitudeDelta(flatView.center.lon, marker.lon)
+            }, marker.surfaceOffset + 0.008 * projectionProgress);
             const markerScale = globeScale * marker.radius;
-            if (projection === 'flat') {
-                scale.set(
-                    markerScale / flatView.zoom,
-                    markerScale / flatView.zoom,
-                    markerScale
-                );
-            } else {
-                scale.setScalar(markerScale);
-            }
+            scale.setScalar(markerScale);
             matrix.compose(position, quaternion, scale);
             markerMesh?.setMatrixAt(index, matrix);
         });
@@ -718,26 +690,58 @@ const createThreeGlobeObject = <T>(
         markerMesh.computeBoundingSphere();
     };
 
-    const updateProjectionGroups = (): void => {
-        updateLightingUniform();
+    const updateSurface = (): void => {
         if (globeGroup) {
-            globeGroup.visible = projection === 'globe';
+            globeGroup.quaternion.copy(projectionProgress === 0 ? rotationFor(center) : new THREE.Quaternion());
         }
-        if (flatGroup) {
-            flatGroup.visible = projection === 'flat';
+        if (globeGeometry) {
+            const positions = globeGeometry.getAttribute('position') as THREE.BufferAttribute;
+            const uvs = globeGeometry.getAttribute('uv') as THREE.BufferAttribute;
+            const project = createGlobeSurfaceProjector(projectionProgress, center, flatView, globeScale);
+            // Keep the cut opposite the flat center; UVs remain geographic even
+            // across the antimeridian, rather than interpolating across a seam.
+            const columns = globeGeometry.parameters.widthSegments + 1;
+            const rows = globeGeometry.parameters.heightSegments;
+            const updateUvs = surfaceLongitude !== flatView.center.lon;
+            for (let index = 0; index < positions.count; index += 1) {
+                const u = (index % columns) / (columns - 1);
+                const v = 1 - Math.floor(index / columns) / rows;
+                const lon = flatView.center.lon + (u - 0.5) * 360;
+                const point = {lat: (v - 0.5) * 180, lon};
+                const position = projectionProgress === 0 ? latLonToVector(point, globeScale) : project(point);
+                positions.setXYZ(index, position.x, position.y, position.z);
+                if (updateUvs) {
+                    uvs.setXY(index, (lon + 180) / 360, v);
+                }
+            }
+            positions.needsUpdate = true;
+            if (updateUvs) {
+                uvs.needsUpdate = true;
+                surfaceLongitude = flatView.center.lon;
+            }
+            globeGeometry.computeBoundingSphere();
         }
-        if (markerMesh) {
-            markerMesh.parent?.remove(markerMesh);
-            (projection === 'globe' ? globeGroup : flatGroup)?.add(markerMesh);
-            updateMarkerMatrices();
+        updateLightingUniform();
+        if (wrapMaterial) {
+            const fade = Math.max(0, (projectionProgress - 0.85) / 0.15);
+            wrapMaterial.uniforms.uOpacity.value = fade * fade * (3 - 2 * fade);
+            const zoom = 1 + (flatView.zoom - 1) * projectionProgress;
+            wrapMeshes.forEach((mesh, index) => {
+                mesh.visible = fade > 0;
+                mesh.position.x = (index === 0 ? -1 : 1) * globeScale * 2 * zoom;
+            });
         }
+        if (atmosphereMaterial) {
+            const atmosphere = typeof configuration.atmosphere === 'object' ? configuration.atmosphere : {};
+            atmosphereMaterial.uniforms.uIntensity.value = (atmosphere.intensity ?? 0.72) * Math.pow(1 - projectionProgress, 4);
+        }
+        updateMarkerMatrices();
     };
 
     const updateMarkers = (data: readonly T[]): void => {
         if (
             !configuration.markers
             || !globeGroup
-            || !flatGroup
             || !markerGeometry
             || !markerMaterial
         ) {
@@ -758,7 +762,7 @@ const createThreeGlobeObject = <T>(
         if (markerMesh.instanceColor) {
             markerMesh.instanceColor.needsUpdate = true;
         }
-        (projection === 'globe' ? globeGroup : flatGroup).add(markerMesh);
+        globeGroup.add(markerMesh);
         updateMarkerMatrices();
     };
 
@@ -768,23 +772,35 @@ const createThreeGlobeObject = <T>(
         const width = bounds.width || nextContext.canvas.width / pixelRatio || 1;
         const height = bounds.height || nextContext.canvas.height / pixelRatio || 1;
         const tangent = Math.tan(THREE.MathUtils.degToRad(nextContext.camera.fov) / 2);
-        if (projection === 'flat') {
-            const aspect = width / Math.max(height, 1);
-            const fittedHeight = Math.max(globeScale, globeScale * 2 / aspect);
-            const cameraDistance = fittedHeight / (2 * tangent) * 1.02;
-            nextContext.camera.position.set(0, 0, cameraDistance);
-            nextContext.camera.near = Math.max(0.001, cameraDistance / 100);
-            nextContext.camera.far = cameraDistance + globeScale * 4;
-            nextContext.camera.lookAt(0, 0, 0);
-            nextContext.camera.updateProjectionMatrix();
-            return;
-        }
-
-        const unitDiameter = Math.max(1, Math.min(width, height) * 0.82);
+        const aspect = width / Math.max(height, 1);
+        const fittedHeight = Math.max(globeScale, globeScale * 2 / aspect);
+        const flatDistance = fittedHeight / (2 * tangent) * 1.02;
+        // Share the full map's fitted height; include the halo in the globe's
+        // footprint and leave a small allowance for its stronger visual weight.
+        const mapHeight = globeScale / (flatDistance * tangent) * height / 2;
+        const unitDiameter = Math.max(1, mapHeight * 0.94);
         const projectionRatio = Math.max(unitDiameter * tangent / height, 0.001);
-        const cameraDistance = globeScale * Math.sqrt(
+        const framingRadius = globeScale * (configuration.atmosphere ? 1.045 : 1);
+        const globeDistance = framingRadius * Math.sqrt(
             1 + 1 / (projectionRatio * projectionRatio)
         );
+        let cameraDistance = globeDistance + (flatDistance - globeDistance) * projectionProgress;
+        if (projectionProgress > 0 && projectionProgress < 1 && globeGeometry) {
+            const positions = globeGeometry.getAttribute('position');
+            const zoom = 1 + (flatView.zoom - 1) * projectionProgress;
+            // Fit the bending surface, including its depth toward the camera.
+            // Undo intentional map pan/zoom so regional views retain their crop.
+            for (let index = 0; index < positions.count; index += 1) {
+                const x = positions.getX(index) / zoom;
+                const y = positions.getY(index) / zoom + projectionProgress * flatView.center.lat / 180 * globeScale;
+                const z = positions.getZ(index);
+                cameraDistance = Math.max(
+                    cameraDistance,
+                    z + Math.abs(x) * 1.02 / (tangent * aspect),
+                    z + Math.abs(y) * 1.02 / tangent
+                );
+            }
+        }
         nextContext.camera.position.set(0, 0, cameraDistance);
         nextContext.camera.near = Math.max(0.01, cameraDistance - globeScale * 2);
         nextContext.camera.far = cameraDistance + globeScale * 4;
@@ -805,16 +821,14 @@ const createThreeGlobeObject = <T>(
             rootGroup.name = 'kchart-three-earth';
             globeGroup = new THREE.Group();
             globeGroup.name = 'kchart-three-globe';
-            flatGroup = new THREE.Group();
-            flatGroup.name = 'kchart-three-flat-map';
-            rootGroup.add(globeGroup, flatGroup);
+            rootGroup.add(globeGroup);
 
             const dayTexture = resolveTexture(configuration.dayTexture);
             const nightTexture = configuration.nightTexture
                 ? resolveTexture(configuration.nightTexture)
                 : dayTexture;
-            globeGeometry = new THREE.SphereGeometry(globeScale, 96, 64);
-            flatGeometry = new THREE.PlaneGeometry(globeScale * 2, globeScale, 1, 1);
+            globeGeometry = new THREE.PlaneGeometry(globeScale * 2, globeScale, 128, 64);
+            (globeGeometry.getAttribute('position') as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
             earthMaterial = new THREE.ShaderMaterial({
                 uniforms: {
                     uDayTexture: {value: dayTexture},
@@ -822,25 +836,38 @@ const createThreeGlobeObject = <T>(
                     uHasNightTexture: {value: configuration.nightTexture ? 1 : 0},
                     uHasSubsolar: {value: subsolar ? 1 : 0},
                     uLightingMode: {value: 2},
+                    uProjectionProgress: {value: projectionProgress},
+                    uOpacity: {value: 1},
                     uSubsolarDirection: {value: new THREE.Vector3(1, 0, 0)}
                 },
                 vertexShader: GLOBE_VERTEX_SHADER,
                 fragmentShader: GLOBE_FRAGMENT_SHADER,
                 depthWrite: true,
                 depthTest: true,
+                side: THREE.DoubleSide,
                 toneMapped: false
             });
             const globeMesh = new THREE.Mesh(globeGeometry, earthMaterial);
             globeMesh.name = 'kchart-three-globe-surface';
+            globeMesh.frustumCulled = false;
             globeGroup.add(globeMesh);
-            const flatMesh = new THREE.Mesh(flatGeometry, earthMaterial);
-            flatMesh.name = 'kchart-three-flat-map-surface';
-            flatGroup.add(flatMesh);
-            [-1, 1].forEach((worldOffset) => {
-                const wrappedMesh = new THREE.Mesh(flatGeometry, earthMaterial);
-                wrappedMesh.name = `kchart-three-flat-map-wrap-${worldOffset}`;
-                wrappedMesh.position.x = worldOffset * globeScale * 2;
-                flatGroup?.add(wrappedMesh);
+            // Endpoint world repeats share the morphing geometry and geographic
+            // uniforms; they fade in only as the seam finishes opening.
+            wrapMaterial = new THREE.ShaderMaterial({
+                uniforms: {...earthMaterial.uniforms, uOpacity: {value: 0}},
+                vertexShader: GLOBE_VERTEX_SHADER,
+                fragmentShader: GLOBE_FRAGMENT_SHADER,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                toneMapped: false
+            });
+            wrapMeshes = [-1, 1].map((offset) => {
+                const mesh = new THREE.Mesh(globeGeometry, wrapMaterial);
+                mesh.name = `kchart-three-flat-map-wrap-${offset}`;
+                mesh.frustumCulled = false;
+                globeGroup?.add(mesh);
+                return mesh;
             });
 
             if (configuration.atmosphere) {
@@ -868,7 +895,7 @@ const createThreeGlobeObject = <T>(
                     atmosphereMaterial
                 );
                 atmosphereMesh.name = 'kchart-three-globe-atmosphere';
-                globeGroup.add(atmosphereMesh);
+                rootGroup.add(atmosphereMesh);
             }
 
             if (configuration.markers) {
@@ -880,10 +907,8 @@ const createThreeGlobeObject = <T>(
             }
 
             nextContext.scene.add(rootGroup);
-            updateRotation();
-            updateFlatTransform();
             updateSubsolarUniform();
-            updateProjectionGroups();
+            updateSurface();
             updateCameraAndDiameter(nextContext);
         },
         resize(nextContext) {
@@ -901,22 +926,22 @@ const createThreeGlobeObject = <T>(
         },
         setCenter(nextCenter) {
             center = normalizeCenter(nextCenter);
-            updateRotation();
+            if (projectionProgress === 0) {
+                globeGroup?.quaternion.copy(rotationFor(center));
+            } else if (projectionProgress < 1) {
+                updateSurface();
+            }
         },
-        setProjection(nextProjection) {
-            projection = normalizeProjection(nextProjection);
-            updateProjectionGroups();
+        setProjectionProgress(progress) {
+            projectionProgress = Math.max(0, Math.min(1, progress));
+            updateSurface();
             if (context) {
                 updateCameraAndDiameter(context);
             }
         },
         setFlatView(nextFlatView) {
             flatView = normalizeFlatMapView(nextFlatView, flatView);
-            updateFlatTransform();
-            updateLightingUniform();
-            if (projection === 'flat') {
-                updateMarkerMatrices();
-            }
+            updateSurface();
         },
         setSubsolar(nextSubsolar) {
             subsolar = nextSubsolar ? normalizeCenter(nextSubsolar, 90) : null;
@@ -929,8 +954,8 @@ const createThreeGlobeObject = <T>(
             }
             removeMarkerMesh();
             globeGeometry?.dispose();
-            flatGeometry?.dispose();
             earthMaterial?.dispose();
+            wrapMaterial?.dispose();
             atmosphereGeometry?.dispose();
             atmosphereMaterial?.dispose();
             markerGeometry?.dispose();
@@ -939,10 +964,10 @@ const createThreeGlobeObject = <T>(
             ownedTextures.clear();
             rootGroup = undefined;
             globeGroup = undefined;
-            flatGroup = undefined;
             globeGeometry = undefined;
-            flatGeometry = undefined;
             earthMaterial = undefined;
+            wrapMaterial = undefined;
+            wrapMeshes = [];
             atmosphereGeometry = undefined;
             atmosphereMaterial = undefined;
             markerGeometry = undefined;
@@ -957,35 +982,88 @@ const createThreeGlobeObject = <T>(
 export const createThreeGlobeSeries = <T = unknown>(
     configuration: KThreeGlobeSeriesConfiguration<T>
 ): KThreeGlobeSeriesHandle<T> => {
-    const transitionDuration = Math.max(0, configuration.transitionDuration ?? 600);
+    const transitionDuration = Number.isFinite(configuration.transitionDuration)
+        ? Math.max(0, configuration.transitionDuration as number)
+        : 600;
     let center = normalizeCenter(configuration.initialCenter ?? {lat: 0, lon: 0});
     let subsolar = resolveSubsolar(configuration.subsolar);
     let projection = normalizeProjection(configuration.projection);
+    let projectionProgress = projection === 'flat' ? 1 : 0;
+    let autoRotate = normalizeAutoRotate(configuration.autoRotate);
     let flatView = normalizeFlatMapView(configuration.flatMap);
     let controller: KThreeSceneController<T> | undefined;
     let globeObject: KThreeGlobeObject<T> | undefined;
     let canvas: HTMLCanvasElement | undefined;
     let removeDragListeners: (() => void) | undefined;
-    let renderFrame = 0;
-    let tweenFrame = 0;
+    let animationFrame = 0;
+    let lastTime: number | undefined;
+    let dragging = false;
+    let motionQuery: MediaQueryList | undefined;
+    let removeEnvironmentListeners: (() => void) | undefined;
+    let centerTween: {from: LatLon; to: LatLon; longitudeDelta: number; elapsed: number; duration: number} | undefined;
+    let projectionTween: {from: number; to: number; elapsed: number; duration: number} | undefined;
     let currentData: readonly T[] | undefined;
     let destroyed = false;
 
     const cancelTween = (): void => {
-        if (tweenFrame) {
-            window.cancelAnimationFrame(tweenFrame);
-            tweenFrame = 0;
-        }
+        centerTween = undefined;
+        lastTime = undefined;
     };
 
+    const isHidden = (): boolean => typeof document !== 'undefined' && document.hidden === true;
+    const reducedMotion = (): boolean => motionQuery?.matches
+        ?? (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+        ?? false;
+    const canSpin = (): boolean => Boolean(autoRotate && autoRotate.speed !== 0)
+        && !dragging && !reducedMotion() && projection === 'globe'
+        && projectionProgress === 0 && !projectionTween && !centerTween;
+
     const requestRender = (): void => {
-        if (destroyed || !controller || renderFrame) {
+        if (destroyed || !controller || animationFrame || isHidden()) {
             return;
         }
-        renderFrame = window.requestAnimationFrame(() => {
-            renderFrame = 0;
-            if (!destroyed) {
-                controller?.render();
+        lastTime ??= performance.now();
+        animationFrame = window.requestAnimationFrame((now) => {
+            animationFrame = 0;
+            if (destroyed || !controller || isHidden()) {
+                lastTime = undefined;
+                return;
+            }
+            const elapsed = lastTime === undefined ? 0 : Math.max(0, now - lastTime);
+            lastTime = now;
+            const spin = canSpin();
+            if (centerTween) {
+                centerTween.elapsed += elapsed;
+                const progress = Math.min(1, centerTween.elapsed / centerTween.duration);
+                const eased = cubicEaseOut(progress);
+                applyCenter({
+                    lat: centerTween.from.lat + (centerTween.to.lat - centerTween.from.lat) * eased,
+                    lon: centerTween.from.lon + centerTween.longitudeDelta * eased
+                });
+                if (progress === 1) {
+                    applyCenter(centerTween.to);
+                    centerTween = undefined;
+                }
+            }
+            if (projectionTween) {
+                projectionTween.elapsed += elapsed;
+                const progress = Math.min(1, projectionTween.elapsed / projectionTween.duration);
+                projectionProgress = projectionTween.from
+                    + (projectionTween.to - projectionTween.from) * cubicEaseOut(progress);
+                globeObject?.setProjectionProgress(projectionProgress);
+                if (progress === 1) {
+                    projectionTween = undefined;
+                    syncCanvasInteraction();
+                }
+            }
+            if (spin && autoRotate) {
+                applyCenter(advanceGlobeCenter(center, autoRotate.speed, elapsed));
+            }
+            controller.render();
+            if (centerTween || projectionTween || canSpin()) {
+                requestRender();
+            } else {
+                lastTime = undefined;
             }
         });
     };
@@ -999,17 +1077,20 @@ export const createThreeGlobeSeries = <T = unknown>(
         if (canvas) {
             activateThreeCanvasInteraction(
                 canvas,
-                projection === 'globe' ? 'grab' : 'default'
+                projection === 'globe' && projectionProgress === 0 ? 'grab' : 'default'
             );
         }
     };
 
     const teardownScene = (): void => {
         cancelTween();
-        if (renderFrame) {
-            window.cancelAnimationFrame(renderFrame);
-            renderFrame = 0;
+        if (animationFrame) {
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = 0;
         }
+        removeEnvironmentListeners?.();
+        removeEnvironmentListeners = undefined;
+        motionQuery = undefined;
         removeDragListeners?.();
         removeDragListeners = undefined;
         controller?.destroy();
@@ -1017,6 +1098,45 @@ export const createThreeGlobeSeries = <T = unknown>(
         globeObject = undefined;
         canvas = undefined;
         currentData = undefined;
+        dragging = false;
+    };
+
+    const bindEnvironment = (): void => {
+        motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        const visibilityChange = (): void => {
+            lastTime = undefined;
+            if (animationFrame) {
+                window.cancelAnimationFrame(animationFrame);
+                animationFrame = 0;
+            }
+            requestRender();
+        };
+        const motionChange = (): void => {
+            lastTime = undefined;
+            if (reducedMotion()) {
+                if (centerTween) {
+                    applyCenter(centerTween.to);
+                    centerTween = undefined;
+                }
+                if (projectionTween) {
+                    projectionProgress = projectionTween.to;
+                    projectionTween = undefined;
+                    globeObject?.setProjectionProgress(projectionProgress);
+                    syncCanvasInteraction();
+                }
+            }
+            requestRender();
+        };
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', visibilityChange);
+        }
+        motionQuery?.addEventListener('change', motionChange);
+        removeEnvironmentListeners = () => {
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', visibilityChange);
+            }
+            motionQuery?.removeEventListener('change', motionChange);
+        };
     };
 
     const setCenter = (
@@ -1024,35 +1144,21 @@ export const createThreeGlobeSeries = <T = unknown>(
         options: KThreeGlobeTransitionOptions = {}
     ): void => {
         const target = normalizeCenter(nextCenter);
-        const duration = Math.max(0, options.duration ?? transitionDuration);
+        const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration as number) : transitionDuration;
         const animate = options.animate ?? duration > 0;
         cancelTween();
-        if (!animate || duration === 0 || !controller) {
+        if (!animate || duration === 0 || !controller || reducedMotion()) {
             applyCenter(target);
             requestRender();
             return;
         }
 
-        const start = {...center};
-        const longitudeDelta = shortestLongitudeDelta(start.lon, target.lon);
-        const startedAt = performance.now();
-        const step = (now: number): void => {
-            const progress = Math.min(1, (now - startedAt) / duration);
-            const eased = cubicEaseOut(progress);
-            applyCenter({
-                lat: start.lat + (target.lat - start.lat) * eased,
-                lon: start.lon + longitudeDelta * eased
-            });
-            controller?.render();
-            if (progress < 1 && !destroyed) {
-                tweenFrame = window.requestAnimationFrame(step);
-            } else {
-                tweenFrame = 0;
-                applyCenter(target);
-                controller?.render();
-            }
+        centerTween = {
+            from: {...center}, to: target,
+            longitudeDelta: shortestLongitudeDelta(center.lon, target.lon),
+            elapsed: 0, duration
         };
-        tweenFrame = window.requestAnimationFrame(step);
+        requestRender();
     };
 
     const series = createCustomSeries<T>({
@@ -1066,7 +1172,7 @@ export const createThreeGlobeSeries = <T = unknown>(
             // Re-apply the interaction layer so repeated chart renders keep drag input enabled.
             activateThreeCanvasInteraction(
                 nextCanvas,
-                projection === 'globe' ? 'grab' : 'default'
+                projection === 'globe' && projectionProgress === 0 ? 'grab' : 'default'
             );
             if (!controller || canvas !== nextCanvas) {
                 teardownScene();
@@ -1100,13 +1206,20 @@ export const createThreeGlobeSeries = <T = unknown>(
                     requestRender
                 );
                 controller.add(globeObject);
+                globeObject.setProjectionProgress(projectionProgress);
+                bindEnvironment();
                 removeDragListeners = bindGlobeDrag(nextCanvas, {
                     getCenter: () => center,
                     getDiameter: () => globeObject?.getDiameter() ?? 1,
                     setCenter: applyCenter,
                     cancelTween,
                     requestRender,
-                    isEnabled: () => projection === 'globe',
+                    isEnabled: () => projection === 'globe' && projectionProgress === 0 && !projectionTween,
+                    onDragChange: (active) => {
+                        dragging = active;
+                        lastTime = undefined;
+                        requestRender();
+                    },
                     onCenterChange: configuration.onCenterChange
                 });
                 syncCanvasInteraction();
@@ -1118,6 +1231,9 @@ export const createThreeGlobeSeries = <T = unknown>(
             // KChart may reset a reused canvas even when plot dimensions are unchanged.
             // Reassert DPR/backing size and draw once without starting an animation loop.
             controller.resize(plotSize.width, plotSize.height);
+            if (canSpin() || centerTween || projectionTween) {
+                requestRender();
+            }
         },
         destroy() {
             destroyed = true;
@@ -1129,13 +1245,35 @@ export const createThreeGlobeSeries = <T = unknown>(
         getCenter: (): LatLon => ({...center}),
         setCenter,
         getProjection: (): KThreeGlobeProjection => projection,
-        setProjection(nextProjection: KThreeGlobeProjection): void {
+        getProjectionProgress: (): number => projectionProgress,
+        getAutoRotate: (): false | {speed: number} => autoRotate ? {...autoRotate} : false,
+        setAutoRotate(value: KThreeGlobeAutoRotate): void {
+            autoRotate = normalizeAutoRotate(value);
+            lastTime = undefined;
+            requestRender();
+        },
+        setProjection(nextProjection: KThreeGlobeProjection, options: KThreeGlobeTransitionOptions = {}): void {
             const normalized = normalizeProjection(nextProjection);
-            if (projection === normalized) {
+            const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration as number) : 900;
+            if (projection === normalized && options.animate !== false && duration !== 0) {
                 return;
             }
             projection = normalized;
-            globeObject?.setProjection(projection);
+            const target = projection === 'flat' ? 1 : 0;
+            lastTime = undefined;
+            if (options.animate === false || duration === 0 || reducedMotion() || !controller) {
+                projectionProgress = target;
+                projectionTween = undefined;
+                globeObject?.setProjectionProgress(projectionProgress);
+            } else {
+                projectionTween = {
+                    from: projectionProgress, to: target, elapsed: 0,
+                    duration: duration * Math.abs(target - projectionProgress)
+                };
+                if (projectionTween.duration === 0) {
+                    projectionTween = undefined;
+                }
+            }
             syncCanvasInteraction();
             requestRender();
         },
