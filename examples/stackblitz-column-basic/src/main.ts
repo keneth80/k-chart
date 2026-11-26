@@ -108,11 +108,20 @@ const columnSeries = createCustomSeries<MonthPoint>({
   }
 });
 
+const chartRoot = document.querySelector<HTMLElement>('#chart');
+if (!chartRoot) {
+  throw new Error('Chart container not found');
+}
+const readChartSize = () => ({
+  width: Math.max(1, chartRoot.clientWidth),
+  height: Math.max(1, chartRoot.clientHeight)
+});
+let chartSize = readChartSize();
+
 const chart = createKChart<MonthPoint>({
   selector: '#chart',
   data,
-  width: 920,
-  height: 460,
+  ...chartSize,
   margin: { top: 88, right: 36, bottom: 58, left: 64 },
   title: { text: 'Custom SVG Column Renderer', align: 'left', fontSize: 18 },
   grid: { visible: true, x: false, y: true, color: 'rgba(148, 163, 184, 0.22)', dasharray: '3 8' },
@@ -126,3 +135,40 @@ const chart = createKChart<MonthPoint>({
 });
 
 chart.render();
+
+let disposed = false;
+const resizeChart = () => {
+  if (disposed) return;
+  const nextSize = readChartSize();
+  if (nextSize.width === chartSize.width && nextSize.height === chartSize.height) return;
+  chartSize = nextSize;
+  chart.resize(chartSize);
+};
+const resizeObserver = typeof ResizeObserver === 'undefined'
+  ? undefined
+  : new ResizeObserver(resizeChart);
+resizeObserver?.observe(chartRoot);
+if (!resizeObserver) window.addEventListener('resize', resizeChart);
+
+const dispose = () => {
+  if (disposed) return;
+  disposed = true;
+  resizeObserver?.disconnect();
+  window.removeEventListener('resize', resizeChart);
+  window.removeEventListener('pagehide', onPageHide);
+  window.removeEventListener('pageshow', onPageShow);
+  chart.destroy();
+};
+// A cached page keeps its chart, but resumes observing when restored.
+const onPageHide = (event: PageTransitionEvent) => {
+  if (event.persisted) resizeObserver?.disconnect();
+  else dispose();
+};
+const onPageShow = (event: PageTransitionEvent) => {
+  if (!event.persisted || disposed) return;
+  resizeObserver?.observe(chartRoot);
+  resizeChart();
+};
+window.addEventListener('pagehide', onPageHide);
+window.addEventListener('pageshow', onPageShow);
+(import.meta as ImportMeta & { hot?: { dispose(callback: () => void): void } }).hot?.dispose(dispose);

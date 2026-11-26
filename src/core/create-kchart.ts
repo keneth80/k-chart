@@ -27,6 +27,17 @@ import {resolveScalePosition} from '../series/support/scale';
 import {resolveSeriesRenderData} from '../internal/downsample';
 import {resolveAxisDomain} from './domain';
 import {applyAxisTickCount} from './ticks';
+import {
+    activateLegendFromKeyboard,
+    resolveChartAccessibility,
+    resolveChartStatus,
+    resolveChartTheme,
+    resolveContainerSize,
+    resolveLegendLayout,
+    resolveResponsiveTickCount,
+    resolveTooltipPosition,
+    truncateLegendLabel
+} from './usability';
 import {interpolateResolvedScales} from './animation';
 import {
     resolveAxisTitleAttributes,
@@ -165,6 +176,30 @@ const defaultAnimationContext: KChartAnimationContext = {
 
 const animationCancellation = new WeakMap<object, () => void>();
 const destroyedCharts = new WeakSet<object>();
+const containerOwners = new WeakMap<HTMLElement, () => void>();
+const chartIds = new WeakMap<object, string>();
+const seriesCanvasUsage = new WeakMap<object, Map<object, Set<HTMLCanvasElement>>>();
+let chartIdSequence = 0;
+const getChartId = (state: object): string => {
+    let id = chartIds.get(state);
+    if (!id) {
+        id = `kchart-${++chartIdSequence}`;
+        chartIds.set(state, id);
+    }
+    return id;
+};
+
+const validateSeriesSelectors = <T = any>(series: KChartSeries<T>[]): void => {
+    // Core treats selectors as opaque labels. Built-in canvas series cleanup
+    // still requires a CSS-safe canvasName when the selector is not CSS-safe.
+    const selectors = new Set<string>();
+    series.forEach((item) => {
+        if (selectors.has(item.selector)) {
+            throw new Error(`Duplicate KChart series selector: ${item.selector}`);
+        }
+        selectors.add(item.selector);
+    });
+};
 
 type ZoomFrameRequester = (callback: (timestamp: number) => void) => number;
 type ZoomFrameCanceller = (frame: number) => void;
@@ -412,7 +447,7 @@ const resolveEffectiveMargin = <T = any>(
     const hasRangeNavigator = Boolean(rangeNavigator)
         && rangeNavigator?.visible !== false
         && Boolean(resolveRangeNavigatorAxis(config.axes, rangeNavigator?.xField));
-    const axisMargin = hasRangeNavigator
+    let axisMargin = hasRangeNavigator
         ? {
             ...resolvedAxisMargin,
             bottom: Math.max(
@@ -427,6 +462,19 @@ const resolveEffectiveMargin = <T = any>(
     const hasTopLegend = legend?.visible !== false && legend?.placement !== 'right' && legend?.placement !== 'bottom' && config.series.length > 0;
     const titleVisible = hasTitleText(config);
     const topOptionLabelsVisible = hasTopOptionLabels(config);
+
+    if (legend?.placement === 'right' && legend.visible !== false && config.series.length > 0) {
+        axisMargin = {...axisMargin, right: Math.max(axisMargin.right, Math.min(180, size.width * 0.4))};
+    }
+
+    const legendLayout = resolveLegendLayout(
+        size.width - axisMargin.left - axisMargin.right,
+        legend?.visible === false ? 0 : config.series.length,
+        legend?.placement
+    );
+    if (legend?.placement === 'bottom' && legendLayout.rows > 0) {
+        axisMargin = {...axisMargin, bottom: axisMargin.bottom + legendLayout.height + 12};
+    }
 
     if (!hasTopLegend && titleVisible) {
         if (horizontalAxisTitleTopSpace === 0) {
@@ -445,15 +493,11 @@ const resolveEffectiveMargin = <T = any>(
         };
     }
 
-    const itemWidth = 148;
-    const itemHeight = 22;
-    const availableLegendWidth = Math.max(itemWidth, size.width - axisMargin.left - axisMargin.right);
-    const legendColumns = Math.max(1, Math.floor(availableLegendWidth / itemWidth));
-    const legendRows = hasTopLegend ? Math.ceil(config.series.length / legendColumns) : 0;
+    const legendRows = hasTopLegend ? legendLayout.rows : 0;
     const legendY = titleVisible
         ? topOptionLabelsVisible ? 58 : 54
         : 16;
-    const legendHeight = legendRows > 0 ? legendRows * itemHeight : 0;
+    const legendHeight = legendRows > 0 ? legendLayout.height : 0;
     const optionLabelLift = topOptionLabelsVisible ? 18 : 0;
     const gap = topOptionLabelsVisible ? 12 : 18;
     const requiredTop = Math.ceil(
@@ -471,7 +515,7 @@ const resolveEffectiveMargin = <T = any>(
         };
     }
 
-    return axisMargin;
+    return hasTopLegend ? {...axisMargin, top: Math.max(axisMargin.top, requiredTop)} : axisMargin;
 };
 
 const resolveContainer = (
@@ -488,16 +532,35 @@ const resolveContainer = (
     return container;
 };
 
+const measureContainerContentSize = (node: HTMLElement): KChartSize => {
+    const rect = node.getBoundingClientRect();
+    const style = node.ownerDocument.defaultView?.getComputedStyle?.(node);
+    const pixels = (name: string): number => parseFloat(style?.getPropertyValue(name)) || 0;
+    return {
+        width: Math.max(0, rect.width - pixels('padding-left') - pixels('padding-right')
+            - pixels('border-left-width') - pixels('border-right-width')),
+        height: Math.max(0, rect.height - pixels('padding-top') - pixels('padding-bottom')
+            - pixels('border-top-width') - pixels('border-bottom-width'))
+    };
+};
+
+const hasDefiniteContainerHeight = (node: HTMLElement): boolean => {
+    const typedHeight = (node as any).computedStyleMap?.().get('height')?.toString();
+    const height = typedHeight ?? node.style.getPropertyValue('height');
+    return Boolean(height && !['auto', 'min-content', 'max-content', 'fit-content'].includes(height));
+};
+
 const resolveSize = <T = any>(
     container: Selection<HTMLElement, unknown, any, any>,
     config: KChartConfiguration<T>,
-    margin: KChartMargin
+    margin: KChartMargin,
+    previousSize?: KChartSize
 ): {size: KChartSize, plotSize: KChartSize, margin: KChartMargin} => {
-    const rect = container.node().getBoundingClientRect();
-    const size = {
-        width: config.width ?? Math.max(rect.width, 320),
-        height: config.height ?? Math.max(rect.height, 240)
-    };
+    const node = container.node();
+    const size = resolveContainerSize(measureContainerContentSize(node), config);
+    if (previousSize && config.height === undefined && config.autoResize !== false && !hasDefiniteContainerHeight(node)) {
+        size.height = previousSize.height;
+    }
     const effectiveMargin = resolveEffectiveMargin(config, size, margin);
 
     return {
@@ -514,7 +577,8 @@ const createLayers = <T = any>(
     container: Selection<HTMLElement, unknown, any, any>,
     config: KChartConfiguration<T>,
     getSize: () => KChartSize,
-    getMargin: () => KChartMargin
+    getMargin: () => KChartMargin,
+    canvases: Set<HTMLCanvasElement>
 ): KChartLayerContext => {
     container
         .classed('kchart', true)
@@ -528,6 +592,7 @@ const createLayers = <T = any>(
         .data([undefined])
         .join('svg')
         .attr('class', 'kchart-svg')
+        .style('display', 'block')
         .style('position', 'relative')
         .style('z-index', 3)
         .style('pointer-events', 'all');
@@ -552,8 +617,16 @@ const createLayers = <T = any>(
         .join('g')
         .attr('class', 'kchart-overlay');
 
-    const getCanvas = (name = 'default') => ensureCanvas(container, name, getSize(), getMargin(), '2d');
-    const getWebglCanvas = (name = 'webgl') => ensureCanvas(container, name, getSize(), getMargin(), 'webgl');
+    const getCanvas = (name = 'default') => {
+        const canvas = ensureCanvas(container, name, getSize(), getMargin(), '2d');
+        canvases.add(canvas);
+        return canvas;
+    };
+    const getWebglCanvas = (name = 'webgl') => {
+        const canvas = ensureCanvas(container, name, getSize(), getMargin(), 'webgl');
+        canvases.add(canvas);
+        return canvas;
+    };
 
     return {
         svg,
@@ -578,10 +651,19 @@ const ensureCanvas = (
     const height = Math.max(size.height - margin.top - margin.bottom, 0);
     const pixelWidth = Math.round(width);
     const pixelHeight = Math.round(height);
-    const canvas = container.selectAll<HTMLCanvasElement, unknown>(`canvas.${className}`)
+    const canvas = container.selectAll<HTMLCanvasElement, unknown>('canvas')
+        .filter(function () {
+            return this.getAttribute('data-kchart-canvas-key') === className
+                || (!this.getAttribute('data-kchart-canvas-key') && this.getAttribute('class') === className);
+        })
         .data([undefined])
         .join('canvas')
-        .attr('class', className)
+        .attr('data-kchart-canvas-key', className)
+        .each(function () {
+            if (!this.getAttribute('class')) {
+                this.setAttribute('class', className);
+            }
+        })
         .style('position', 'absolute')
         .style('z-index', 1)
         .style('pointer-events', 'none')
@@ -641,6 +723,7 @@ const resolveScales = <T = any>(
 });
 
 const renderAxes = <T = any>(state: KChartState<T>): void => {
+    const theme = resolveChartTheme(state.config.theme);
     const axisLayer = state.layers.rootGroup.selectAll<SVGGElement, unknown>('g.kchart-axes')
         .data([undefined])
         .join('g')
@@ -665,7 +748,7 @@ const renderAxes = <T = any>(state: KChartState<T>): void => {
             left: axisLeft
         }[scale.placement](scale.scale);
 
-        applyAxisTickCount(axisFactory, scale);
+        applyAxisTickCount(axisFactory, {...scale, tickCount: resolveResponsiveTickCount(scale, state.plotSize)});
 
         if (scale.tickFormat) {
             axisFactory.tickFormat(scale.tickFormat as any);
@@ -675,7 +758,10 @@ const renderAxes = <T = any>(state: KChartState<T>): void => {
             .attr('transform', resolveAxisTransform(scale.placement, state.plotSize))
             .call(axisFactory as any);
 
-        renderAxisTitle(axisGroup, scale, state.plotSize, hasTopAxis, hasTopAxisTitle);
+        axisGroup.selectAll('text').style('fill', theme.muted);
+        axisGroup.selectAll('line').style('stroke', theme.grid);
+        axisGroup.selectAll('path.domain').style('stroke', theme.grid);
+        renderAxisTitle(axisGroup, scale, state.plotSize, hasTopAxis, hasTopAxisTitle, theme.muted);
     });
 };
 
@@ -684,7 +770,8 @@ const renderAxisTitle = <T = any>(
     scale: KChartResolvedScale<T>,
     plotSize: KChartSize,
     hasTopAxis: boolean,
-    hasTopAxisTitle: boolean
+    hasTopAxisTitle: boolean,
+    color: string
 ): void => {
     const attributes = resolveAxisTitleAttributes(scale, plotSize, {
         hasTopAxis,
@@ -694,7 +781,7 @@ const renderAxisTitle = <T = any>(
         .data(scale.title ? [scale] : [])
         .join('text')
         .attr('class', 'kchart-axis-title')
-        .style('fill', '#9fb1bf')
+        .style('fill', color)
         .style('font-size', '12px')
         .style('font-weight', 600)
         .style('text-anchor', attributes.textAnchor)
@@ -730,7 +817,7 @@ const renderTitle = <T = any>(state: KChartState<T>): void => {
         .join('text')
         .attr('class', 'kchart-title')
         .attr('y', titleY)
-        .style('fill', title?.color ?? '#edf3f8')
+        .style('fill', title?.color ?? resolveChartTheme(state.config.theme).text)
         .style('font-size', `${title?.fontSize ?? 14}px`)
         .style('font-weight', title?.fontWeight ?? 700)
         .text(title?.text ?? '');
@@ -762,7 +849,7 @@ const renderGrid = <T = any>(state: KChartState<T>): void => {
 
     const xScale = state.scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'bottom' || scale.placement === 'top');
     const yScale = state.scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'left' || scale.placement === 'right');
-    const color = grid?.color ?? 'rgba(188, 206, 218, 0.18)';
+    const color = grid?.color ?? resolveChartTheme(state.config.theme).grid;
 
     const styleLine = (selection: Selection<SVGLineElement, any, any, any>) => selection
         .style('stroke', color)
@@ -772,7 +859,7 @@ const renderGrid = <T = any>(state: KChartState<T>): void => {
 
     if (grid?.x !== false && xScale && typeof xScale.scale.ticks === 'function') {
         gridGroup.selectAll<SVGLineElement, any>('line.kchart-grid-x')
-            .data(xScale.scale.ticks())
+            .data(xScale.scale.ticks(resolveResponsiveTickCount(xScale, state.plotSize) || undefined))
             .join('line')
             .attr('class', 'kchart-grid-x')
             .attr('x1', (value: any) => resolveScalePosition(xScale, value))
@@ -786,7 +873,7 @@ const renderGrid = <T = any>(state: KChartState<T>): void => {
 
     if (grid?.y !== false && yScale && typeof yScale.scale.ticks === 'function') {
         gridGroup.selectAll<SVGLineElement, any>('line.kchart-grid-y')
-            .data(yScale.scale.ticks())
+            .data(yScale.scale.ticks(resolveResponsiveTickCount(yScale, state.plotSize) || undefined))
             .join('line')
             .attr('class', 'kchart-grid-y')
             .attr('x1', 0)
@@ -812,10 +899,13 @@ const renderLegend = <T = any>(state: KChartState<T>): void => {
     }
 
     const itemGap = legend?.itemGap ?? 14;
-    const itemWidth = 148;
-    const itemHeight = 22;
-    const availableLegendWidth = Math.max(itemWidth, state.size.width - state.margin.left - state.margin.right);
-    const legendColumns = Math.max(1, Math.floor(availableLegendWidth / itemWidth));
+    const layout = resolveLegendLayout(
+        legend?.placement === 'right' ? state.margin.right - itemGap - 8
+            : state.size.width - state.margin.left - state.margin.right,
+        state.series.length,
+        legend?.placement
+    );
+    const theme = resolveChartTheme(state.config.theme);
     const items = state.series.map((series: KChartSeries<T>, index: number) => ({
         selector: series.selector,
         name: series.displayName ?? series.selector,
@@ -823,31 +913,43 @@ const renderLegend = <T = any>(state: KChartState<T>): void => {
         hidden: state.hiddenSeries.has(series.selector)
     }));
     const selectable = legend?.selectable !== false;
+    const toggleItem = (itemData: typeof items[number]): void => {
+        if (!selectable) {
+            return;
+        }
+        if (state.hiddenSeries.has(itemData.selector)) {
+            state.hiddenSeries.delete(itemData.selector);
+        } else {
+            state.hiddenSeries.add(itemData.selector);
+        }
+        render(state);
+    };
 
     const item = legendGroup.selectAll<SVGGElement, typeof items[number]>('g.kchart-legend-item')
         .data(items)
         .join('g')
         .attr('class', 'kchart-legend-item')
+        .attr('role', selectable ? 'button' : null)
+        .attr('tabindex', selectable ? 0 : null)
+        .attr('aria-label', (itemData) => itemData.name)
+        .attr('aria-pressed', (itemData) => selectable ? String(!itemData.hidden) : null)
         .style('cursor', selectable ? 'pointer' : 'default')
         .style('opacity', (itemData) => itemData.hidden ? 0.48 : 1)
         .attr('transform', (_item, index: number) => {
             if (legend?.placement === 'right') {
-                return `translate(0, ${index * 20})`;
+                return `translate(0, ${index * layout.itemHeight})`;
             }
-            return `translate(${(index % legendColumns) * itemWidth}, ${Math.floor(index / legendColumns) * itemHeight})`;
+            return `translate(${(index % layout.columns) * layout.itemWidth}, ${Math.floor(index / layout.columns) * layout.itemHeight})`;
         })
-        .on('click', (_event, itemData) => {
-            if (!selectable) {
-                return;
-            }
-
-            if (state.hiddenSeries.has(itemData.selector)) {
-                state.hiddenSeries.delete(itemData.selector);
-            } else {
-                state.hiddenSeries.add(itemData.selector);
-            }
-            render(state);
+        .on('click', (_event, itemData) => toggleItem(itemData))
+        .on('keydown', (event: KeyboardEvent, itemData) => {
+            activateLegendFromKeyboard(event, () => toggleItem(itemData), selectable);
         });
+
+    item.selectAll<SVGTitleElement, typeof items[number]>('title')
+        .data((itemData) => [itemData])
+        .join('title')
+        .text((itemData) => itemData.name);
 
     item.selectAll<SVGRectElement, typeof items[number]>('rect.kchart-legend-check')
         .data((itemData) => [itemData])
@@ -859,7 +961,7 @@ const renderLegend = <T = any>(state: KChartState<T>): void => {
         .attr('height', 14)
         .attr('rx', 3)
         .style('fill', (itemData) => itemData.hidden ? 'transparent' : itemData.color)
-        .style('stroke', '#f8fbff')
+        .style('stroke', theme.text)
         .style('stroke-width', 1.4);
 
     item.selectAll<SVGPathElement, typeof items[number]>('path.kchart-legend-checkmark')
@@ -879,15 +981,25 @@ const renderLegend = <T = any>(state: KChartState<T>): void => {
         .join('text')
         .attr('x', 16)
         .attr('y', 4)
-        .style('fill', '#b6c4cf')
+        .style('fill', theme.muted)
         .style('font-size', '12px')
         .style('text-decoration', (itemData) => itemData.hidden ? 'line-through' : 'none')
-        .text((itemData) => itemData.name);
+        .text((itemData) => itemData.name)
+        .each(function (itemData) {
+            const node = this;
+            const measure = typeof node.getComputedTextLength === 'function'
+                ? (value: string): number => {
+                    node.textContent = value;
+                    return node.getComputedTextLength();
+                }
+                : undefined;
+            node.textContent = truncateLegendLabel(itemData.name, layout.textWidth, measure);
+        });
 
     if (legend?.placement === 'right') {
         legendGroup.attr('transform', `translate(${state.size.width - state.margin.right + itemGap}, ${state.margin.top})`);
     } else if (legend?.placement === 'bottom') {
-        legendGroup.attr('transform', `translate(${state.margin.left}, ${state.size.height - 10})`);
+        legendGroup.attr('transform', `translate(${state.margin.left}, ${state.size.height - layout.height + 8})`);
     } else {
         const hasSpecAreas = resolveSpecAreas(state).length > 0;
         const hasTitle = Boolean(state.config.title?.text?.trim());
@@ -905,10 +1017,19 @@ const getTooltipElement = <T = any>(state: KChartState<T>): Selection<HTMLDivEle
     .data([undefined])
     .join('div')
     .attr('class', 'kchart-tooltip')
+    .attr('id', `${getChartId(state)}-tooltip`)
+    .attr('role', 'tooltip')
+    .attr('aria-hidden', 'true')
     .style('position', 'absolute')
     .style('z-index', 6)
     .style('pointer-events', 'none')
     .style('opacity', 0)
+    .style('visibility', 'hidden')
+    .style('box-sizing', 'border-box')
+    .style('max-width', `${Math.max(0, state.size.width - 16)}px`)
+    .style('max-height', `${Math.max(0, state.size.height - 16)}px`)
+    .style('overflow', 'auto')
+    .style('overflow-wrap', 'anywhere')
     .style('padding', '8px 10px')
     .style('border', '1px solid rgba(233, 242, 247, 0.18)')
     .style('border-radius', '8px')
@@ -1317,8 +1438,11 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
     // Relationship series bind hover/click directly to their nodes and links.
     // Listen on the parent group in that mode so events still bubble into the
     // core tooltip without a transparent rectangle blocking the series.
-    overlay.on('.kchart-tooltip', null);
-    state.layers.seriesGroup.on('.kchart-tooltip', null);
+    [overlay, state.layers.seriesGroup].forEach((target) => {
+        const selection = target as Selection<BaseType, unknown, any, any>;
+        selection.on('.kchart-tooltip', null).attr('tabindex', null).attr('role', null)
+            .attr('aria-label', null).attr('aria-describedby', null);
+    });
 
     const guideLine = state.layers.overlayGroup.selectAll<SVGLineElement, unknown>('line.kchart-guide-line')
         .data(guideEnabled ? [undefined] : [])
@@ -1368,17 +1492,14 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
     } | undefined;
     const hideHoverTooltip = (): void => {
         activeTooltipCandidate = undefined;
-        tooltip.style('opacity', 0);
+        tooltip.style('opacity', 0).style('visibility', 'hidden').attr('aria-hidden', 'true');
+        tooltipEventTarget.attr('aria-describedby', null);
     };
 
-    tooltipEventTarget
-        .on('mousemove.kchart-tooltip', (event: MouseEvent) => {
-            const target = overlay.node();
-            if (!target) {
+    const showTooltipAt = (mouseX: number, mouseY: number, keyboardDatum?: {data: T; series: KChartSeries<T>}): void => {
+            if (destroyedCharts.has(state)) {
                 return;
             }
-
-            const [mouseX, mouseY] = pointer(event, target);
             let nearest: {
                 data: T;
                 series: KChartSeries<T>;
@@ -1398,10 +1519,14 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
             }> = [];
 
             state.series.forEach((series: KChartSeries<T>, index: number) => {
-                if (state.hiddenSeries.has(series.selector)) {
+                if (state.hiddenSeries.has(series.selector) || (keyboardDatum && series !== keyboardDatum.series)) {
                     return;
                 }
                 const color = series.color ?? state.colors[index % state.colors.length];
+                if (keyboardDatum) {
+                    nearest = {data: keyboardDatum.data, series, color, distance: 0, x: mouseX, y: mouseY};
+                    return;
+                }
                 const customTooltip = series.tooltip?.({
                     ...state.layers,
                     data: state.data,
@@ -1655,15 +1780,110 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
                 }
             });
 
+            const tooltipRect = tooltip.node().getBoundingClientRect();
+            const overflowing = tooltip.node().scrollHeight > tooltip.node().clientHeight
+                || tooltip.node().scrollWidth > tooltip.node().clientWidth;
+            tooltip.style('pointer-events', overflowing || tooltipNoteConfiguration?.enabled ? 'auto' : 'none')
+                .attr('tabindex', overflowing ? 0 : null)
+                .attr('role', overflowing || tooltipNoteConfiguration?.enabled ? 'group' : 'tooltip')
+                .attr('aria-label', overflowing || tooltipNoteConfiguration?.enabled ? 'Data details' : null);
+            const position = resolveTooltipPosition(
+                {x: state.margin.left + nearest.x, y: state.margin.top + nearest.y},
+                tooltipRect,
+                state.size
+            );
             tooltip
-                .style('left', `${state.margin.left + nearest.x + 12}px`)
-                .style('top', `${state.margin.top + nearest.y + 12}px`)
-                .style('opacity', 1);
+                .style('left', `${position.left}px`)
+                .style('top', `${position.top}px`)
+                .style('visibility', 'visible')
+                .style('opacity', 1)
+                .attr('aria-hidden', 'false')
+                .attr('aria-live', keyboardDatum ? 'polite' : 'off');
+            tooltipEventTarget.attr('aria-describedby', `${getChartId(state)}-tooltip`);
+    };
+
+    const showPointerTooltip = (event: MouseEvent | PointerEvent): void => {
+        const target = overlay.node();
+        if (target) {
+            const [x, y] = pointer(event, target);
+            showTooltipAt(x, y);
+        }
+    };
+    const keyboardSeries = state.series.find((item) => !state.hiddenSeries.has(item.selector) && item.xField && item.yField);
+    let keyboardIndex = 0;
+    const showKeyboardTooltip = (startIndex = keyboardIndex, direction = 1): void => {
+        const xScale = keyboardSeries && state.scales.find((scale) => scale.field === keyboardSeries.xField);
+        const yScale = keyboardSeries && state.scales.find((scale) => scale.field === keyboardSeries.yField);
+        if (!xScale || !yScale) {
+            return;
+        }
+        const start = Math.max(0, Math.min(startIndex, state.data.length - 1));
+        // Resolve only the requested raw index, skipping invalid/offscreen points lazily.
+        for (let index = start; index >= 0 && index < state.data.length; index += direction) {
+            const datum = state.data[index];
+            if (!datum) {
+                continue;
+            }
+            const x = resolveScalePosition(xScale, datum[keyboardSeries.xField]);
+            const y = resolveScalePosition(yScale, datum[keyboardSeries.yField]);
+            if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= state.plotSize.width
+                && y >= 0 && y <= state.plotSize.height) {
+                keyboardIndex = index;
+                showTooltipAt(x, y, {data: datum, series: keyboardSeries});
+                return;
+            }
+        }
+    };
+    const pointerEvents = typeof PointerEvent !== 'undefined';
+    let pointerFocus = false;
+    tooltipEventTarget
+        .attr('tabindex', tooltipEnabled && state.data.length > 0 && keyboardSeries ? 0 : null)
+        .attr('role', tooltipEnabled ? 'group' : null)
+        .attr('aria-label', tooltipEnabled ? 'Chart data' : null)
+        .on(`${pointerEvents ? 'pointermove' : 'mousemove'}.kchart-tooltip`, showPointerTooltip)
+        .on(`${pointerEvents ? 'pointerdown' : 'mousedown'}.kchart-tooltip`, (event: PointerEvent) => {
+            pointerFocus = true;
+            if (event.pointerType !== 'mouse') {
+                showPointerTooltip(event);
+            }
         })
-        .on('mouseleave.kchart-tooltip', (event: MouseEvent) => {
+        .on(`${pointerEvents ? 'pointerup' : 'mouseup'}.kchart-tooltip`, () => { pointerFocus = false; })
+        .on('pointercancel.kchart-tooltip', hideHoverTooltip)
+        .on('focus.kchart-tooltip', () => {
+            if (!pointerFocus) {
+                showKeyboardTooltip();
+            }
+            pointerFocus = false;
+        })
+        .on('keydown.kchart-tooltip', (event: KeyboardEvent) => {
+            if (!tooltipEnabled || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey
+                || event.isComposing || (event.target && event.target !== tooltipEventNode)) {
+                return;
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                hideHoverTooltip();
+            } else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                event.preventDefault();
+                const count = state.data.length;
+                const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1
+                    : keyboardIndex + (event.key === 'ArrowLeft' ? -1 : 1);
+                showKeyboardTooltip(nextIndex, event.key === 'ArrowLeft' || event.key === 'End' ? -1 : 1);
+            }
+        })
+        .on('blur.kchart-tooltip', (event: FocusEvent) => {
+            if (!(typeof Node !== 'undefined' && event.relatedTarget instanceof Node
+                && tooltip.node()?.contains(event.relatedTarget))) {
+                hideHoverTooltip();
+            }
+        })
+        .on(`${pointerEvents ? 'pointerleave' : 'mouseleave'}.kchart-tooltip`, (event: PointerEvent) => {
+            if (event.pointerType === 'touch') {
+                return;
+            }
             const tooltipNode = tooltip.node();
             if (
-                event.relatedTarget instanceof Node &&
+                typeof Node !== 'undefined' && event.relatedTarget instanceof Node &&
                 tooltipNode?.contains(event.relatedTarget)
             ) {
                 return;
@@ -1681,13 +1901,51 @@ const renderTooltip = <T = any>(state: KChartState<T>): void => {
 
     tooltip.on('mouseleave.kchart-tooltip-note', (event: MouseEvent) => {
         if (
-            event.relatedTarget instanceof Node &&
+            typeof Node !== 'undefined' && event.relatedTarget instanceof Node &&
             (tooltipEventNode as Node | null)?.contains(event.relatedTarget)
         ) {
             return;
         }
         hideHoverTooltip();
     });
+    tooltip.on('keydown.kchart-tooltip', (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            (tooltipEventTarget.node() as HTMLElement)?.focus?.();
+            hideHoverTooltip();
+        }
+    });
+};
+
+const renderChartAccessibility = <T = any>(state: KChartState<T>): void => {
+    const accessibility = resolveChartAccessibility(state.config.accessibility, state.config.title?.text);
+    const descriptionId = `${getChartId(state)}-description`;
+    state.layers.svg
+        .attr('role', 'group')
+        .attr('aria-label', accessibility.label)
+        .attr('aria-describedby', accessibility.description ? descriptionId : null)
+        .attr('aria-busy', state.config.status?.state === 'loading' ? 'true' : null)
+        .style('color', resolveChartTheme(state.config.theme).text);
+    state.layers.svg.selectAll<SVGDescElement, string>('desc.kchart-description')
+        .data(accessibility.description ? [accessibility.description] : [])
+        .join('desc')
+        .attr('class', 'kchart-description')
+        .attr('id', descriptionId)
+        .text((description) => description);
+    const status = resolveChartStatus(state.config.status);
+    state.layers.rootGroup.selectAll<SVGTextElement, typeof status>('text.kchart-status')
+        .data(status ? [status] : [])
+        .join('text')
+        .attr('class', 'kchart-status')
+        .attr('role', status?.role ?? null)
+        .attr('aria-live', status?.state === 'error' ? 'assertive' : 'polite')
+        .attr('x', state.margin.left + state.plotSize.width / 2)
+        .attr('y', state.margin.top + state.plotSize.height / 2)
+        .attr('text-anchor', 'middle')
+        .style('fill', resolveChartTheme(state.config.theme).text)
+        .style('font-size', '13px')
+        .style('pointer-events', 'none')
+        .text(status?.message ?? '');
 };
 
 const renderSeries = <T = any>(
@@ -1718,14 +1976,26 @@ const renderSeries = <T = any>(
                 ?? state.scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'left' || scale.placement === 'right')
             : state.scales.find((scale: KChartResolvedScale<T>) => scale.placement === 'left' || scale.placement === 'right');
 
-        const seriesGroup = state.layers.seriesGroup.selectAll<SVGGElement, KChartSeries<T>>(`g.${series.selector}-group`)
-            .data([series])
-            .join('g')
+        // The layer was cleared above; selector names are labels, not CSS queries.
+        const seriesGroup = state.layers.seriesGroup.append<SVGGElement>('g')
+            .datum(series)
             .attr('class', `${series.selector}-group`);
         const renderData = resolveSeriesRenderData(state.data, state.plotSize, series, xScale, yScale);
+        const usage = seriesCanvasUsage.get(state);
+        let ownedCanvases = usage.get(series);
+        if (!ownedCanvases) {
+            ownedCanvases = new Set<HTMLCanvasElement>();
+            usage.set(series, ownedCanvases);
+        }
+        const trackCanvas = (canvas: HTMLCanvasElement): HTMLCanvasElement => {
+            ownedCanvases.add(canvas);
+            return canvas;
+        };
 
         series.render({
             ...state.layers,
+            getCanvas: (name) => trackCanvas(state.layers.getCanvas(name)),
+            getWebglCanvas: (name) => trackCanvas(state.layers.getWebglCanvas(name)),
             group: seriesGroup,
             seriesGroup,
             data: renderData,
@@ -1923,12 +2193,15 @@ const reconcileRangeNavigatorSelectionForData = <T = any>(state: KChartState<T>)
 };
 
 const render = <T = any>(state: KChartState<T>): void => {
+    if (destroyedCharts.has(state)) {
+        return;
+    }
     const completion = beginRenderCompletion(state);
     const baseMargin: KChartMargin = {
         ...defaultMargin,
         ...state.config.margin
     };
-    const sizes = resolveSize(state.container, state.config, baseMargin);
+    const sizes = resolveSize(state.container, state.config, baseMargin, state.size);
     state.size = sizes.size;
     state.margin = sizes.margin;
     state.plotSize = sizes.plotSize;
@@ -1945,6 +2218,7 @@ const render = <T = any>(state: KChartState<T>): void => {
     renderLegend(state);
     renderTooltip(state);
     renderZoom(state);
+    renderChartAccessibility(state);
     // Completion resolves immediately for synchronous SVG/canvas paths, or
     // waits for worker-backed series that registered async render tasks.
     finishRenderCompletion(state, completion);
@@ -1976,12 +2250,13 @@ const renderDataUpdate = <T = any>(
         ...defaultMargin,
         ...state.config.margin
     };
-    const sizes = resolveSize(state.container, state.config, baseMargin);
+    const sizes = resolveSize(state.container, state.config, baseMargin, state.size);
     state.size = sizes.size;
     state.margin = sizes.margin;
     state.plotSize = sizes.plotSize;
     const nextScales = resolveScales(state.data, state.axes, state.plotSize);
 
+    renderChartAccessibility(state);
     renderTitle(state);
     renderLegend(state);
     renderTooltip(state);
@@ -2041,6 +2316,7 @@ const renderDataUpdate = <T = any>(
 export const createKChart = <T = any>(
     config: KChartConfiguration<T>
 ): KChartController<T> => {
+    validateSeriesSelectors(config.series);
     const container = resolveContainer(config.selector);
     const baseMargin: KChartMargin = {
         ...defaultMargin,
@@ -2066,10 +2342,33 @@ export const createKChart = <T = any>(
         animationRenderId: 0,
         renderCompletion: createResolvedRenderCompletion()
     };
-    state.layers = createLayers(container, config, () => state.size, () => state.margin);
+    // A container has one live controller. Retire its previous owner before
+    // creating layers so old cleanup hooks cannot touch the replacement chart.
+    containerOwners.get(container.node())?.();
+    const canvases = new Set<HTMLCanvasElement>();
+    const canvasUsage = new Map<object, Set<HTMLCanvasElement>>();
+    seriesCanvasUsage.set(state, canvasUsage);
+    state.layers = createLayers(container, config, () => state.size, () => state.margin, canvases);
+    let resizeObserver: ResizeObserver | undefined;
+    const resizeScheduler = createZoomRenderScheduler(() => {
+        if (destroyedCharts.has(state)) {
+            return;
+        }
+        const nextSize = resolveContainerSize(measureContainerContentSize(container.node()), state.config);
+        if (state.config.height === undefined && !hasDefiniteContainerHeight(container.node())) {
+            nextSize.height = state.size.height;
+        }
+        if (nextSize.width !== state.size.width || nextSize.height !== state.size.height) {
+            controller.resize();
+        }
+    });
+    const scheduleResize = (): void => resizeScheduler.schedule();
 
     const controller: KChartController<T> = {
         render() {
+            if (destroyedCharts.has(state)) {
+                return controller;
+            }
             // Explicit renders are authoritative. Discard a queued zoom paint
             // so it cannot immediately restart/cancel an update animation.
             zoomRenderSchedulers.get(state)?.cancel();
@@ -2080,6 +2379,9 @@ export const createKChart = <T = any>(
             return state.renderCompletion.promise;
         },
         updateData(data: T[]) {
+            if (destroyedCharts.has(state)) {
+                return controller;
+            }
             zoomRenderSchedulers.get(state)?.cancel();
             const previousScales = state.scales;
             state.data = data;
@@ -2092,6 +2394,9 @@ export const createKChart = <T = any>(
             return controller;
         },
         updateAxes(axes: KChartAxis<T>[]) {
+            if (destroyedCharts.has(state)) {
+                return controller;
+            }
             zoomRenderSchedulers.get(state)?.cancel();
             state.axes = cloneAxes(axes);
             state.initialAxes = cloneAxes(axes);
@@ -2104,10 +2409,57 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         updateSeries(series: KChartSeries<T>[]) {
+            if (destroyedCharts.has(state)) {
+                return controller;
+            }
+            validateSeriesSelectors(series);
+            zoomRenderSchedulers.get(state)?.cancel();
+            cancelSeriesAnimation(state);
+            const retained = new Set(series);
+            const previous = new Set(state.series);
+            const protectedCanvases = new Set<HTMLCanvasElement>();
+            retained.forEach((item) => canvasUsage.get(item)?.forEach((canvas) => protectedCanvases.add(canvas)));
+            previous.forEach((item) => {
+                if (!retained.has(item)) {
+                    state.hiddenSeries.delete(item.selector);
+                    const detached: Array<{canvas: HTMLCanvasElement; parent: Node; next: Node | null}> = [];
+                    protectedCanvases.forEach((canvas) => {
+                        if (canvas.parentNode === container.node()) {
+                            detached.push({canvas, parent: canvas.parentNode, next: canvas.nextSibling});
+                            canvas.parentNode.removeChild(canvas);
+                        }
+                    });
+                    // Cleanup hooks commonly query their parent for a named canvas.
+                    // Keep retained renderers' shared nodes out of those queries.
+                    try {
+                        item.destroy?.(state.layers);
+                    } finally {
+                        detached.reverse().forEach(({canvas, parent, next}) => {
+                            parent.insertBefore(canvas, next?.parentNode === parent ? next : null);
+                        });
+                    }
+                    canvasUsage.delete(item);
+                }
+            });
+            canvases.forEach((canvas) => {
+                if (canvas.parentNode !== container.node()) {
+                    canvases.delete(canvas);
+                }
+            });
+            const retainedSelectors = new Set(series.filter((item) => previous.has(item)).map((item) => item.selector));
+            state.hiddenSeries.forEach((selector) => {
+                if (!retainedSelectors.has(selector)) {
+                    state.hiddenSeries.delete(selector);
+                }
+            });
             state.series = series;
+            state.config = {...state.config, series};
             return controller.render();
         },
         resize(size: Partial<KChartSize> = {}) {
+            if (destroyedCharts.has(state)) {
+                return controller;
+            }
             const nextConfig = {
                 ...state.config,
                 ...size
@@ -2116,7 +2468,7 @@ export const createKChart = <T = any>(
                 ...defaultMargin,
                 ...nextConfig.margin
             };
-            const nextSizes = resolveSize(state.container, nextConfig, nextBaseMargin);
+            const nextSizes = resolveSize(state.container, nextConfig, nextBaseMargin, state.size);
             state.config = nextConfig;
             state.margin = nextSizes.margin;
             state.size = nextSizes.size;
@@ -2124,7 +2476,16 @@ export const createKChart = <T = any>(
             return controller.render();
         },
         destroy() {
+            if (destroyedCharts.has(state)) {
+                return;
+            }
+            // Mutators become chainable no-ops; state and completion remain readable.
             destroyedCharts.add(state as object);
+            resizeObserver?.disconnect();
+            resizeScheduler.destroy();
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('resize', scheduleResize);
+            }
             getZoomRenderScheduler(state).destroy();
             cancelSeriesAnimation(state);
             destroyRangeNavigator(state);
@@ -2133,14 +2494,32 @@ export const createKChart = <T = any>(
                     series.destroy(state.layers);
                 }
             });
-            state.container.selectAll('.kchart-svg').remove();
-            state.container.selectAll('canvas[class^="kchart-"]').remove();
+            state.layers.svg.remove();
+            canvases.forEach((canvas) => select(canvas).remove());
+            canvases.clear();
+            canvasUsage.clear();
+            seriesCanvasUsage.delete(state);
+            state.container.selectAll('div.kchart-tooltip').remove();
             destroyTooltipNotes(state);
+            state.hiddenSeries.clear();
+            if (containerOwners.get(container.node()) === controller.destroy) {
+                containerOwners.delete(container.node());
+            }
         },
         getState() {
             return state;
         }
     };
+
+    containerOwners.set(container.node(), controller.destroy);
+    if (config.autoResize !== false && (config.width === undefined || config.height === undefined)) {
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(scheduleResize);
+            resizeObserver.observe(container.node());
+        } else if (typeof window !== 'undefined') {
+            window.addEventListener('resize', scheduleResize);
+        }
+    }
 
     return controller;
 };

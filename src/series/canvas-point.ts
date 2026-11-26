@@ -4,6 +4,7 @@ import type {
 } from '../core/contracts';
 import {createCustomSeries} from './custom';
 import {resolveScalePosition} from './support/scale';
+import {destroyCanvasByClass} from './support/canvas';
 
 export const createCanvasPointSeries = <T = any>(
     configuration: KChartCanvasPointSeriesConfiguration<T>
@@ -54,11 +55,6 @@ export const createCanvasPointSeries = <T = any>(
         });
     },
     destroy({svg}) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            parent.querySelector(
-                `canvas.kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`
-            )?.remove();
-        }
+        destroyCanvasByClass(svg.node(), `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });

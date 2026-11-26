@@ -36,6 +36,15 @@ jobs:
       - name: Build demo
         run: npm run build-demo
 
+      - name: Basic chart usability regressions
+        run: npm run test:usability
+
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Basic chart browser regressions
+        run: npm run test:browser
+
       - name: Verify npm package contents
         run: npm run pack:dry
 
