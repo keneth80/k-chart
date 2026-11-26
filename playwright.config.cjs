@@ -11,7 +11,8 @@ module.exports = defineConfig({
         {name: 'mobile', use: {viewport: {width: 360, height: 740}, isMobile: true, hasTouch: true}}
     ],
     webServer: {
-        command: `node node_modules/webpack-dev-server/bin/webpack-dev-server.js --host 127.0.0.1 --port ${port} --mode development`,
+        // Dependency build warnings stay in the console without blocking real input.
+        command: `node node_modules/webpack-dev-server/bin/webpack-dev-server.js --host 127.0.0.1 --port ${port} --mode development --no-client-overlay-warnings`,
         url: `http://127.0.0.1:${port}`, reuseExistingServer: false, timeout: 120000
     }
 });
