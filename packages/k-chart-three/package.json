@@ -1,6 +1,6 @@
 {
   "name": "@keneth80/k-chart-three",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Optional Three.js scene wrapper and 3D monitoring objects for KChart.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

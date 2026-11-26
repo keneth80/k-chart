@@ -1,5 +1,22 @@
 # Changelog
 
+## @keneth80/k-chart-three 0.2.1 - 2026-11-26
+
+### Fixed
+
+- Removed adjacent world-copy meshes from the flat Earth projection. Wide
+  desktop charts now show one complete world with empty side gutters instead
+  of repeating the map three times.
+- Retained the shared globe-to-map surface, geographic UV wrapping, centered
+  antimeridian views, marker alignment, and projection reversal.
+
+### Tests
+
+- Count every renderable geographic mesh, including meshes whose names do not
+  contain `surface`, to prevent duplicate maps escaping regression checks.
+- Verify single-world rendering and actual empty gutter pixels at 1440, 2560,
+  and 3440 pixels wide, including east/west antimeridian centers and zoom.
+
 ## 1.29.0 - 2026-11-26
 
 ### Added

@@ -13,6 +13,40 @@ const inspect = page => page.evaluate(() => window.globeHarness.inspect());
 const waitProjection = (page, progress) => page.waitForFunction(
     value => Math.abs(window.globeHarness.series().getProjectionProgress() - value) < 1e-8, progress);
 
+test('wide desktop maps draw one world with empty side gutters at every longitude', async ({page}, testInfo) => {
+    await page.evaluate(() => window.globeHarness.mount({autoRotate: false}));
+    for (const [width, height] of [[1440, 420], [2560, 700], [3440, 900]]) {
+        await page.setViewportSize({width, height});
+        await page.evaluate(({width, height}) => window.globeHarness.resize(width, height), {width, height});
+        for (const lon of [0, 170, -170]) {
+            await page.evaluate(lon => {
+                window.globeHarness.series().setFlatView({center: {lat: 0, lon}, zoom: 1, lighting: 'night'});
+                window.globeHarness.series().setProjection('flat', {animate: false});
+            }, lon);
+            const flat = await page.evaluate(() => window.globeHarness.capture());
+            expect(flat.surfaces).toHaveLength(1);
+            expect(flat.surfaces[0].name).toBe('kchart-three-globe-surface');
+            expect(flat.surfaces[0].maxNdc).toBeLessThanOrEqual(1 + 1e-6);
+            expect(flat.pixels.colored).toBeGreaterThan(10);
+            expect(flat.pixels.lateralTotal).toBe(6);
+            expect(flat.pixels.lateralColored).toBe(0);
+            expect(flat.points.every(point => point.screen.every(Number.isFinite))).toBe(true);
+        }
+        await page.screenshot({path: testInfo.outputPath(`single-world-${width}.png`)});
+    }
+    await page.evaluate(() => {
+        window.globeHarness.series().setFlatView({center: {lat: 0, lon: 170}, zoom: 3.2});
+    });
+    const regional = await page.evaluate(() => window.globeHarness.capture());
+    expect(regional.surfaces).toHaveLength(1);
+    expect(regional.pixels.colored).toBeGreaterThan(10);
+    expect(regional.points[3].world[0]).toBeCloseTo((179.8 - 170) / 180 * 3.2, 5);
+    await page.evaluate(() => window.globeHarness.series().setProjection('globe', {animate: false}));
+    const globe = await page.evaluate(() => window.globeHarness.capture());
+    expect(globe.surfaces).toHaveLength(1);
+    expect(globe.pixels.colored).toBeGreaterThan(10);
+});
+
 for (const atmosphere of [true, false]) {
     for (const [width, height] of [[1280, 800], [680, 382], [669, 382], [390, 844], [844, 390]]) {
         test(`shared-size endpoints in ${width}x${height} viewport with atmosphere ${atmosphere}`, async ({page}) => {

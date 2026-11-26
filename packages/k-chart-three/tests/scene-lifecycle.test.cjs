@@ -174,6 +174,18 @@ const closeTo = (actual, expected, tolerance, message) => {
     );
 };
 
+const assertSingleEarthSurface = (scene, surface) => {
+    const earthMeshes = [];
+    scene.traverse((object) => {
+        assert.ok(!object.name.includes('flat-map-wrap'), 'no wrap objects remain in the scene');
+        if (object.isMesh && (object.geometry === surface.geometry || object.material.uniforms?.uDayTexture)) {
+            earthMeshes.push(object);
+        }
+    });
+    assert.deepEqual(earthMeshes, [surface], 'exactly one mesh owns the earth surface material');
+    assert.equal(scene.getObjectByName('kchart-three-globe-surface'), surface);
+};
+
 test('scene resize restores DPR/backing size and destroy releases the WebGL context', () => {
     const canvas = new MockCanvas(180, 90);
     const controller = createKThreeScene({
@@ -278,11 +290,7 @@ test('projection endpoints reuse one surface and marker mesh while preserving fl
     assert.equal(flatSurface.geometry.parameters.height, 1);
     assert.equal(flatSurface.geometry.parameters.widthSegments, 128);
     assert.ok(Number.isFinite(flatSurface.geometry.boundingSphere.radius));
-    const westWrap = scene.getObjectByName('kchart-three-flat-map-wrap--1');
-    const eastWrap = scene.getObjectByName('kchart-three-flat-map-wrap-1');
-    assert.equal(westWrap.geometry, globeSurface.geometry);
-    assert.equal(eastWrap.geometry, globeSurface.geometry);
-    assert.equal(westWrap.visible, false);
+    assertSingleEarthSurface(scene, globeSurface);
     assert.equal(markerMesh.parent, globeGroup);
     assert.equal(canvas.listenerCount(), 7);
 
@@ -304,10 +312,7 @@ test('projection endpoints reuse one surface and marker mesh while preserving fl
     assert.equal(flatGroup.getObjectByName('kchart-three-globe-atmosphere'), undefined);
     assert.equal(canvas.style.cursor, 'default');
     assert.equal(flatSurface.material.uniforms.uLightingMode.value, 0);
-    assert.equal(westWrap.visible, true);
-    assert.equal(westWrap.position.x, -2);
-    assert.equal(eastWrap.position.x, 2);
-    assert.equal(westWrap.material.uniforms.uOpacity.value, 1);
+    assertSingleEarthSurface(scene, globeSurface);
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(canvas.style.cursor, 'default');
 
@@ -335,8 +340,7 @@ test('projection endpoints reuse one surface and marker mesh while preserving fl
     });
     assert.equal(flatSurface.material.uniforms.uLightingMode.value, 1);
     assert.deepEqual(flatGroup.scale.toArray(), [1, 1, 1]);
-    assert.equal(westWrap.position.x, -8);
-    assert.equal(eastWrap.position.x, 8);
+    assertSingleEarthSurface(scene, globeSurface);
     markerMesh.getMatrixAt(0, matrix);
     flatGroup.updateMatrixWorld(true);
     position.setFromMatrixPosition(matrix).applyMatrix4(flatGroup.matrixWorld);
@@ -372,7 +376,6 @@ test('projection endpoints reuse one surface and marker mesh while preserving fl
         globeSurface.geometry,
         flatSurface.geometry,
         globeSurface.material,
-        westWrap.material,
         atmosphere.geometry,
         atmosphere.material,
         markerMesh.geometry,
@@ -393,6 +396,70 @@ test('projection endpoints reuse one surface and marker mesh while preserving fl
         assert.equal(count, 1);
     }
 });
+
+for (const longitude of [0, 126, 170, -170, 180, -180]) {
+    test(`one earth surface preserves geographic UVs and markers at longitude ${longitude} across resizes`, () => {
+        const data = [{lat: 0, lon: 175}, {lat: 0, lon: -175}];
+        const {series, canvas, renderer} = mountGlobe({autoRotate: false}, data);
+        const scene = renderer.scene;
+        const surface = scene.getObjectByName('kchart-three-globe-surface');
+        const geometry = surface.geometry;
+        const material = surface.material;
+        const markers = scene.getObjectByName('kchart-three-globe-markers');
+        const matrix = new THREE.Matrix4();
+        const point = new THREE.Vector3();
+        try {
+            for (const zoom of [1, 4, 1]) {
+                series.setFlatView({center: {lat: 0, lon: longitude}, zoom});
+                series.setProjection('flat', {animate: false});
+                const centerLongitude = series.getFlatView().center.lon;
+                for (const [width, height] of [[1440, 420], [2560, 700], [3440, 900], [390, 844]]) {
+                    canvas.bounds.width = canvas.parentElement.clientWidth = width;
+                    canvas.bounds.height = canvas.parentElement.clientHeight = height;
+                    series.render({data, plotSize: {width, height}, getWebglCanvas: () => canvas});
+                    assertSingleEarthSurface(scene, surface);
+                    assert.equal(surface.geometry, geometry);
+                    assert.equal(surface.material, material);
+                    assert.equal(scene.getObjectByName('kchart-three-globe-markers'), markers);
+                    const positions = geometry.attributes.position;
+                    const uvs = geometry.attributes.uv;
+                    const columns = geometry.parameters.widthSegments + 1;
+                    const middleRow = geometry.parameters.heightSegments / 2 * columns;
+                    for (const column of [0, (columns - 1) / 2, columns - 1]) {
+                        const index = middleRow + column;
+                        closeTo(positions.getX(index), (column / (columns - 1) - 0.5) * 2 * zoom,
+                            1e-6, 'single centered world x');
+                        closeTo(positions.getY(index), 0, 1e-6, 'equator y');
+                        closeTo(uvs.getX(index), centerLongitude / 360 + column / (columns - 1),
+                            1e-6, 'continuous geographic longitude UV');
+                    }
+                    data.forEach((marker, index) => {
+                        markers.getMatrixAt(index, matrix);
+                        point.setFromMatrixPosition(matrix);
+                        const delta = ((marker.lon - centerLongitude + 540) % 360) - 180;
+                        closeTo(point.x, delta / 180 * zoom, 1e-6, 'antimeridian marker x');
+                    });
+                    if (zoom === 1) {
+                        renderer.camera.updateMatrixWorld(true);
+                        for (let index = 0; index < positions.count; index += 1) {
+                            point.fromBufferAttribute(positions, index)
+                                .applyMatrix4(surface.matrixWorld).project(renderer.camera);
+                            for (const axis of ['x', 'y', 'z']) {
+                                assert.ok(Number.isFinite(point[axis]) && Math.abs(point[axis]) <= 1 + 1e-6,
+                                    `full-world vertex ${index} clips on ${axis} at ${width}x${height}`);
+                            }
+                        }
+                    }
+                }
+                series.setProjection('globe', {animate: false});
+                assertSingleEarthSurface(scene, surface);
+            }
+        } finally {
+            series.destroy();
+        }
+        assert.equal(frames.size, 0);
+    });
+}
 
 test('globe marker instances rebuild only for changed data and are fully disposed', () => {
     const OriginalInstancedMesh = THREE.InstancedMesh;
@@ -528,6 +595,7 @@ test('projection transitions share progress with markers, camera, atmosphere and
     assert.equal(markerPosition().distanceTo(globeMarker), 0);
     advanceFrame(300);
     const partial = series.getProjectionProgress();
+    assertSingleEarthSurface(renderer.scene, surface);
     closeTo(partial, 1 - (2 / 3) ** 3, 1e-9, 'default 900ms easing');
     assert.notEqual(renderer.camera.position.z, globeDistance);
     closeTo(atmosphere.material.uniforms.uIntensity.value, 0.72 * (1 - partial) ** 4, 1e-9, 'atmosphere fade');
@@ -549,6 +617,7 @@ test('projection transitions share progress with markers, camera, atmosphere and
     assert.ok(series.getProjectionProgress() > reversal);
     advanceFrame(300);
     assert.equal(series.getProjectionProgress(), 1);
+    assertSingleEarthSurface(renderer.scene, surface);
     assert.deepEqual(series.getCenter(), center);
     assert.equal(surface.geometry, geometry);
     assert.equal(renderer.scene.getObjectByName('kchart-three-globe-markers'), marker);

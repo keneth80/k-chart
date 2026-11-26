@@ -117,6 +117,9 @@ outer silhouette (including its optional atmosphere) uses 94% of that height
 to balance its stronger visual weight. On narrow viewports the globe becomes
 smaller instead of cropping or enlarging the world map past its horizontal
 bounds. Intermediate surfaces remain fitted, including during a resize.
+The flat projection renders one world, not adjacent world copies. Wide layouts
+keep empty side gutters; changing longitude recenters the geographic UV seam
+on that same surface so antimeridian views do not require duplicate maps.
 
 The operating system's `prefers-reduced-motion` setting disables automatic
 rotation and animated center/projection transitions. The configured settings

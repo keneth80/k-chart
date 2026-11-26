@@ -35,7 +35,7 @@ let lastScene: THREE.Scene;
 let lastCamera: THREE.Camera;
 let lastRenderer: THREE.WebGLRenderer;
 let capturePixels = false;
-let pixels = {colored: 0, total: 0};
+let pixels = {colored: 0, total: 0, lateralColored: 0, lateralTotal: 0};
 let frames: unknown[] = [];
 
 const inspect = () => {
@@ -50,9 +50,12 @@ const inspect = () => {
         const screen = position.clone().project(lastCamera);
         return {world: position.toArray(), screen: screen.toArray()};
     });
-    const surfaces: {uuid: string; count: number; finite: boolean; maxNdc: number; positionVersion: number; ndcHeight: number}[] = [];
+    const surface = lastScene.getObjectByName('kchart-three-globe-surface') as THREE.Mesh<THREE.PlaneGeometry>;
+    const surfaces: {name: string; uuid: string; count: number; finite: boolean; maxNdc: number; positionVersion: number; ndcHeight: number}[] = [];
     lastScene.traverse(object => {
-        if (!object.name.includes('surface')) return;
+        // Include every mesh using the geographic geometry, not only names
+        // containing "surface": otherwise adjacent world copies escape checks.
+        if ((object as THREE.Mesh).geometry !== surface.geometry || !object.visible) return;
         const geometry = (object as THREE.Mesh).geometry;
         const positions = geometry?.getAttribute('position');
         if (positions) {
@@ -66,12 +69,11 @@ const inspect = () => {
                 minY = Math.min(minY, point.y);
                 maxY = Math.max(maxY, point.y);
             }
-            surfaces.push({uuid: geometry.uuid, count: positions.count, maxNdc, ndcHeight: maxY - minY, positionVersion: (positions as THREE.BufferAttribute).version,
+            surfaces.push({name: object.name, uuid: geometry.uuid, count: positions.count, maxNdc, ndcHeight: maxY - minY, positionVersion: (positions as THREE.BufferAttribute).version,
                 finite: Array.from(positions.array).every(Number.isFinite)});
         }
     });
     const atmosphere = lastScene.getObjectByName('kchart-three-globe-atmosphere') as THREE.Mesh<THREE.SphereGeometry>;
-    const surface = lastScene.getObjectByName('kchart-three-globe-surface') as THREE.Mesh<THREE.PlaneGeometry>;
     const size = lastRenderer.getSize(new THREE.Vector2());
     return {progress: series.getProjectionProgress(), center: series.getCenter(),
         camera: {distance: lastCamera.position.z, tangent: Math.tan(THREE.MathUtils.degToRad((lastCamera as THREE.PerspectiveCamera).fov) / 2),
@@ -97,7 +99,14 @@ THREE.Scene.prototype.onAfterRender = function(renderer, scene, camera, ...args)
             const index = (Math.floor(height * y / 20) * width + Math.floor(width * x / 20)) * 4;
             if (values[index] + values[index + 1] + values[index + 2] > 40) colored++;
         }
-        pixels = {colored, total: 361};
+        let lateralColored = 0;
+        let lateralTotal = 0;
+        for (const x of [0.02, 0.98]) for (const y of [0.25, 0.5, 0.75]) {
+            const index = (Math.floor(height * y) * width + Math.floor(width * x)) * 4;
+            if (values[index] + values[index + 1] + values[index + 2] > 40) lateralColored++;
+            lateralTotal++;
+        }
+        pixels = {colored, total: 361, lateralColored, lateralTotal};
     }
     const frame = inspect();
     if (frame && frames.length < 500) frames.push(frame);

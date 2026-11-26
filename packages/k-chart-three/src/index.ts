@@ -582,8 +582,6 @@ const createThreeGlobeObject = <T>(
     let globeGroup: THREE.Group | undefined;
     let globeGeometry: THREE.PlaneGeometry | undefined;
     let earthMaterial: THREE.ShaderMaterial | undefined;
-    let wrapMaterial: THREE.ShaderMaterial | undefined;
-    let wrapMeshes: THREE.Mesh[] = [];
     let atmosphereGeometry: THREE.SphereGeometry | undefined;
     let atmosphereMaterial: THREE.ShaderMaterial | undefined;
     let markerGeometry: THREE.SphereGeometry | undefined;
@@ -722,15 +720,6 @@ const createThreeGlobeObject = <T>(
             globeGeometry.computeBoundingSphere();
         }
         updateLightingUniform();
-        if (wrapMaterial) {
-            const fade = Math.max(0, (projectionProgress - 0.85) / 0.15);
-            wrapMaterial.uniforms.uOpacity.value = fade * fade * (3 - 2 * fade);
-            const zoom = 1 + (flatView.zoom - 1) * projectionProgress;
-            wrapMeshes.forEach((mesh, index) => {
-                mesh.visible = fade > 0;
-                mesh.position.x = (index === 0 ? -1 : 1) * globeScale * 2 * zoom;
-            });
-        }
         if (atmosphereMaterial) {
             const atmosphere = typeof configuration.atmosphere === 'object' ? configuration.atmosphere : {};
             atmosphereMaterial.uniforms.uIntensity.value = (atmosphere.intensity ?? 0.72) * Math.pow(1 - projectionProgress, 4);
@@ -851,24 +840,6 @@ const createThreeGlobeObject = <T>(
             globeMesh.name = 'kchart-three-globe-surface';
             globeMesh.frustumCulled = false;
             globeGroup.add(globeMesh);
-            // Endpoint world repeats share the morphing geometry and geographic
-            // uniforms; they fade in only as the seam finishes opening.
-            wrapMaterial = new THREE.ShaderMaterial({
-                uniforms: {...earthMaterial.uniforms, uOpacity: {value: 0}},
-                vertexShader: GLOBE_VERTEX_SHADER,
-                fragmentShader: GLOBE_FRAGMENT_SHADER,
-                transparent: true,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                toneMapped: false
-            });
-            wrapMeshes = [-1, 1].map((offset) => {
-                const mesh = new THREE.Mesh(globeGeometry, wrapMaterial);
-                mesh.name = `kchart-three-flat-map-wrap-${offset}`;
-                mesh.frustumCulled = false;
-                globeGroup?.add(mesh);
-                return mesh;
-            });
 
             if (configuration.atmosphere) {
                 const atmosphere = configuration.atmosphere === true
@@ -955,7 +926,6 @@ const createThreeGlobeObject = <T>(
             removeMarkerMesh();
             globeGeometry?.dispose();
             earthMaterial?.dispose();
-            wrapMaterial?.dispose();
             atmosphereGeometry?.dispose();
             atmosphereMaterial?.dispose();
             markerGeometry?.dispose();
@@ -966,8 +936,6 @@ const createThreeGlobeObject = <T>(
             globeGroup = undefined;
             globeGeometry = undefined;
             earthMaterial = undefined;
-            wrapMaterial = undefined;
-            wrapMeshes = [];
             atmosphereGeometry = undefined;
             atmosphereMaterial = undefined;
             markerGeometry = undefined;
