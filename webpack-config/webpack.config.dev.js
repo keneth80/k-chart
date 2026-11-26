@@ -28,7 +28,12 @@ module.exports = merge(commonConfig, {
             stats: 'minimal'
         },
         client: {
-            webSocketURL: 'auto://0.0.0.0:0/ws'
+            webSocketURL: 'auto://0.0.0.0:0/ws',
+            // Keep third-party build warnings in the console without covering the demo.
+            overlay: {
+                errors: true,
+                warnings: false
+            }
         }
     }
 });

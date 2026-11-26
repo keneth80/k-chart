@@ -45,12 +45,21 @@ jobs:
       - name: Basic chart browser regressions
         run: npm run test:browser
 
+      - name: Three.js globe browser regressions
+        run: npm run test:browser --prefix packages/k-chart-three
+
+      - name: Three.js globe demo regressions
+        run: npm run test:demo --prefix packages/k-chart-three
+
       - name: Preserve browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: browser-failure-evidence
-          path: test-results/
+          path: |
+            test-results/
+            dist/globe-test-results/
+            dist/globe-demo-results/
           if-no-files-found: ignore
 
       - name: Verify npm package contents
