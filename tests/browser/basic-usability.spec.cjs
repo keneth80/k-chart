@@ -6,6 +6,26 @@ test.beforeEach(async ({page}) => {
     await expect(page.locator('#chart-div svg.kchart-svg')).toBeVisible({timeout:15000});
 });
 
+test.afterEach(async ({page}, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+        const layout = await page.evaluate(() => {
+            const describe = el => {
+                if (!el) return null;
+                const r = el.getBoundingClientRect();
+                const style = getComputedStyle(el);
+                return {x:r.x,y:r.y,width:r.width,height:r.height,heightStyle:style.height,
+                    widthStyle:style.width,position:style.position,visibility:style.visibility};
+            };
+            return {viewport:{width:innerWidth,height:innerHeight,scrollY},
+                chart:describe(document.querySelector('#chart-div')),svg:describe(document.querySelector('#chart-div svg')),
+                overlay:describe(document.querySelector('.kchart-tooltip-overlay')),
+                lastPoint:describe(document.querySelector('g.demo-line-value-group circle:last-child'))};
+        });
+        await testInfo.attach('layout', {body:JSON.stringify(layout),contentType:'application/json'});
+        console.log('Failure layout:', JSON.stringify(layout));
+    }
+});
+
 test('basic chart fits container after resize and tick labels do not overlap', async ({page}) => {
     await page.setViewportSize({width: 360, height: 740});
     const chart = page.locator('#chart-div');
@@ -38,7 +58,20 @@ test('light and dark chart text remain distinct', async ({page}, testInfo) => {
         const channels = color.match(/[\d.]+/g).slice(0,3).map(Number);
         const average = channels.reduce((a,b) => a+b,0)/3;
         expect(theme === 'light' ? average < 140 : average > 170).toBe(true);
-        await page.locator('#chart-div').screenshot({path: testInfo.outputPath(`${theme}.png`)});
+        await expect.poll(() => page.locator('#chart-div').evaluate(async el => {
+            const samples = [];
+            for (let index=0; index<8; index++) {
+                const host = el.getBoundingClientRect();
+                const svg = el.querySelector('svg').getBoundingClientRect();
+                samples.push([host.x,host.y,host.width,host.height,svg.x,svg.y,svg.width,svg.height]);
+                await new Promise(requestAnimationFrame);
+            }
+            return Math.max(...samples[0].map((_, index) => {
+                const values = samples.map(sample => sample[index]);
+                return Math.max(...values)-Math.min(...values);
+            }));
+        })).toBeLessThan(0.5);
+        await page.screenshot({path: testInfo.outputPath(`${theme}.png`), animations:'disabled'});
     }
 });
 
@@ -49,8 +82,7 @@ test('tooltip stays inside chart near the right edge', async ({page}) => {
     await expect(overlay).toBeVisible();
     const point = chart.locator('g.demo-line-value-group circle').last();
     await expect(point).toBeVisible();
-    const pointBox = await point.boundingBox();
-    await page.mouse.move(pointBox.x + pointBox.width/2, pointBox.y + pointBox.height/2);
+    await point.hover({force:true});
     const tooltip = chart.locator('.kchart-tooltip');
     await expect(tooltip).toHaveCSS('opacity','1');
     const bounds = await chart.boundingBox();
@@ -77,8 +109,7 @@ test('touch can inspect a data point', async ({page}, testInfo) => {
     await page.locator('#chart-div').scrollIntoViewIfNeeded();
     const point = page.locator('#chart-div g.demo-line-value-group circle').last();
     await expect(point).toBeVisible();
-    const box = await point.boundingBox();
-    await page.touchscreen.tap(box.x+box.width/2, box.y+box.height/2);
+    await point.tap({force:true});
     await expect(page.locator('#chart-div .kchart-tooltip')).toHaveAttribute('aria-hidden','false');
 });
 
