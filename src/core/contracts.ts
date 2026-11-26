@@ -905,6 +905,24 @@ export interface KChartTooltipConfiguration<T = any> {
     }) => string;
 }
 
+export interface KChartAccessibilityConfiguration {
+    label?: string;
+    description?: string;
+}
+
+export interface KChartThemeConfiguration {
+    text?: string;
+    muted?: string;
+    grid?: string;
+}
+
+export interface KChartStatusConfiguration {
+    /** Explicit display state; omitted configuration does not infer an empty state. */
+    state: 'ready' | 'loading' | 'empty' | 'error';
+    /** Plain text, never HTML. */
+    message?: string;
+}
+
 export interface KChartZoomContext<T = any> {
     axes: KChartAxis<T>[];
     xDomain?: Array<number | Date>;
@@ -1057,6 +1075,11 @@ export interface KChartConfiguration<T = any> {
     series: KChartSeries<T>[];
     width?: number;
     height?: number;
+    /** Observe container changes by default; explicit width/height remain authoritative. */
+    autoResize?: boolean;
+    accessibility?: KChartAccessibilityConfiguration;
+    theme?: KChartThemeConfiguration;
+    status?: KChartStatusConfiguration;
     margin?: Partial<KChartMargin>;
     colors?: string[];
     className?: string;

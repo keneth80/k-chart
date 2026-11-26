@@ -44,3 +44,6 @@ CODE_OF_CONDUCT.md
 CONTRIBUTING.md
 README 2.md
 docs/core-webgl-interview-guide.md
+test-results/
+.browser-fixture/
+playwright-report/

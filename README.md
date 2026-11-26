@@ -34,6 +34,13 @@
   <img src="docs/assets/kchart-hero.svg" alt="KChart hybrid chart runtime preview" width="920" />
 </p>
 
+## Reference Sites
+
+| Reference | KChart usage |
+| --- | --- |
+| [Galaxy Community](https://galaxyconstellate.com/) | Production community service using KChart visualizations in its administration and analytics views |
+| [KChart Panel for Grafana](https://grafana.com/grafana/plugins/keneth80-kchart-panel/) | Published Grafana visualization plugin powered by KChart |
+
 ## Why KChart?
 
 - **Hybrid rendering**: SVG, Canvas, and WebGL series share one chart runtime, layout, axes, and scales.

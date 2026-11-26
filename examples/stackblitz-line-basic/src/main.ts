@@ -22,11 +22,20 @@ const data: RevenuePoint[] = [
   { month: 'Dec', revenue: 101, target: 88 }
 ];
 
+const chartRoot = document.querySelector<HTMLElement>('#chart');
+if (!chartRoot) {
+  throw new Error('Chart container not found');
+}
+const readChartSize = () => ({
+  width: Math.max(1, chartRoot.clientWidth),
+  height: Math.max(1, chartRoot.clientHeight)
+});
+let chartSize = readChartSize();
+
 const chart = createKChart<RevenuePoint>({
   selector: '#chart',
   data,
-  width: 920,
-  height: 460,
+  ...chartSize,
   margin: {
     top: 88,
     right: 36,
@@ -99,14 +108,39 @@ const chart = createKChart<RevenuePoint>({
 
 chart.render();
 
-window.addEventListener('resize', () => {
-  const panel = document.querySelector<HTMLElement>('.chart-panel');
-  if (!panel) {
-    return;
-  }
+let disposed = false;
+const resizeChart = () => {
+  if (disposed) return;
+  const nextSize = readChartSize();
+  if (nextSize.width === chartSize.width && nextSize.height === chartSize.height) return;
+  chartSize = nextSize;
+  chart.resize(chartSize);
+};
+const resizeObserver = typeof ResizeObserver === 'undefined'
+  ? undefined
+  : new ResizeObserver(resizeChart);
+resizeObserver?.observe(chartRoot);
+if (!resizeObserver) window.addEventListener('resize', resizeChart);
 
-  chart.resize({
-    width: Math.max(panel.clientWidth - 48, 320),
-    height: 460
-  });
-});
+const dispose = () => {
+  if (disposed) return;
+  disposed = true;
+  resizeObserver?.disconnect();
+  window.removeEventListener('resize', resizeChart);
+  window.removeEventListener('pagehide', onPageHide);
+  window.removeEventListener('pageshow', onPageShow);
+  chart.destroy();
+};
+// A cached page keeps its chart, but resumes observing when restored.
+const onPageHide = (event: PageTransitionEvent) => {
+  if (event.persisted) resizeObserver?.disconnect();
+  else dispose();
+};
+const onPageShow = (event: PageTransitionEvent) => {
+  if (!event.persisted || disposed) return;
+  resizeObserver?.observe(chartRoot);
+  resizeChart();
+};
+window.addEventListener('pagehide', onPageHide);
+window.addEventListener('pageshow', onPageShow);
+(import.meta as ImportMeta & { hot?: { dispose(callback: () => void): void } }).hot?.dispose(dispose);
