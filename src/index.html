@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>KChart Playground</title>
@@ -19,8 +19,8 @@
                     <a>API</a>
                 </nav>
                 <div class="theme-toggle" aria-label="Theme">
-                    <button type="button" class="theme-toggle-button active" data-theme-option="dark">Dark</button>
-                    <button type="button" class="theme-toggle-button" data-theme-option="light">Light</button>
+                    <button type="button" class="theme-toggle-button active" data-theme-option="dark" aria-pressed="true">Dark</button>
+                    <button type="button" class="theme-toggle-button" data-theme-option="light" aria-pressed="false">Light</button>
                 </div>
             </div>
         </header>
@@ -114,7 +114,12 @@
             </aside>
 
             <section class="example-workspace">
-                <section class="example-gallery">
+                <div class="example-picker">
+                    <label for="example-select">Example</label>
+                    <select id="example-select" aria-controls="chart-div"></select>
+                </div>
+                <details class="example-gallery" id="example-gallery">
+                    <summary>Browse examples</summary>
                     <div class="gallery-header">
                         <div>
                             <h1>Examples</h1>
@@ -356,7 +361,7 @@
                             <span>Try another chart type or renderer.</span>
                         </div>
                     </div>
-                </section>
+                </details>
 
                 <section class="container-chart-example">
                     <aside class="container-control">
@@ -370,7 +375,7 @@
                     </aside>
                     <section class="preview-panel">
                         <div class="preview-header">
-                            <strong>Preview</strong>
+                            <strong id="preview-title" aria-live="polite">Preview</strong>
                             <span>Class-free KChart runtime</span>
                         </div>
                         <div id="chart-div" class="container-chart"></div>

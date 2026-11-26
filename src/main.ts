@@ -658,6 +658,9 @@ const configView = document.querySelector<HTMLElement>('#json-configuration');
 const summary = document.querySelector<HTMLElement>('#example-filter-summary');
 const themeLabel = document.querySelector<HTMLElement>('#current-theme-label');
 const chartExampleLayout = document.querySelector<HTMLElement>('.container-chart-example');
+const exampleSelect = document.querySelector<HTMLSelectElement>('#example-select');
+const exampleGallery = document.querySelector<HTMLDetailsElement>('#example-gallery');
+const previewTitle = document.querySelector<HTMLElement>('#preview-title');
 let mapLibreController: KChartMapLibreController<DemoPlace> | undefined;
 let mapLibreBridge: KChartMapLibreGlobeBridge<DemoPoint, DemoPlace> | undefined;
 let cesiumController: KChartCesiumController | undefined;
@@ -2848,7 +2851,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             visible: !isTopology && !isGraph && !isSankey && !isTree && !isTreemap && !isGlobeMap && !isWorldActivityMap && !isThreeScene && !isRadial && !isCalendarHeatmap,
             x: kind === 'contributor-activity',
             y: true,
-            color: 'rgba(188, 206, 218, 0.18)',
+            color: 'var(--kchart-grid)',
             dasharray: '2 6'
         },
         options: createOptions(kind),
@@ -2881,7 +2884,7 @@ const createDemoChart = (kind: DemoKind, overrideData?: DemoPoint[]): KChartCont
             direction: 'x',
             scaleExtent: kind === 'canvas-candlestick' ? [1, 120] : [1, 80],
             wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
-            gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
+            gestureZoom: { enabled: true, devices: 'mobile', minTouches: 2 },
             resetOnDoubleClick: true
         } : undefined,
         animation: kind === 'real-time'
@@ -4177,7 +4180,7 @@ const chart = createKChart<${kind === 'canvas-candlestick' ? 'StockPoint' : isUs
         direction: 'x',
         scaleExtent: [1, ${kind === 'canvas-candlestick' ? '120' : '80'}],
         wheelZoom: { enabled: true, devices: 'pc', sensitivity: 0.85 },
-        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 1 },
+        gestureZoom: { enabled: true, devices: 'mobile', minTouches: 2 },
         resetOnDoubleClick: true
     },` : ''}
     axes: ${kind === 'topology' || isUsageGraph || isUsageSankey || isUsageTree || isUsageTreemap || kind === 'three-constellation' || kind === 'three-wafer' || kind === 'radial' || kind === 'pie' || kind === 'doughnut' || isUsageGlobeMap ? '[]' : kind === 'canvas-candlestick' ? `[
@@ -4321,12 +4324,20 @@ const renderExample = (kind: DemoKind): void => {
 
     document.querySelectorAll<HTMLElement>('.example-card').forEach((button) => {
         button.classList.toggle('active', button.dataset.example === kind);
+        button.setAttribute('aria-pressed', String(button.dataset.example === kind));
     });
     document.querySelectorAll<HTMLElement>('[data-sidebar-example]').forEach((button) => {
         button.classList.toggle('active', button.dataset.sidebarExample === kind);
+        button.setAttribute('aria-pressed', String(button.dataset.sidebarExample === kind));
     });
 
     const selectedExample = examples.find((example) => example.kind === kind);
+    if (exampleSelect) {
+        exampleSelect.value = kind;
+    }
+    if (previewTitle) {
+        previewTitle.textContent = selectedExample?.title ?? kind;
+    }
     if (summary) {
         summary.textContent = selectedExample?.dataLabel
             ? `${selectedExample.title} (${selectedExample.dataLabel})`
@@ -4350,7 +4361,33 @@ const setupExampleButtons = (): void => {
     document.querySelectorAll<HTMLElement>('.example-card').forEach((button) => {
         const kind = button.dataset.example as DemoKind | undefined;
         if (kind) {
-            button.addEventListener('click', () => renderExample(kind));
+            button.addEventListener('click', () => {
+                renderExample(kind);
+                if (window.matchMedia('(max-width: 1180px)').matches) {
+                    if (exampleGallery) {
+                        exampleGallery.open = false;
+                    }
+                    chartExampleLayout?.scrollIntoView({ block: 'start' });
+                }
+            });
+        }
+    });
+};
+
+const setupExampleSelect = (): void => {
+    if (!exampleSelect) {
+        return;
+    }
+    examples.forEach((example) => {
+        const option = document.createElement('option');
+        option.value = example.kind;
+        option.textContent = example.title;
+        exampleSelect.appendChild(option);
+    });
+    exampleSelect.addEventListener('change', () => {
+        const selected = examples.find((example) => example.kind === exampleSelect.value);
+        if (selected) {
+            renderExample(selected.kind);
         }
     });
 };
@@ -4362,6 +4399,7 @@ const setupThemeButtons = (): void => {
             document.body.classList.toggle('theme-light', theme === 'light');
             document.querySelectorAll<HTMLButtonElement>('[data-theme-option]').forEach((item) => {
                 item.classList.toggle('active', item === button);
+                item.setAttribute('aria-pressed', String(item === button));
             });
             if (themeLabel) {
                 themeLabel.textContent = theme === 'light' ? 'Light metallic theme' : 'Dark metallic theme';
@@ -4389,5 +4427,6 @@ window.addEventListener('resize', () => {
 
 setupExampleButtons();
 setupSidebarExampleButtons();
+setupExampleSelect();
 setupThemeButtons();
 renderExample(activeKind);

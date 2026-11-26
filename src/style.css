@@ -1,4 +1,11 @@
 :root {
+    color-scheme: dark;
+    --kchart-text: #edf3f8;
+    --kchart-muted: #b6c4cf;
+    --kchart-grid: rgba(188, 206, 218, 0.2);
+    --kchart-axis: rgba(233, 242, 247, 0.45);
+    --kchart-background: #111821;
+    --kchart-tooltip-background: #10151c;
     --surface-0: #07090d;
     --surface-1: #10151c;
     --surface-2: #171f28;
@@ -25,6 +32,7 @@
     --input-bg: #0d1117;
     --code-bg: #0d1117;
     --legend-checkbox-color: #ffffff;
+    --badge-text: #a9dfff;
     --tooltip-bg: rgba(10, 14, 20, 0.95);
     --font-ui: "Pretendard", "Avenir Next", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
@@ -49,6 +57,13 @@ body {
 }
 
 body.theme-light {
+    color-scheme: light;
+    --kchart-text: #17202a;
+    --kchart-muted: #526274;
+    --kchart-grid: rgba(49, 65, 82, 0.18);
+    --kchart-axis: rgba(49, 65, 82, 0.54);
+    --kchart-background: #ffffff;
+    --kchart-tooltip-background: #ffffff;
     --surface-0: #f4f7fb;
     --surface-1: #ffffff;
     --surface-2: #edf2f7;
@@ -67,11 +82,13 @@ body.theme-light {
     --input-bg: #ffffff;
     --code-bg: #f7f9fc;
     --legend-checkbox-color: #17202a;
+    --badge-text: #155178;
     --tooltip-bg: rgba(255, 255, 255, 0.96);
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
@@ -242,6 +259,44 @@ svg {
     padding: 20px;
 }
 
+.example-picker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    margin-bottom: 12px;
+}
+
+.example-picker select {
+    width: min(100%, 520px);
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 32px 8px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--metal-1);
+}
+
+button:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 3px;
+}
+
+.example-gallery > summary {
+    width: fit-content;
+    min-height: 44px;
+    padding: 12px 0;
+    color: var(--metal-2);
+    cursor: pointer;
+}
+
+.example-gallery[open] > summary {
+    margin-bottom: 8px;
+}
+
 .example-gallery {
     margin-bottom: 16px;
 }
@@ -353,7 +408,7 @@ svg {
     padding: 3px 7px;
     border-radius: 999px;
     background: rgba(93, 184, 255, 0.13);
-    color: #a9dfff;
+    color: var(--badge-text);
     font-size: 11px;
     font-weight: 700;
 }
@@ -496,6 +551,7 @@ svg {
     grid-template-columns: 360px minmax(0, 1fr);
     gap: 12px;
     min-height: 540px;
+    scroll-margin-top: 80px;
 }
 
 .container-control,
@@ -522,6 +578,8 @@ svg {
     gap: 10px;
     min-height: 34px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
 }
 
 .control-row {
@@ -809,18 +867,18 @@ pre > code {
 }
 
 .container-chart svg {
-    color: var(--metal-2);
+    color: var(--kchart-muted);
 }
 
 .container-chart svg text {
-    fill: var(--metal-1);
+    fill: var(--kchart-text);
     font-family: var(--font-ui);
     font-size: 12px;
 }
 
 .container-chart svg .tick line,
 .container-chart svg .domain {
-    stroke: var(--line-soft);
+    stroke: var(--kchart-axis);
 }
 
 .container-chart svg .grid-line line,
@@ -838,7 +896,7 @@ pre > code {
 }
 
 .container-chart svg .legend-group text {
-    fill: var(--metal-1);
+    fill: var(--kchart-text);
 }
 
 .container-chart svg .checkbox-group {
@@ -918,33 +976,31 @@ pre > code {
     }
 
     .example-sidebar {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px;
-        padding: 14px;
-        border-right: 0;
-        border-bottom: 1px solid rgba(233, 242, 247, 0.1);
+        display: none;
     }
 
-    .sidebar-section + .sidebar-section {
-        margin-top: 0;
+    .example-workspace {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
-    .sidebar-section {
-        min-width: 0;
+    .example-picker {
+        margin-bottom: 0;
     }
 
-    .sidebar-item {
-        display: inline-flex;
-        align-items: center;
-        width: auto;
-        min-height: 30px;
-        margin: 0 4px 6px 0;
-        text-align: center;
+    .example-gallery {
+        order: 2;
+        margin-bottom: 0;
     }
 
     .container-chart-example {
         grid-template-columns: 1fr;
+        min-height: 0;
+    }
+
+    .preview-panel {
+        grid-row: 1;
     }
 
     .container-chart {
@@ -958,16 +1014,54 @@ pre > code {
         height: auto;
         align-items: flex-start;
         flex-direction: column;
-        gap: 12px;
-        padding: 14px;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .brand-copy > span {
+        display: none;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .theme-toggle-button,
+    .top-tabs a {
+        min-height: 44px;
     }
 
     .example-workspace {
-        padding: 14px;
+        padding: 12px;
     }
 
-    .example-sidebar {
-        grid-template-columns: 1fr;
+    .example-picker {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .example-picker select {
+        width: 100%;
+    }
+
+    .preview-panel {
+        padding: 8px;
+    }
+
+    .container-chart-example {
+        scroll-margin-top: 12px;
+    }
+
+    .container-chart {
+        min-height: 360px;
+    }
+
+    .container-control-configuration {
+        height: 280px;
     }
 
     .gallery-header {
@@ -976,6 +1070,7 @@ pre > code {
     }
 
     .container-button-bar {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+        gap: 8px;
     }
 }

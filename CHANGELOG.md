@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.29.0 - 2026-11-26
+
+### Added
+
+- Added Area, horizontal Bar, Scatter, Bubble, and Canvas Candlestick chart
+  presets and matching fluent builder methods using the existing renderers.
+- Added automatic container resize observation, chart accessibility metadata,
+  theme tokens, and opt-in loading, empty, and error status messages.
+- Added keyboard-operable legends and XY tooltip navigation, touch inspection,
+  edge-aware tooltip positioning, and responsive axis tick budgets.
+
+### Fixed
+
+- Corrected implicit Column and Bar baselines for truncated and reversed domains
+  without freezing automatic domains during streaming updates.
+- Cleaned up replaced series and retired controllers without removing retained
+  shared canvases; made canvas names safe for special characters.
+- Preserved data and renderer identity in builder snapshots and combined inferred
+  OHLC fields for candlestick series sharing an axis.
+- Fixed light-theme text contrast, compact layouts, long legend labels, and
+  bottom legend spacing alongside the range navigator.
+- Prevented resize feedback in padded intrinsic-height containers and removed
+  eager full-data traversal from keyboard accessibility initialization.
+
+### Tests
+
+- Added lifecycle, preset, responsive layout, and native browser regressions.
+- Verified desktop/mobile keyboard, touch, theme, and tooltip interactions in
+  three consecutive Chromium runs, plus existing unit and adapter suites.
+
+### Migration Notes
+
+- Strict preset option validation is opt-in to preserve existing 1.x callers.
+  Prefer series options in builder series methods, chart settings in fluent
+  methods or `build(overrides)`, and axis bindings in `x(...)` / `y(...)`.
+- `autoResize` defaults to enabled for unconstrained dimensions; use
+  `autoResize: false` for applications that manage resizing themselves.
+- Explicit `tickCount`, theme colors, dimensions, and baselines remain
+  authoritative. See `docs/core-usability.md` and `docs/preset-usability.md`.
+
 ## @keneth80/k-chart-maplibre 0.3.2 - 2026-11-23
 
 ### Fixed

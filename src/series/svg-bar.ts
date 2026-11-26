@@ -76,6 +76,18 @@ const resolveBandSize = <T = any>(
     ? scale.bandwidth()
     : fallback;
 
+const resolveBarBaseline = (scale: any, explicit?: number): number => {
+    let value = explicit ?? 0;
+    if (explicit === undefined && typeof scale.domain === 'function') {
+        const domain = scale.domain().map(Number).filter(Number.isFinite);
+        if (domain.length) {
+            value = Math.max(Math.min(...domain), Math.min(Math.max(...domain), 0));
+        }
+    }
+    const position = scale(value);
+    return Number.isFinite(position) ? position : 0;
+};
+
 export const createBarSeries = <T = any>(
     configuration: KChartBarSeriesConfiguration<T>
 ): KChartSeries<T> => createCustomSeries<T>({
@@ -89,10 +101,7 @@ export const createBarSeries = <T = any>(
             return;
         }
 
-        const baselineValue = configuration.baseline ?? 0;
-        const baselineX = Number.isFinite(xScale.scale(baselineValue))
-            ? xScale.scale(baselineValue)
-            : 0;
+        const baselineX = resolveBarBaseline(xScale.scale, configuration.baseline);
         const fallbackBand = plotSize.height / Math.max(data.length, 1);
         const band = resolveBandSize(yScale.scale, fallbackBand);
         const barHeight = Math.max(
@@ -131,10 +140,7 @@ export const createBarSeries = <T = any>(
             .style('stroke', 'transparent')
             .style('stroke-width', 0);
 
-        const baselineValue = configuration.baseline ?? 0;
-        const baselineX = Number.isFinite(xScale.scale(baselineValue))
-            ? xScale.scale(baselineValue)
-            : 0;
+        const baselineX = resolveBarBaseline(xScale.scale, configuration.baseline);
         const fallbackBand = 32;
         const band = resolveBandSize(yScale.scale, fallbackBand);
         const barHeight = Math.max(

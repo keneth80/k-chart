@@ -219,7 +219,12 @@ export const destroyCanvasByClass = (
         return;
     }
 
-    select(parent).selectAll<HTMLCanvasElement, unknown>(`canvas.${className}`)
+    select(parent).selectAll<HTMLCanvasElement, unknown>('canvas')
+        .filter(function () {
+            return this.getAttribute('data-kchart-canvas-key') === className
+                || this.getAttribute('class') === className
+                || (!/\s/.test(className) && Boolean(this.classList?.contains(className)));
+        })
         .each(function destroyCanvas() {
             destroyAsyncCanvas(this);
         })

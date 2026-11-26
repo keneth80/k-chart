@@ -1,6 +1,7 @@
 import {brushX} from 'd3-brush';
 import {scaleLinear, scaleTime} from 'd3-scale';
 import {area, line} from 'd3-shape';
+import {resolveLegendLayout} from '../core/usability';
 import type {
     KChartAxis,
     KChartConfiguration,
@@ -214,12 +215,13 @@ export const rangeNavigatorPixelsToRange = (
 
 export const resolveRangeNavigatorTopOffset = <T = any>(
     marginBottom: number,
-    config?: KChartRangeNavigatorConfiguration<T>
+    config?: KChartRangeNavigatorConfiguration<T>,
+    trailingSpace = 0
 ): number => {
     const {gap, reservedSpace} = resolveRangeNavigatorLayout(config);
     const axisFooter = Math.max(
         RANGE_NAVIGATOR_MINIMUM_AXIS_FOOTER,
-        marginBottom - reservedSpace
+        marginBottom - reservedSpace - Math.max(0, trailingSpace)
     );
     return axisFooter + gap;
 };
@@ -283,6 +285,10 @@ export const renderRangeNavigator = <T = any>(
         return;
     }
 
+    const bottomLegendSpace = state.config.legend?.visible !== false && state.config.legend?.placement === 'bottom'
+        && state.series.length > 0
+        ? resolveLegendLayout(state.plotSize.width, state.series.length, 'bottom').height + 12
+        : 0;
     const group = state.layers.rootGroup
         .append('g')
         .attr('class', 'kchart-range-navigator')
@@ -290,7 +296,7 @@ export const renderRangeNavigator = <T = any>(
             0,
             state.margin.top
                 + state.plotSize.height
-                + resolveRangeNavigatorTopOffset(state.margin.bottom, config)
+                + resolveRangeNavigatorTopOffset(state.margin.bottom, config, bottomLegendSpace)
         )})`);
 
     group.append('rect')

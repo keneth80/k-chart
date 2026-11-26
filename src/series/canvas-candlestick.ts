@@ -6,6 +6,7 @@ import type {
 } from '../core/contracts';
 import {createCustomSeries} from './custom';
 import {resolveScalePosition} from './support/scale';
+import {destroyCanvasByClass} from './support/canvas';
 
 const clampNumber = (value: number, min: number, max: number): number =>
     Math.max(min, Math.min(max, value));
@@ -277,11 +278,6 @@ export const createCanvasCandlestickSeries = <T = any>(
         };
     },
     destroy({svg}) {
-        const parent = svg.node()?.parentElement;
-        if (parent) {
-            parent.querySelector(
-                `canvas.kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`
-            )?.remove();
-        }
+        destroyCanvasByClass(svg.node(), `kchart-2d-canvas-${configuration.canvasName ?? configuration.selector}`);
     }
 });
