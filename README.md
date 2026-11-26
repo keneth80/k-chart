@@ -204,10 +204,21 @@ Optional integrations stay outside the core dependency graph and are included on
 | Integration | Package or guide | Purpose |
 | --- | --- | --- |
 | React / Next.js | [`@keneth80/k-chart-react`](https://www.npmjs.com/package/@keneth80/k-chart-react) and [integration guide](docs/react-nextjs.md) | Component lifecycle, updates, and cleanup |
-| Three.js | [`@keneth80/k-chart-three`](packages/k-chart-three/README.md) | 3D scenes using the Custom Series context |
+| Three.js | [`@keneth80/k-chart-three`](packages/k-chart-three/README.md) | On-demand textured globe, 3D scenes, and wafer monitoring without adding Three.js to the core bundle |
 | MapLibre | [`@keneth80/k-chart-maplibre`](packages/k-chart-maplibre/README.md) | Interactive vector maps, chart overlays, and the [subcell scalar-field example](https://stackblitz.com/fork/github/keneth80/k-chart/tree/main/examples/stackblitz-subcell-heatmap-basic?title=KChart%20Subcell%20Heat%20Field&file=src/main.ts) |
 | Cesium | [`@keneth80/k-chart-cesium`](packages/k-chart-cesium/README.md) | 3D globe and geospatial visualization |
 | Grafana | [KChart Panel](https://grafana.com/grafana/plugins/keneth80-kchart-panel/) | KChart-powered Line, Column, Area, Scatter, and Candlestick panels for Grafana dashboards |
+
+### On-demand WebGL Globe
+
+`@keneth80/k-chart-three` includes `createThreeGlobeSeries(...)` for textured
+day/night Earth views, optional city lights and atmosphere, drag-settled center
+callbacks, animated application presets, and instanced markers sourced from
+ordinary latitude/longitude chart data. The same series can switch at runtime
+between a dynamic day/night 3D globe and a full-world night map, with optional
+day, dynamic-lighting, and centered regional views, without recreating the chart. It draws only while the view or
+lighting changes and keeps all texture assets outside the KChart bundle. See the
+[Three.js package guide](packages/k-chart-three/README.md#textured-day--night-globe).
 
 ## Features And Guides
 

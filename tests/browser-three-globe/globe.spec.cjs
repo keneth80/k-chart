@@ -1,0 +1,193 @@
+const {test, expect} = require('../../packages/k-chart-three/node_modules/@playwright/test');
+
+test.beforeEach(async ({page}) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.__globeErrors = errors;
+    await page.goto('/');
+    await page.waitForFunction(() => !!window.globeHarness?.inspect());
+});
+test.afterEach(async ({page}) => expect(page.__globeErrors).toEqual([]));
+
+const inspect = page => page.evaluate(() => window.globeHarness.inspect());
+const waitProjection = (page, progress) => page.waitForFunction(
+    value => Math.abs(window.globeHarness.series().getProjectionProgress() - value) < 1e-8, progress);
+
+for (const atmosphere of [true, false]) {
+    for (const [width, height] of [[1280, 800], [680, 382], [669, 382], [390, 844], [844, 390]]) {
+        test(`shared-size endpoints in ${width}x${height} viewport with atmosphere ${atmosphere}`, async ({page}) => {
+            await page.evaluate(atmosphere => window.globeHarness.mount({autoRotate: false, atmosphere}), atmosphere);
+            await page.setViewportSize({width, height});
+            await page.evaluate(({width, height}) => window.globeHarness.resize(width, height), {width, height});
+            const globe = await page.evaluate(() => window.globeHarness.capture());
+            expect(globe.progress).toBe(0);
+            expect(globe.camera.width).toBeGreaterThan(0);
+            expect(globe.camera.width).toBeLessThanOrEqual(width);
+            expect(globe.camera.height).toBeGreaterThan(0);
+            expect(globe.camera.height).toBeLessThanOrEqual(height);
+            expect(globe.camera.framingRadius).toBeCloseTo(atmosphere ? 1.045 : 1, 6);
+            const outerHeight = ({camera}) => camera.framingRadius
+                / Math.sqrt(camera.distance ** 2 - camera.framingRadius ** 2)
+                * camera.height / camera.tangent;
+            const globeHeight = outerHeight(globe);
+            expect(Number.isFinite(globeHeight)).toBe(true);
+            expect(globe.pixels.colored).toBeGreaterThan(10);
+
+            await page.evaluate(() => window.globeHarness.series().setProjection('flat', {animate: false}));
+            await waitProjection(page, 1);
+            const flat = await page.evaluate(() => window.globeHarness.capture());
+            const centralSurface = flat.surfaces[0];
+            const flatHeight = centralSurface.ndcHeight * flat.camera.height / 2;
+            expect(flat.camera.width).toBe(globe.camera.width);
+            expect(flat.camera.height).toBe(globe.camera.height);
+            expect(flatHeight).toBeCloseTo(Math.min(flat.camera.height, flat.camera.width / 2) / 1.02, 3);
+            expect(Math.abs(globeHeight / flatHeight - 0.94)).toBeLessThanOrEqual(0.02);
+            expect(centralSurface.finite).toBe(true);
+            expect(centralSurface.maxNdc).toBeLessThanOrEqual(1 + 1e-6);
+            expect(flat.pixels.colored).toBeGreaterThan(10);
+            expect(flat.markerUuid).toBe(globe.markerUuid);
+            expect(flat.canvasCount).toBe(1);
+
+            await page.evaluate(() => window.globeHarness.series().setProjection('globe', {animate: false}));
+            await waitProjection(page, 0);
+            const restored = await inspect(page);
+            expect(outerHeight(restored)).toBeCloseTo(globeHeight, 5);
+            expect(restored.markerUuid).toBe(globe.markerUuid);
+            expect(restored.canvasCount).toBe(1);
+        });
+    }
+}
+
+test('default spin keeps latitude fixed, stops in flat mode, and can be paused', async ({page}) => {
+    const first = await inspect(page);
+    await page.waitForFunction(lon => Math.abs(window.globeHarness.series().getCenter().lon - lon) > 0.3, first.center.lon);
+    const rotating = await inspect(page);
+    expect(rotating.center.lat).toBe(first.center.lat);
+    rotating.points[5].world.forEach((value,index) => expect(value).toBeCloseTo(first.points[5].world[index], 5));
+    expect(rotating.surfaces.map(surface => surface.positionVersion)).toEqual(first.surfaces.map(surface => surface.positionVersion));
+    await page.evaluate(() => window.globeHarness.series().setAutoRotate(false));
+    const paused = await inspect(page);
+    const stable = await page.evaluate(async () => {
+        const start = window.globeHarness.series().getCenter();
+        for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+        return {start, end: window.globeHarness.series().getCenter()};
+    });
+    expect(stable.start).toEqual(stable.end);
+    expect(paused.center.lat).toBe(25);
+    await page.evaluate(() => {
+        window.globeHarness.series().setAutoRotate(true);
+        window.globeHarness.series().setProjection('flat', {animate: false});
+    });
+    await waitProjection(page, 1);
+    const flat = await page.evaluate(async () => {
+        const start = window.globeHarness.series().getCenter();
+        for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+        return {start, end: window.globeHarness.series().getCenter()};
+    });
+    expect(flat.start).toEqual(flat.end);
+});
+
+test('holding a drag pauses rotation and releasing resumes without changing latitude', async ({page}) => {
+    const canvas = page.locator('#chart canvas');
+    const bounds = await canvas.boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    const held = await page.evaluate(async () => {
+        const start = window.globeHarness.series().getCenter();
+        for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+        return {start, end: window.globeHarness.series().getCenter()};
+    });
+    expect(held.end).toEqual(held.start);
+    await page.mouse.move(bounds.x + bounds.width / 2 + 40, bounds.y + bounds.height / 2 + 12);
+    const dragged = await inspect(page);
+    expect(dragged.center.lat).not.toBe(held.start.lat);
+    await page.mouse.up();
+    await page.waitForFunction(lon => Math.abs(window.globeHarness.series().getCenter().lon - lon) > 0.3, dragged.center.lon);
+    expect((await inspect(page)).center.lat).toBe(dragged.center.lat);
+});
+
+test('unfolding moves the same marker mesh continuously with a nonblank surface', async ({page}, testInfo) => {
+    await page.evaluate(() => window.globeHarness.series().setAutoRotate(false));
+    const before = await inspect(page);
+    await page.screenshot({path: testInfo.outputPath('globe.png')});
+    await page.evaluate(() => {
+        window.globeHarness.clearFrames();
+        window.globeHarness.series().setProjection('flat', {duration: 1200});
+    });
+    await page.waitForFunction(() => {
+        const p = window.globeHarness.series().getProjectionProgress();
+        return p > 0.25 && p < 0.8;
+    });
+    const middle = await page.evaluate(() => window.globeHarness.capture());
+    expect(middle.progress).toBeGreaterThan(0);
+    expect(middle.progress).toBeLessThan(1);
+    expect(middle.pixels.colored).toBeGreaterThan(10);
+    await page.screenshot({path: testInfo.outputPath('unfolding.png')});
+    await waitProjection(page, 1);
+    const after = await page.evaluate(() => window.globeHarness.capture());
+    await page.screenshot({path: testInfo.outputPath('flat.png')});
+    expect(after.markerUuid).toBe(before.markerUuid);
+    expect(middle.markerUuid).toBe(before.markerUuid);
+    expect(after.pixels.colored).toBeGreaterThan(10);
+    expect(after.canvasCount).toBe(1);
+    const coordinates = [[37.5665,126.978], [40.7128,-74.006], [-33.8688,151.2093], [0,179.8], [85,-179.8], [90,0]];
+    after.points.forEach((point,index) => {
+        expect(point.world[0]).toBeCloseTo(coordinates[index][1] / 180, 5);
+        expect(point.world[1]).toBeCloseTo(coordinates[index][0] / 180, 5);
+    });
+    const frames = await page.evaluate(() => window.globeHarness.frames());
+    const transitional = frames.filter(frame => frame.progress > 0 && frame.progress < 1);
+    expect(transitional.length).toBeGreaterThan(5);
+    expect(new Set(transitional.map(frame => frame.points[0].world.join(','))).size).toBeGreaterThan(5);
+    for (const frame of frames) {
+        expect(frame.surfaces.every(surface => surface.finite)).toBe(true);
+        expect(frame.surfaces.every(surface => surface.maxNdc <= 1.03)).toBe(true);
+        expect(frame.points.every(point => point.world.every(Number.isFinite))).toBe(true);
+    }
+    // Both antimeridian markers and the polar point stay on the final map.
+    for (const point of after.points) {
+        expect(Math.abs(point.screen[0])).toBeLessThanOrEqual(1.03);
+        expect(Math.abs(point.screen[1])).toBeLessThanOrEqual(1.03);
+    }
+});
+
+test('rapid reversal and resize preserve the current animation state', async ({page}) => {
+    await page.evaluate(() => {
+        window.globeHarness.series().setAutoRotate(false);
+        window.globeHarness.series().setProjection('flat', {duration: 1200});
+    });
+    await page.waitForFunction(() => window.globeHarness.series().getProjectionProgress() > 0.2);
+    const reversal = await page.evaluate(() => {
+        const series = window.globeHarness.series();
+        const before = window.globeHarness.inspect();
+        series.setProjection('globe', {duration: 500});
+        return {before, after: window.globeHarness.inspect()};
+    });
+    expect(reversal.after.progress).toBeCloseTo(reversal.before.progress, 8);
+    expect(reversal.after.points).toEqual(reversal.before.points);
+    await page.setViewportSize({width: 480, height: 640});
+    await page.evaluate(() => window.globeHarness.resize(innerWidth, innerHeight));
+    await waitProjection(page, 0);
+    const final = await page.evaluate(() => window.globeHarness.capture());
+    expect(final.pixels.colored).toBeGreaterThan(10);
+    expect(final.canvasCount).toBe(1);
+    expect(final.surfaces.every(surface => surface.finite)).toBe(true);
+});
+
+test('reduced motion avoids spin and projection animation; destroy releases context', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await page.evaluate(() => window.globeHarness.mount());
+    const result = await page.evaluate(async () => {
+        const harness = window.globeHarness;
+        const start = harness.series().getCenter();
+        for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+        const end = harness.series().getCenter();
+        harness.series().setProjection('flat');
+        return {start, end, progress: harness.series().getProjectionProgress()};
+    });
+    expect(result.end).toEqual(result.start);
+    expect(result.progress).toBe(1);
+    await page.evaluate(() => window.globeHarness.destroy());
+    await page.waitForFunction(() => window.globeHarness.contextLost());
+    await expect(page.locator('#chart canvas')).toHaveCount(0);
+});
