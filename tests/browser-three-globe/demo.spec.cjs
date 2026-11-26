@@ -4,7 +4,11 @@ test('Earth controls fit their own space and retain toggle state across projecti
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('/');
-    await page.locator('[data-sidebar-example="three-globe"]').click();
+    if (await page.locator('#example-select').isVisible()) {
+        await page.locator('#example-select').selectOption('three-globe');
+    } else {
+        await page.locator('[data-sidebar-example="three-globe"]').click();
+    }
     const controls = page.locator('.three-globe-controls');
     const rotation = controls.locator('input[type="checkbox"]');
     await expect(rotation).toBeChecked();

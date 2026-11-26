@@ -10,6 +10,10 @@ bundle.
 npm install @keneth80/k-chart @keneth80/k-chart-three three
 ```
 
+Requires KChart 1.17.0 or later for series-owned pointer interaction and Three.js
+0.160.0 or later. Browser bundlers are supported; direct CommonJS loading in
+Node needs a version with synchronous ESM support (20.19+, 22.12+, or 24+).
+
 Import the package styles once:
 
 ```ts

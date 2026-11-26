@@ -77,6 +77,13 @@
 - Added real WebGL pixel checks, projection round trips, marker continuity,
   reduced-motion and resize checks, including three consecutive browser runs.
 
+### Migration Notes
+
+- Requires KChart 1.17.0 or later for series-owned pointer interaction. Three.js
+  remains an optional peer dependency and is not added to the core package.
+- Axial rotation is enabled by default; set `autoRotate: false` to retain an
+  idle, on-demand globe. Reduced-motion preferences disable animation.
+
 ## @keneth80/k-chart-maplibre 0.3.2 - 2026-11-23
 
 ### Fixed

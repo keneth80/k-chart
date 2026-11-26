@@ -73,6 +73,7 @@ const context = vm.createContext({
     chartRoot: new Element(), chart: null, activeKind: 'line', realtimeTimer: undefined,
     subcellHeatmapGeneration: 0, subcellHeatmapAbort: undefined, subcellHeatmapApp: undefined,
     cesiumController: undefined, mapLibreController: undefined, mapLibreBridge: undefined,
+    threeGlobeSeries: undefined, threeGlobeStatus: undefined,
     scrollableDoughnutCompactLayout: false,
     createDemoChart: () => ({render() { return this; }, destroy() {}}),
     startExampleBehavior() {}, createUsageSnippet: kind => `usage: ${kind}`,
