@@ -66,6 +66,7 @@ const body = new Element();
 const themes = ['dark', 'light'].map(themeOption => new Element({themeOption}));
 const cards = [];
 const sidebars = [];
+const hierarchyMounts = [];
 const context = vm.createContext({
     worldClusterPlaces: [],
     exampleSelect, exampleGallery: gallery, chartExampleLayout: layout, previewTitle,
@@ -74,6 +75,12 @@ const context = vm.createContext({
     subcellHeatmapGeneration: 0, subcellHeatmapAbort: undefined, subcellHeatmapApp: undefined,
     cesiumController: undefined, mapLibreController: undefined, mapLibreBridge: undefined,
     threeGlobeSeries: undefined, threeGlobeStatus: undefined,
+    geoHierarchyApp: undefined,
+    mountGeoHierarchyDrilldownExample(host) {
+        const handle = {host, destroys: 0, destroy() { this.destroys += 1; }};
+        hierarchyMounts.push(handle);
+        return handle;
+    },
     scrollableDoughnutCompactLayout: false,
     createDemoChart: () => ({render() { return this; }, destroy() {}}),
     startExampleBehavior() {}, createUsageSnippet: kind => `usage: ${kind}`,
@@ -131,6 +138,21 @@ assert.equal(layout.scrolls, 1);
 exampleSelect.value = 'invalid';
 exampleSelect.dispatch('change');
 assert.equal(context.activeKind, 'column', 'unknown select values cannot render an invalid demo');
+cards.find(item => item.dataset.example === 'geo-hierarchy').dispatch('click');
+assert.equal(context.activeKind, 'geo-hierarchy');
+assert.equal(context.chart, null, 'the custom geographic example owns its own charts');
+assert.equal(hierarchyMounts.length, 1);
+assert.equal(hierarchyMounts[0].host, context.chartRoot);
+assert.equal(context.geoHierarchyApp, hierarchyMounts[0]);
+assert(context.chartRoot.classes.has('geo-hierarchy-chart'));
+sidebars.find(item => item.dataset.sidebarExample === 'line').dispatch('click');
+assert.equal(hierarchyMounts[0].destroys, 1, 'leaving the geographic example disposes its controller');
+assert.equal(context.geoHierarchyApp, undefined);
+assert(!context.chartRoot.classes.has('geo-hierarchy-chart'));
+cards.find(item => item.dataset.example === 'geo-hierarchy').dispatch('click');
+cards.find(item => item.dataset.example === 'column').dispatch('click');
+assert.equal(hierarchyMounts.length, 2);
+assert(hierarchyMounts.every(handle => handle.destroys === 1), 'repeated navigation disposes each geographic mount once');
 themes[1].dispatch('click');
 assert(body.classes.has('theme-light'));
 assert.equal(themes[1].attributes['aria-pressed'], 'true');
