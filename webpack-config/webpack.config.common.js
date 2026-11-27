@@ -20,7 +20,9 @@ module.exports = {
             '@keneth80/k-chart/options$': helpers.root('src/options/index.ts'),
             '@keneth80/k-chart/series$': helpers.root('src/series/index.ts'),
             '@keneth80/k-chart/utils$': helpers.root('src/utils/index.ts'),
-            '@keneth80/k-chart/worker$': helpers.root('src/worker/index.ts')
+            '@keneth80/k-chart/worker$': helpers.root('src/worker/index.ts'),
+            // One host runtime must match the root MapLibre CSS version.
+            'maplibre-gl$': require.resolve('maplibre-gl')
         }
     },
     devtool: 'inline-source-map',

@@ -1,4 +1,23 @@
 const {test, expect} = require('../../packages/k-chart-three/node_modules/@playwright/test');
+const path = require('node:path');
+
+test('demo host and adapter resolve the same MapLibre runtime as the root CSS', async () => {
+    const root = path.resolve(__dirname, '../..');
+    const config = require('../../webpack-config/webpack.config.common.js');
+    const resolve = require('enhanced-resolve').create.sync({
+        ...config.resolve,
+        mainFields: ['browser', 'module', 'main'],
+        conditionNames: ['webpack', 'browser', 'import', 'default']
+    });
+    const expected = require.resolve('maplibre-gl', {paths: [root]});
+    expect(config.resolve.alias['maplibre-gl$']).toBe(expected);
+    for (const origin of [root, path.join(root, 'packages/k-chart-maplibre/src')]) {
+        expect(resolve(origin, 'maplibre-gl')).toBe(expected);
+    }
+    expect(resolve(root, 'maplibre-gl/dist/maplibre-gl.css')).toBe(
+        require.resolve('maplibre-gl/dist/maplibre-gl.css', {paths: [root]})
+    );
+});
 
 test('Earth controls fit their own space and retain toggle state across projections and resize', async ({page}, testInfo) => {
     const errors = [];
