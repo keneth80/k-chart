@@ -1,9 +1,15 @@
 const {test, expect} = require('../../packages/k-chart-three/node_modules/@playwright/test');
 
-test.beforeEach(async ({page}) => {
+const clockedTests = new Set([
+    'shared geo controller opens from real three clicks, not drags',
+    'unfolding moves the same marker mesh continuously with a nonblank surface'
+]);
+
+test.beforeEach(async ({page}, testInfo) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.__globeErrors = errors;
+    if (clockedTests.has(testInfo.title)) await page.clock.install();
     await page.goto('/');
     await page.waitForFunction(() => !!window.globeHarness?.inspect());
 });
@@ -80,6 +86,10 @@ for (const kind of ['three', 'region', 'svg-globe']) {
     test(`shared geo controller opens from real ${kind} clicks, not drags`, async ({page}) => {
         await page.evaluate(kind => window.globeHarness.mountGeo(kind), kind);
         await page.waitForFunction(() => window.globeHarness.geoTarget());
+        if (kind === 'three') {
+            await page.evaluate(() => window.globeHarness.series().setAutoRotate(false));
+            await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 60_000)));
+        }
         const target = await page.evaluate(() => window.globeHarness.geoTarget());
         const hitTarget = await page.evaluate(({x, y}) => ({
             hit: document.elementFromPoint(x, y)?.outerHTML.slice(0, 250),
@@ -100,13 +110,15 @@ for (const kind of ['three', 'region', 'svg-globe']) {
         state = await page.evaluate(() => window.globeHarness.geoState());
         expect(state.picks).toHaveLength(1);
         await page.mouse.wheel(0, -60);
-        await page.waitForTimeout(200);
+        if (kind === 'three') await page.clock.runFor(200);
+        else await page.waitForTimeout(200);
         expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(1);
         const nextTarget = await page.evaluate(() => window.globeHarness.geoTarget());
         await page.mouse.click(nextTarget.x, nextTarget.y);
         expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(2);
         if (kind === 'three') {
             await page.evaluate(() => window.globeHarness.series().setProjection('flat', {animate: false}));
+            await page.clock.runFor(16);
             await waitProjection(page, 1);
             const seoul = await page.evaluate(() => window.globeHarness.geoMarkerTarget(0));
             await page.mouse.click(seoul.x, seoul.y);
@@ -123,9 +135,19 @@ for (const kind of ['three', 'region', 'svg-globe']) {
             await page.mouse.click(seoul.x, seoul.y);
             expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(4);
             await page.evaluate(() => window.globeHarness.series().setProjection('globe', {duration: 1000}));
+            await page.clock.runFor(240);
+            const transitioningProgress = await page.evaluate(() => window.globeHarness.series().getProjectionProgress());
+            expect(transitioningProgress).toBeGreaterThan(0);
+            expect(transitioningProgress).toBeLessThan(1);
             const transitioningTarget = await page.evaluate(() => window.globeHarness.geoTarget());
             await page.mouse.click(transitioningTarget.x, transitioningTarget.y);
+            expect(await page.evaluate(() => window.globeHarness.series().getProjectionProgress())).toBe(transitioningProgress);
             expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(4);
+            await page.clock.runFor(1000);
+            await waitProjection(page, 0);
+            const settledTarget = await page.evaluate(() => window.globeHarness.geoTarget());
+            await page.mouse.click(settledTarget.x, settledTarget.y);
+            expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(5);
         }
         await page.evaluate(kind => window.globeHarness.mountGeo(kind, false), kind);
         const disabledTarget = await page.evaluate(() => window.globeHarness.geoTarget());
@@ -319,21 +341,29 @@ test('holding a drag pauses rotation and releasing resumes without changing lati
 
 test('unfolding moves the same marker mesh continuously with a nonblank surface', async ({page}, testInfo) => {
     await page.evaluate(() => window.globeHarness.series().setAutoRotate(false));
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 60_000)));
     const before = await inspect(page);
     await page.screenshot({path: testInfo.outputPath('globe.png')});
     await page.evaluate(() => {
         window.globeHarness.clearFrames();
         window.globeHarness.series().setProjection('flat', {duration: 1200});
     });
-    await page.waitForFunction(() => {
-        const p = window.globeHarness.series().getProjectionProgress();
-        return p > 0.25 && p < 0.8;
-    });
-    const middle = await page.evaluate(() => window.globeHarness.capture());
+    let middle;
+    for (let step = 1; step <= 10; step++) {
+        await page.clock.runFor(80);
+        const frame = await page.evaluate(() => window.globeHarness.capture());
+        expect(frame.pixels.colored).toBeGreaterThan(10);
+        if (step === 6) {
+            middle = frame;
+            await page.screenshot({path: testInfo.outputPath('unfolding.png')});
+        }
+    }
+    expect(middle.progress).toBeGreaterThan(0.25);
+    expect(middle.progress).toBeLessThan(0.8);
     expect(middle.progress).toBeGreaterThan(0);
     expect(middle.progress).toBeLessThan(1);
     expect(middle.pixels.colored).toBeGreaterThan(10);
-    await page.screenshot({path: testInfo.outputPath('unfolding.png')});
+    await page.clock.runFor(500);
     await waitProjection(page, 1);
     const after = await page.evaluate(() => window.globeHarness.capture());
     await page.screenshot({path: testInfo.outputPath('flat.png')});
