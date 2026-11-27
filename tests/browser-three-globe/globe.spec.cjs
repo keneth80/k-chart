@@ -340,6 +340,8 @@ test('holding a drag pauses rotation and releasing resumes without changing lati
 });
 
 test('unfolding moves the same marker mesh continuously with a nonblank surface', async ({page}, testInfo) => {
+    // Software GPU rendering and synchronous pixel readback can exceed 30s.
+    test.setTimeout(60_000);
     await page.evaluate(() => window.globeHarness.series().setAutoRotate(false));
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 60_000)));
     const before = await inspect(page);
@@ -364,7 +366,7 @@ test('unfolding moves the same marker mesh continuously with a nonblank surface'
     expect(middle.progress).toBeLessThan(1);
     expect(middle.pixels.colored).toBeGreaterThan(10);
     await page.clock.runFor(500);
-    await waitProjection(page, 1);
+    expect(await page.evaluate(() => window.globeHarness.series().getProjectionProgress())).toBe(1);
     const after = await page.evaluate(() => window.globeHarness.capture());
     await page.screenshot({path: testInfo.outputPath('flat.png')});
     expect(after.markerUuid).toBe(before.markerUuid);
