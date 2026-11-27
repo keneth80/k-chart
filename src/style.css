@@ -679,6 +679,12 @@ pre > code {
     background: #02040a;
 }
 
+.container-chart.geo-hierarchy-chart {
+    height: 680px;
+    min-height: 680px;
+    overflow: hidden;
+}
+
 .three-globe-controls {
     position: absolute;
     z-index: 18;

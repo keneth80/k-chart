@@ -1,6 +1,6 @@
 {
   "name": "@keneth80/k-chart-three",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Optional Three.js scene wrapper and 3D monitoring objects for KChart.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@keneth80/k-chart": ">=1.17.0",
+    "@keneth80/k-chart": ">=1.30.0",
     "three": ">=0.160.0"
   },
   "devDependencies": {

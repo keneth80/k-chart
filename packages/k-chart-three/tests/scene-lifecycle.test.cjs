@@ -167,6 +167,18 @@ const mountGlobe = (configuration = {}, data = [{lat: 30, lon: 60}]) => {
     return {series, canvas, renderer: renderers.at(-1)};
 };
 
+const markerScreenPoint = (renderer, canvas, instance) => {
+    renderer.scene.updateMatrixWorld(true);
+    renderer.camera.updateMatrixWorld(true);
+    const mesh = renderer.scene.getObjectByName('kchart-three-globe-markers');
+    const matrix = new THREE.Matrix4();
+    mesh.getMatrixAt(instance, matrix);
+    const point = new THREE.Vector3().setFromMatrixPosition(matrix).applyMatrix4(mesh.matrixWorld).project(renderer.camera);
+    const bounds = canvas.getBoundingClientRect();
+    return {clientX: bounds.left + (point.x + 1) * bounds.width / 2,
+        clientY: bounds.top + (1 - point.y) * bounds.height / 2};
+};
+
 const closeTo = (actual, expected, tolerance, message) => {
     assert.ok(
         Math.abs(actual - expected) <= tolerance,
@@ -185,6 +197,297 @@ const assertSingleEarthSurface = (scene, surface) => {
     assert.deepEqual(earthMeshes, [surface], 'exactly one mesh owns the earth surface material');
     assert.equal(scene.getObjectByName('kchart-three-globe-surface'), surface);
 };
+
+test('globe sampling preserves caller-owned texture identity, settings and lifetime', () => {
+    const day = new THREE.Texture();
+    const night = new THREE.Texture();
+    day.wrapS = THREE.MirroredRepeatWrapping;
+    night.wrapS = THREE.RepeatWrapping;
+    day.minFilter = THREE.NearestMipmapNearestFilter;
+    night.magFilter = THREE.NearestFilter;
+    const before = [day, night].map(texture => ({
+        wrapS: texture.wrapS, wrapT: texture.wrapT, minFilter: texture.minFilter,
+        magFilter: texture.magFilter, version: texture.version, source: texture.source
+    }));
+    let disposed = 0;
+    day.addEventListener('dispose', () => disposed++);
+    night.addEventListener('dispose', () => disposed++);
+    const {series, renderer} = mountGlobe({dayTexture: day, nightTexture: night, autoRotate: false});
+    const surface = renderer.scene.getObjectByName('kchart-three-globe-surface');
+    assert.equal(surface.material.uniforms.uDayTexture.value, day);
+    assert.equal(surface.material.uniforms.uNightTexture.value, night);
+    assert.equal(surface.material.extensions.derivatives, true);
+    assert.equal(surface.material.extensions.shaderTextureLOD, true);
+    series.setProjection('flat', {animate: false});
+    series.setProjection('globe', {animate: false});
+    series.destroy();
+    assert.equal(disposed, 0);
+    [day, night].forEach((texture, index) => {
+        for (const [key, value] of Object.entries(before[index])) assert.equal(texture[key], value);
+        texture.dispose();
+    });
+    assert.equal(disposed, 2);
+});
+
+test('geo drilldown raycasts settled globe and flat surfaces without owning the controller', () => {
+    const calls = [];
+    let destroyed = 0;
+    const geoDrilldown = {openAt: coordinate => {calls.push(coordinate); return true;}, destroy: () => destroyed++};
+    const {series, canvas, renderer} = mountGlobe({geoDrilldown, autoRotate: false, initialCenter: {lat: 0, lon: 170}});
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 1);
+    closeTo(calls[0].lat, 0, 0.1, 'picked globe latitude');
+    closeTo(calls[0].lon, 170, 0.1, 'picked globe longitude');
+    canvas.emit('click', {clientX: 0, clientY: 0});
+    canvas.emit('click', {clientX: -1, clientY: 60});
+    canvas.emit('click', {clientX: 120, clientY: 60, button: 2});
+    assert.equal(calls.length, 1, 'background, out-of-bounds and secondary clicks do not open');
+    const surface = renderer.scene.getObjectByName('kchart-three-globe-surface');
+    surface.visible = false;
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 1);
+    surface.visible = true;
+    series.setFlatView({center: {lat: 0, lon: -170}, lighting: 'dynamic'});
+    series.setProjection('flat', {animate: false});
+    advanceFrame(16);
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 2);
+    closeTo(calls[1].lon, -170, 0.1, 'picked flat longitude');
+    series.setProjection('globe', {duration: 1000});
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 2, 'projection tween ignores clicks, including its endpoint first frame');
+    advanceFrame(1100);
+    series.setCenter({lat: 0, lon: 30}, {duration: 1000});
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 2, 'center tween ignores clicks');
+    advanceFrame(1100);
+    series.destroy();
+    assert.equal(canvas.listenerCount(), 0);
+    assert.equal(destroyed, 0);
+});
+
+test('geo drilldown suppresses a three-pixel drag and accepts the next stationary press', () => {
+    const calls = [];
+    const {series, canvas} = mountGlobe({autoRotate: false, geoDrilldown: {openAt: point => {calls.push(point); return true;}}});
+    for (const projection of ['globe', 'flat']) {
+        series.setProjection(projection, {animate: false});
+        advanceFrame(16);
+        const count = calls.length;
+        canvas.emit('pointerdown', {clientX: 120, clientY: 60});
+        canvas.emit('pointermove', {clientX: 123, clientY: 60});
+        canvas.emit('pointerup', {clientX: 123, clientY: 60});
+        canvas.emit('click', {clientX: 123, clientY: 60});
+        assert.equal(calls.length, count);
+        canvas.emit('pointerdown', {clientX: 120, clientY: 60});
+        canvas.emit('pointerup', {clientX: 120, clientY: 60});
+        canvas.emit('click', {clientX: 120, clientY: 60});
+        assert.equal(calls.length, count + 1);
+        canvas.emit('pointerdown', {clientX: 120, clientY: 60});
+        canvas.emit('pointercancel', {clientX: 120, clientY: 60});
+        canvas.emit('click', {clientX: 120, clientY: 60});
+        assert.equal(calls.length, count + 1);
+    }
+    series.destroy();
+    const disabled = mountGlobe({geoDrilldown: false, autoRotate: false});
+    assert.equal(disabled.canvas.listenerCount(), 7, 'false adds no listeners');
+    disabled.canvas.emit('click', {clientX: 120, clientY: 60});
+    disabled.series.destroy();
+});
+
+test('geo drilldown recovers after lost capture with a different touch pointer ID', () => {
+    const calls = [];
+    const {series, canvas} = mountGlobe({autoRotate: false, geoDrilldown: {openAt: point => {calls.push(point); return true;}}});
+    canvas.emit('pointerdown', {pointerId: 1, pointerType: 'touch', clientX: 120, clientY: 60});
+    canvas.emit('lostpointercapture', {pointerId: 1, pointerType: 'touch'});
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 0);
+    canvas.emit('pointerdown', {pointerId: 2, pointerType: 'touch', clientX: 120, clientY: 60});
+    canvas.emit('pointerup', {pointerId: 2, pointerType: 'touch', clientX: 120, clientY: 60});
+    canvas.emit('click', {clientX: 120, clientY: 60});
+    assert.equal(calls.length, 1);
+    series.destroy();
+    assert.equal(canvas.listenerCount(), 0);
+});
+
+test('marker hits use original filtered indices and exact marker coordinates in both projections', () => {
+    const data = [{lat: NaN, lon: 0}, {lat: 0, lon: 180, name: 'back'},
+        {lat: 0, lon: 0, name: 'coast'}, {lat: 0, lon: 80, name: 'other'}];
+    const callbacks = [];
+    const picks = [];
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        markers: {fields: {lat: 'lat', lon: 'lon'}, radius: 0.001},
+        onMarkerClick: context => callbacks.push(context),
+        geoDrilldown: {openAt: coordinate => {picks.push(coordinate); return true;}}}, data);
+    for (const projection of ['globe', 'flat']) {
+        series.setProjection(projection, {animate: false});
+        advanceFrame(16);
+        const point = markerScreenPoint(renderer, canvas, 1);
+        const before = callbacks.length;
+        canvas.emit('click', point);
+        canvas.emit('click', {...point, clientX: point.clientX + 6});
+        assert.equal(callbacks.length, before + 2, 'tiny marker has an eight CSS pixel hit radius');
+        for (const context of callbacks.slice(before)) {
+            assert.equal(context.data, data[2]);
+            assert.equal(context.index, 2);
+            assert.equal(context.lat, 0);
+            assert.equal(context.lon, 0);
+        }
+        assert.deepEqual(picks.slice(-2), [{lat: 0, lon: 0}, {lat: 0, lon: 0}], 'no underlying-surface coordinate fallthrough');
+    }
+    series.destroy();
+});
+
+test('marker callback can cancel popup and is suppressed for drag, tweens and offscreen data', () => {
+    const callbacks = [];
+    const picks = [];
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        onMarkerClick: context => {callbacks.push(context); context.event.preventDefault();},
+        geoDrilldown: {openAt: coordinate => {picks.push(coordinate); return true;}}}, [{lat: 0, lon: 0}]);
+    const point = markerScreenPoint(renderer, canvas, 0);
+    canvas.emit('click', {...point, defaultPrevented: false, preventDefault() {this.defaultPrevented = true;}});
+    assert.equal(callbacks.length, 1);
+    assert.deepEqual(picks, []);
+    canvas.emit('pointerdown', point);
+    canvas.emit('pointermove', {...point, clientX: point.clientX + 3});
+    canvas.emit('pointerup', {...point, clientX: point.clientX + 3});
+    canvas.emit('click', point);
+    assert.equal(callbacks.length, 1);
+    series.setProjection('flat', {duration: 1000});
+    canvas.emit('click', point);
+    assert.equal(callbacks.length, 1);
+    series.setProjection('flat', {animate: false});
+    series.setFlatView({center: {lat: 0, lon: 90}, zoom: 5});
+    advanceFrame(16);
+    canvas.emit('pointerdown', point);
+    canvas.emit('pointerup', point);
+    canvas.emit('click', point);
+    assert.equal(callbacks.length, 1, 'offscreen marker does not emit');
+    series.destroy();
+    assert.equal(canvas.listenerCount(), 0);
+});
+
+test('marker-only callback needs no geo controller and returns no callbacks for background or hidden markers', () => {
+    const callbacks = [];
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        onMarkerClick: context => callbacks.push(context)}, [{lat: 0, lon: 0}]);
+    const point = markerScreenPoint(renderer, canvas, 0);
+    canvas.emit('click', point);
+    assert.equal(callbacks.length, 1);
+    canvas.emit('click', {clientX: 0, clientY: 0});
+    renderer.scene.getObjectByName('kchart-three-globe-markers').visible = false;
+    canvas.emit('click', point);
+    assert.equal(callbacks.length, 1);
+    series.destroy();
+});
+
+test('marker raycast bounds follow flat projection and regional zoom', () => {
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        onMarkerClick() {}}, [{lat: 0, lon: 0}, {lat: 0, lon: 80}]);
+    canvas.emit('click', markerScreenPoint(renderer, canvas, 0));
+    series.setProjection('flat', {animate: false});
+    series.setFlatView({center: {lat: 0, lon: 0}, zoom: 5});
+    advanceFrame(16);
+    const mesh = renderer.scene.getObjectByName('kchart-three-globe-markers');
+    const matrix = new THREE.Matrix4();
+    mesh.getMatrixAt(1, matrix);
+    assert.equal(mesh.boundingSphere.containsPoint(new THREE.Vector3().setFromMatrixPosition(matrix)), true);
+    series.destroy();
+});
+
+test('nearest visible marker wins over an occluded instance and callbacks may synchronously destroy the chart', () => {
+    const callbacks = [];
+    const picks = [];
+    let mounted;
+    mounted = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        markers: {fields: {lat: 'lat', lon: 'lon'}, radius: point => point.radius, surfaceOffset: point => point.offset},
+        onMarkerClick: context => {callbacks.push(context); mounted.series.destroy();},
+        geoDrilldown: {openAt: point => {picks.push(point); return true;}}}, [
+        {lat: 0, lon: 0, radius: 0.001, offset: 0.001},
+        {lat: 0, lon: 0, radius: 0.03, offset: 0.05}
+    ]);
+    const point = markerScreenPoint(mounted.renderer, mounted.canvas, 1);
+    mounted.canvas.emit('click', point);
+    assert.equal(callbacks.length, 1);
+    assert.equal(callbacks[0].index, 1);
+    assert.deepEqual(picks, [], 'destroyed scene never runs a default popup or surface fallthrough');
+    assert.equal(mounted.canvas.listenerCount(), 0);
+});
+
+const rayHitsAt = (renderer, canvas, point) => {
+    renderer.scene.updateMatrixWorld(true);
+    renderer.camera.updateMatrixWorld(true);
+    const bounds = canvas.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2((point.clientX - bounds.left) / bounds.width * 2 - 1,
+        1 - (point.clientY - bounds.top) / bounds.height * 2), renderer.camera);
+    return {
+        markers: ray.intersectObject(renderer.scene.getObjectByName('kchart-three-globe-markers'), false),
+        earth: ray.intersectObject(renderer.scene.getObjectByName('kchart-three-globe-surface'), false)
+    };
+};
+
+test('a raised marker beyond the radial-facing horizon is selectable when its actual click ray is unobstructed', t => {
+    const calls = [];
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        markers: {fields: {lat: 'lat', lon: 'lon'}, radius: 0.03, surfaceOffset: 0.5},
+        onMarkerClick: context => calls.push(context)}, [{lat: 0, lon: 70}]);
+    t.after(() => series.destroy());
+    const point = markerScreenPoint(renderer, canvas, 0);
+    const hits = rayHitsAt(renderer, canvas, point);
+    assert.ok(hits.markers.length > 0);
+    assert.equal(hits.earth.length, 0);
+    canvas.emit('click', point);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].index, 0);
+    series.destroy();
+});
+
+test('the exposed edge of a large flat marker remains selectable when a small marker occludes its center', t => {
+    const calls = [];
+    const {series, canvas, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0},
+        markers: {fields: {lat: 'lat', lon: 'lon'}, radius: datum => datum.radius, surfaceOffset: datum => datum.offset},
+        onMarkerClick: context => calls.push(context)}, [
+        {lat: 0, lon: 0, radius: 0.15, offset: 0},
+        {lat: 0, lon: 0, radius: 0.025, offset: 0.25}
+    ]);
+    t.after(() => series.destroy());
+    series.setProjection('flat', {animate: false});
+    advanceFrame(16);
+    const center = markerScreenPoint(renderer, canvas, 0);
+    const point = {...center, clientX: center.clientX + 10};
+    const hits = rayHitsAt(renderer, canvas, point);
+    assert.deepEqual([...new Set(hits.markers.map(hit => hit.instanceId))], [0]);
+    canvas.emit('click', point);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].index, 0);
+    series.destroy();
+});
+
+test('projectLocation reuses the mounted camera and handles globe visibility, flat views and teardown', () => {
+    const seriesBeforeMount = createThreeGlobeSeries({selector: 'not-mounted', dayTexture: new THREE.Texture()});
+    assert.equal(seriesBeforeMount.projectLocation({lat: 0, lon: 0}), null);
+    const {series, renderer} = mountGlobe({autoRotate: false, initialCenter: {lat: 0, lon: 0}});
+    const scene = renderer.scene;
+    const center = series.projectLocation({lat: 0, lon: 0});
+    closeTo(center.x, 120, 1e-6, 'center CSS x');
+    closeTo(center.y, 60, 1e-6, 'center CSS y');
+    assert.equal(center.visible, true);
+    assert.equal(series.projectLocation({lat: 0, lon: 180}).visible, false);
+    assert.equal(series.projectLocation({lat: NaN, lon: 0}), null);
+    series.setProjection('flat', {duration: 1000});
+    advanceFrame(100);
+    assert.equal(series.projectLocation({lat: 0, lon: 0}).visible, false);
+    series.setProjection('flat', {animate: false});
+    series.setFlatView({center: {lat: 0, lon: -170}, zoom: 2});
+    const flat = series.projectLocation({lat: 0, lon: -170});
+    closeTo(flat.x, 120, 1e-6, 'flat CSS x');
+    closeTo(flat.y, 60, 1e-6, 'flat CSS y');
+    assert.equal(flat.visible, true);
+    assert.equal(series.projectLocation({lat: 0, lon: 0}).visible, false);
+    assert.equal(renderer.scene, scene);
+    series.destroy();
+    assert.equal(series.projectLocation({lat: 0, lon: 0}), null);
+});
 
 test('scene resize restores DPR/backing size and destroy releases the WebGL context', () => {
     const canvas = new MockCanvas(180, 90);

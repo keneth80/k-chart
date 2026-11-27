@@ -2,7 +2,7 @@ const path = require('node:path');
 const {defineConfig} = require('../../packages/k-chart-three/node_modules/@playwright/test');
 module.exports = defineConfig({
     testDir: __dirname,
-    testMatch: 'demo.spec.cjs',
+    testMatch: ['demo.spec.cjs', 'geo-drilldown.spec.cjs', 'city-map.spec.cjs'],
     timeout: 30000,
     workers: 1,
     outputDir: '../../dist/globe-demo-results',

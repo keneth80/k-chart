@@ -223,6 +223,10 @@ surface, respect reduced-motion preferences, and retain full-world framing.
 All texture assets stay outside the KChart bundle. See the
 [Three.js package guide](packages/k-chart-three/README.md#textured-day--night-globe-and-flat-map).
 
+An optional shared `geoDrilldown` controller adds country / city / region
+navigation to the Three.js globe and flat map, SVG globe, and country maps.
+See the [hierarchy guide and sample data](docs/geo-drilldown.md).
+
 ## Features And Guides
 
 - **Presets and builder**: start with `createLineChart(...)`, `createColumnChart(...)`, `createPieChart(...)`, or `chartConfig(...)` in the [Functional API Guide](docs/functional-api.md).

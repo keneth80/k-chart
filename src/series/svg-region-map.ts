@@ -1,7 +1,10 @@
 import {
+    geoCentroid,
+    geoContains,
     geoMercator,
     geoPath
 } from 'd3-geo';
+import {pointer} from 'd3-selection';
 import {scaleLinear} from 'd3-scale';
 import {
     zoom,
@@ -442,8 +445,26 @@ export const createGeoRegionMapSeries = <T = any>(
     let regionZoomTransform: ZoomTransform = zoomIdentity;
     let legendColorScale: ((value: number) => string) | undefined;
     let detachZoomListeners: (() => void) | undefined;
+    let detachGeoOverlayListeners: (() => void) | undefined;
     let pendingAttachTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
     let attachGeneration = 0;
+    let geoPress: {id: number; x: number; y: number} | undefined;
+    let geoClickSuppressed = false;
+    const trackGeoPress = (event: PointerEvent): void => {
+        if (event.type === 'lostpointercapture') {
+            if (geoPress?.id === event.pointerId) {geoPress = undefined; geoClickSuppressed = true;}
+            return;
+        }
+        if (event.type === 'pointercancel') {geoPress = undefined; geoClickSuppressed = true; return;}
+        if (event.type === 'pointerdown') {
+            if (geoPress) {geoClickSuppressed = true; return;}
+            geoClickSuppressed = event.button !== 0;
+            geoPress = {id: event.pointerId, x: event.clientX, y: event.clientY};
+        } else if (geoPress?.id === event.pointerId) {
+            if (Math.hypot(event.clientX - geoPress.x, event.clientY - geoPress.y) >= 3) geoClickSuppressed = true;
+            if (event.type === 'pointerup') geoPress = undefined;
+        }
+    };
     const legendGradientId = `kchart-region-map-gradient-${++regionLegendSequence}`;
 
     const getLocalPoint = (x: number, y: number): [number, number] => [
@@ -485,6 +506,21 @@ export const createGeoRegionMapSeries = <T = any>(
                 featureCollection as any
             );
         const path = geoPath(projection);
+        group.on('.kchart-geo-drilldown', null);
+        if (configuration.geoDrilldown) {
+            group.on('pointerdown.kchart-geo-drilldown pointermove.kchart-geo-drilldown pointerup.kchart-geo-drilldown pointercancel.kchart-geo-drilldown lostpointercapture.kchart-geo-drilldown', trackGeoPress);
+        }
+        const openGeoAt = (event: MouseEvent, node: Element | null, feature?: any): void => {
+            if (!configuration.geoDrilldown || geoClickSuppressed || event.defaultPrevented || event.button !== 0) return;
+            const location = node ? projection.invert?.(pointer(event, node) as [number, number]) : null;
+            if (location?.every(Number.isFinite)) {
+                configuration.geoDrilldown.openAt({lat: location[1], lon: location[0]});
+            } else if (feature) {
+                if (feature.id !== undefined && configuration.geoDrilldown.openCountry(String(feature.id))) return;
+                const [lon, lat] = geoCentroid(feature);
+                if (Number.isFinite(lat) && Number.isFinite(lon)) configuration.geoDrilldown.openAt({lat, lon});
+            }
+        };
         const dataKey = configuration.dataKey ?? ('name' as keyof T & string);
         const featureKey = configuration.featureKey ?? 'name';
         const labelKey = configuration.labelKey ?? featureKey;
@@ -511,6 +547,15 @@ export const createGeoRegionMapSeries = <T = any>(
                 centroid
             };
         });
+        const openGeoOverlay = (event: MouseEvent, node: Element): void => {
+            if (!configuration.geoDrilldown || geoClickSuppressed || event.defaultPrevented || event.button !== 0) return;
+            const local = getLocalPoint(...pointer(event, node) as [number, number]);
+            const location = projection.invert?.(local);
+            if (!location?.every(Number.isFinite)) return;
+            const region = regions.find(item => geoContains(item.feature, location));
+            if (region) configuration.onRegionClick?.({...region, event});
+            if (!event.defaultPrevented) configuration.geoDrilldown.openAt({lat: location[1], lon: location[0]});
+        };
         const colorLegend = resolveRegionColorLegend(configuration.colorLegend, regions, width);
         legendColorScale = colorLegend.visible ? createLegendColorScale(colorLegend) : undefined;
 
@@ -538,12 +583,13 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2)
             .style('stroke-linejoin', 'round')
-            .style('cursor', configuration.onRegionClick ? 'pointer' : 'default')
+            .style('cursor', configuration.onRegionClick || configuration.geoDrilldown ? 'pointer' : 'default')
             .on('click', (event: MouseEvent, item) => {
                 configuration.onRegionClick?.({
                     ...item,
                     event
                 });
+                openGeoAt(event, mapLayer.node(), item.feature);
             });
 
         const legendGroup = overlayGroup.selectAll<SVGGElement, unknown>(`g.${configuration.selector}-color-legend`)
@@ -924,6 +970,21 @@ export const createGeoRegionMapSeries = <T = any>(
             detachZoomListeners = undefined;
             overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
             overlayGroup.selectAll(`rect.${configuration.selector}-zoom-overlay`).remove();
+            detachGeoOverlayListeners?.();
+            detachGeoOverlayListeners = undefined;
+            if (configuration.geoDrilldown) {
+                const generation = attachGeneration;
+                queueMicrotask(() => {
+                    if (generation !== attachGeneration) return;
+                    const overlay = overlayGroup.select<SVGRectElement>('rect.kchart-tooltip-overlay');
+                    const node = overlay.node();
+                    if (!node) return;
+                    overlay
+                        .on('pointerdown.kchart-geo-drilldown pointermove.kchart-geo-drilldown pointerup.kchart-geo-drilldown pointercancel.kchart-geo-drilldown lostpointercapture.kchart-geo-drilldown', trackGeoPress)
+                        .on('click.kchart-geo-drilldown', (event: MouseEvent) => openGeoOverlay(event, node));
+                    detachGeoOverlayListeners = () => overlay.on('.kchart-geo-drilldown', null);
+                });
+            }
             return;
         }
 
@@ -985,7 +1046,13 @@ export const createGeoRegionMapSeries = <T = any>(
 
             detachZoomListeners?.();
             overlay.call(zoomBehavior as any);
-            detachZoomListeners = () => overlay.on('.zoom', null);
+            if (configuration.geoDrilldown) {
+                zoomBehavior.clickDistance(3);
+                overlay
+                    .on('pointerdown.kchart-geo-drilldown pointermove.kchart-geo-drilldown pointerup.kchart-geo-drilldown pointercancel.kchart-geo-drilldown lostpointercapture.kchart-geo-drilldown', trackGeoPress)
+                    .on('click.kchart-geo-drilldown', (event: MouseEvent) => openGeoOverlay(event, overlayNode));
+            }
+            detachZoomListeners = () => {overlay.on('.zoom', null); overlay.on('.kchart-geo-drilldown', null);};
             (overlayNode as any).__zoom = regionZoomTransform;
             renderZoomControls();
         };
@@ -1041,7 +1108,7 @@ export const createGeoRegionMapSeries = <T = any>(
             .style('stroke', (item) => resolveRegionStroke(item, configuration))
             .style('stroke-width', configuration.strokeWidth ?? 1.2);
     },
-    destroy({overlayGroup}) {
+    destroy({overlayGroup, plotGroup}) {
         attachGeneration += 1;
         if (pendingAttachTimer !== undefined) {
             globalThis.clearTimeout(pendingAttachTimer);
@@ -1049,6 +1116,10 @@ export const createGeoRegionMapSeries = <T = any>(
         }
         detachZoomListeners?.();
         detachZoomListeners = undefined;
+        detachGeoOverlayListeners?.();
+        detachGeoOverlayListeners = undefined;
+        geoPress = undefined;
+        plotGroup.selectAll(`g.series-${configuration.selector}`).on('.kchart-geo-drilldown', null);
         overlayGroup.selectAll(`g.${configuration.selector}-zoom-controls`).remove();
         overlayGroup.selectAll(`g.${configuration.selector}-color-legend`).remove();
         overlayGroup.selectAll(`rect.${configuration.selector}-zoom-overlay`).remove();

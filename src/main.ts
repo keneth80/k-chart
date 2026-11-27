@@ -4,6 +4,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 import '../packages/k-chart-maplibre/src/style.css';
 import '../packages/k-chart-cesium/src/style.css';
 import '../packages/k-chart-three/src/style.css';
+import {mountGeoHierarchyDrilldownExample, type MountedGeoHierarchyExample} from '../examples/geo-hierarchy-drilldown';
 import { area as d3Area, linkVertical } from 'd3-shape';
 import {
     createMapLibreFlatMap,
@@ -102,6 +103,7 @@ type DemoKind =
     | 'topology'
     | 'three-constellation'
     | 'three-globe'
+    | 'geo-hierarchy'
     | 'three-wafer'
     | 'world-activity-map'
     | 'world-cluster-map'
@@ -609,6 +611,7 @@ let scrollableDoughnutCompactLayout = false;
 let realtimeTimer: number | undefined;
 let threeGlobeSeries: ReturnType<typeof createThreeGlobeSeries<DemoPoint>> | undefined;
 let threeGlobeStatus: HTMLElement | undefined;
+let geoHierarchyApp: MountedGeoHierarchyExample | undefined;
 
 const THREE_GLOBE_DAY_TEXTURE = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
 const THREE_GLOBE_NIGHT_TEXTURE = 'https://threejs.org/examples/textures/planets/earth_lights_2048.png';
@@ -656,6 +659,7 @@ const examples: ExampleMeta[] = [
     { kind: 'topology', title: 'Topology renderer' },
     { kind: 'three-constellation', title: 'Three.js Aries constellation', dataLabel: '3D custom series' },
     { kind: 'three-globe', title: 'Earth at night', dataLabel: 'globe + world map · 5 geolocated markers' },
+    { kind: 'geo-hierarchy', title: 'Country / city / region drilldown', dataLabel: '3 countries · 9 cities · 27 regions' },
     { kind: 'three-wafer', title: 'Three.js wafer monitor', dataLabel: 'fab die status' },
     { kind: 'world-activity-map', title: '글로벌 시장 활동 현황', dataLabel: 'country activity index' },
     { kind: 'world-cluster-map', title: 'Global operations cluster map', dataLabel: `${worldClusterPlaces.length} live locations` },
@@ -3613,6 +3617,49 @@ createLineSeries({
 };
 
 const createUsageSnippet = (kind: DemoKind): string => {
+    if (kind === 'geo-hierarchy') {
+        return `import {createGeoDrilldown, createWorldCountryMapSeries} from '@keneth80/k-chart';
+import {createThreeGlobeSeries} from '@keneth80/k-chart-three';
+// Copy this helper from examples/three-geo-drilldown-map.ts.
+import {createThreeGeoDrilldownMap} from './three-geo-drilldown-map';
+
+// countryFeature is an actual GeoJSON country boundary.
+const drilldown = createGeoDrilldown({
+    title: 'Regional operations',
+    valueLabel: 'Orders',
+    theme: 'dark',
+    animation: true,
+    mapRenderer: createThreeGeoDrilldownMap({dayTexture, nightTexture, lighting: 'dynamic'}),
+    countries: [{
+        id: '410', label: 'South Korea', feature: countryFeature,
+        cities: [{
+            id: 'seoul', label: 'Seoul', lat: 37.5665, lon: 126.978,
+            regions: [
+                {id: 'jongno', label: 'Jongno', lat: 37.5735, lon: 126.9788, value: 428},
+                {id: 'gangnam', label: 'Gangnam', lat: 37.5172, lon: 127.0473, value: 716},
+                {id: 'mapo', label: 'Mapo', lat: 37.5638, lon: 126.9084, value: 362}
+            ]
+        }]
+    }]
+});
+
+// The same opt-in controller works with both projections and SVG maps.
+const globe = createThreeGlobeSeries({
+    selector: 'earth', dayTexture, nightTexture,
+    geoDrilldown: drilldown
+});
+const map = createWorldCountryMapSeries({
+    selector: 'countries', geoDrilldown: drilldown
+});
+globe.setProjection('flat');
+
+// Optional external country selectors and runtime enable/disable.
+drilldown.openCountry('410');
+drilldown.setEnabled(false);
+
+// After destroying every chart sharing this controller:
+drilldown.destroy();`;
+    }
     if (kind === 'three-globe') {
         return `import { createKChart } from '@keneth80/k-chart';
 import {
@@ -4538,6 +4585,8 @@ const renderExample = (kind: DemoKind): void => {
     chart?.destroy();
     threeGlobeSeries = undefined;
     threeGlobeStatus = undefined;
+    geoHierarchyApp?.destroy();
+    geoHierarchyApp = undefined;
     subcellHeatmapApp?.destroy();
     subcellHeatmapApp = undefined;
     cesiumController?.destroy();
@@ -4555,10 +4604,14 @@ const renderExample = (kind: DemoKind): void => {
     chartRoot.classList.toggle('tree-chart', kind === 'tree');
     chartRoot.classList.toggle('treemap-chart', kind === 'treemap');
     chartRoot.classList.toggle('three-globe-chart', kind === 'three-globe');
+    chartRoot.classList.toggle('geo-hierarchy-chart', kind === 'geo-hierarchy');
     chartRoot.classList.toggle('doughnut-scroll-chart', kind === 'doughnut-scroll-legend');
     chartRoot.classList.toggle('subcell-heatmap-chart', kind === 'subcell-heatmap');
     chartExampleLayout?.classList.toggle('topology-example', kind === 'topology');
-    if (kind === 'subcell-heatmap') {
+    if (kind === 'geo-hierarchy') {
+        chart = null;
+        geoHierarchyApp = mountGeoHierarchyDrilldownExample(chartRoot);
+    } else if (kind === 'subcell-heatmap') {
         chart = null;
         const generation = subcellHeatmapGeneration;
         const abort = new AbortController();
@@ -4688,10 +4741,12 @@ window.addEventListener('resize', () => {
         height: chartRoot?.clientHeight || 420
     });
     mapLibreController?.resize();
+    geoHierarchyApp?.resize();
 });
 
 setupExampleButtons();
 setupSidebarExampleButtons();
 setupExampleSelect();
 setupThemeButtons();
-renderExample(activeKind);
+const requestedExample = new URLSearchParams(window.location.search).get('example');
+renderExample(examples.find(example => example.kind === requestedExample)?.kind ?? activeKind);

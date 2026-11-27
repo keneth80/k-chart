@@ -315,6 +315,9 @@ export const createSvgGlobeSeries = <T = any>(
     let rotation = normalizeGlobeRotation(configuration.initialRotate);
     let zoomLevel = 1;
     let dragging = false;
+    let geoPress: {id: number; x: number; y: number} | undefined;
+    let geoClickSuppressed = false;
+    let geoSurfacePress = false;
     let dragStart: [number, number] = [0, 0];
     let rotationStart: [number, number, number] = [...rotation];
     const activePointers = new Map<number, [number, number]>();
@@ -347,6 +350,7 @@ export const createSvgGlobeSeries = <T = any>(
 
     return createCustomSeries<T>({
         selector: configuration.selector,
+        pointerEvents: configuration.geoDrilldown ? 'series' : undefined,
         displayName: configuration.displayName,
         xField: configuration.lonField,
         yField: configuration.latField,
@@ -995,7 +999,7 @@ export const createSvgGlobeSeries = <T = any>(
                     .style('fill-opacity', (datum, index) => resolveGlobeLandOpacity(activeLandOpacity, datum, index))
                     .style('stroke', (datum, index) => resolveGlobeLandStyle(activeLandStroke, datum, index, 'rgba(220, 252, 231, 0.54)'))
                     .style('stroke-width', 1)
-                    .style('pointer-events', 'none');
+                    .style('pointer-events', configuration.geoDrilldown ? 'all' : 'none');
 
                 globeGroup.selectAll<SVGPathElement, any>('path.kchart-globe-country-borders')
                     .data(configuration.countryBordersVisible === false || configuration.landVisible === false ? [] : [WORLD_COUNTRY_BORDERS_GEOJSON])
@@ -1408,6 +1412,41 @@ export const createSvgGlobeSeries = <T = any>(
             const globeLayer = group.select<SVGGElement>('g.kchart-globe-layer');
             globeLayer.on('.kchart-globe-drag', null);
             globeLayer.on('.kchart-globe-zoom', null);
+            globeLayer.on('.kchart-geo-drilldown', null);
+            if (configuration.geoDrilldown) {
+                globeLayer
+                    .on('pointerdown.kchart-geo-drilldown pointermove.kchart-geo-drilldown pointerup.kchart-geo-drilldown pointercancel.kchart-geo-drilldown lostpointercapture.kchart-geo-drilldown', (event: PointerEvent) => {
+                        if (event.type === 'lostpointercapture') {
+                            if (geoPress?.id === event.pointerId) {geoPress = undefined; geoClickSuppressed = true; geoSurfacePress = false;}
+                            return;
+                        }
+                        if (event.type === 'pointercancel') {geoPress = undefined; geoClickSuppressed = true; return;}
+                        if (event.type === 'pointerdown') {
+                            if (geoPress) {geoClickSuppressed = true; return;}
+                            geoClickSuppressed = event.button !== 0;
+                            geoSurfacePress = Boolean((event.target as Element | null)?.matches('path.kchart-globe-land, path.kchart-globe-sphere, rect.kchart-globe-map-background'));
+                            geoPress = {id: event.pointerId, x: event.clientX, y: event.clientY};
+                        } else if (geoPress?.id === event.pointerId) {
+                            if (Math.hypot(event.clientX - geoPress.x, event.clientY - geoPress.y) >= 3) geoClickSuppressed = true;
+                            if (event.type === 'pointerup') geoPress = undefined;
+                        }
+                    })
+                    .on('click.kchart-geo-drilldown', (event: MouseEvent) => {
+                        if (!configuration.geoDrilldown || geoClickSuppressed || dragging || event.defaultPrevented || event.button !== 0
+                            || warpFrame !== undefined || warpTimer !== undefined || cloudFrame !== undefined || externalMapTransitioning
+                            || viewMode === 'external-map') return;
+                        const target = event.target as Element | null;
+                        const surfaceClick = target?.matches('path.kchart-globe-land, path.kchart-globe-sphere, rect.kchart-globe-map-background')
+                            || (target === globeLayer.node() && geoSurfacePress);
+                        geoSurfacePress = false;
+                        if (!surfaceClick) return;
+                        const locationPoint = pointer(event, globeLayer.node() as any) as [number, number];
+                        if (viewMode === 'globe' && Math.hypot(locationPoint[0] - centerX, locationPoint[1] - centerY) > baseScale * zoomLevel) return;
+                        const activeProjection = viewMode === 'map' ? mapProjection : globeProjection;
+                        const location = activeProjection.invert?.(locationPoint);
+                        if (location?.every(Number.isFinite)) configuration.geoDrilldown.openAt({lat: location[1], lon: location[0]});
+                    });
+            }
 
             if (zoomConfiguration.enabled && zoomConfiguration.wheel) {
                 globeLayer.on('wheel.kchart-globe-zoom', (event: WheelEvent) => {
@@ -1533,6 +1572,8 @@ export const createSvgGlobeSeries = <T = any>(
             dragging = false;
             hoveredMarkerTarget = undefined;
             markerPress = undefined;
+            geoPress = undefined;
+            geoSurfacePress = false;
             if (wheelZoomReferenceTimer !== undefined) {
                 globalThis.clearTimeout(wheelZoomReferenceTimer);
                 wheelZoomReferenceTimer = undefined;
@@ -1540,6 +1581,7 @@ export const createSvgGlobeSeries = <T = any>(
             externalMapTransitioning = false;
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-drag', null);
             plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-globe-zoom', null);
+            plotGroup.selectAll(`g.series-${configuration.selector} g.kchart-globe-layer`).on('.kchart-geo-drilldown', null);
         }
     });
 };

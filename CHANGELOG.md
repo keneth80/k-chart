@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.30.0 - 2026-11-27
+
+### Added
+
+- Added an opt-in country / city / region drilldown controller shared by SVG
+  geographic maps, SVG globes, and the Three.js globe and flat Earth view.
+- Added custom detail-map renderers, dark dialog panels, reduced-motion-aware
+  entrance effects, keyboard navigation, and immediate lifecycle cleanup.
+- Added a three-country, nine-city example with real geographic positions and
+  synthetic operation counts. Country detail retains Earth textures; city
+  detail uses the KChart MapLibre adapter and real OpenFreeMap vector tiles.
+
+### Tests
+
+- Verify the hierarchy, renderer ownership, dialog focus, dark text contrast,
+  animation replay, reduced motion, live city tiles, retries, and early close
+  across desktop and mobile viewports.
+
+## @keneth80/k-chart-three 0.3.0 - 2026-11-27
+
+### Added
+
+- Added geographic drilldown and marker click callbacks in settled globe and
+  flat projections, plus canvas-relative geographic label projection.
+- Require KChart 1.30.0 or later for the shared geographic controller types.
+
+### Fixed
+
+- Preserve texture sampling gradients at the antimeridian to avoid a bright
+  seam during projection reversal without mutating caller-owned textures.
+- Exclude occluded markers from picking, recover interrupted pointer capture,
+  and dispose callback-created or superseded scene resources safely.
+
 ## @keneth80/k-chart-three 0.2.1 - 2026-11-26
 
 ### Fixed

@@ -4,6 +4,7 @@ import {
     createCustomSeries,
     type KChartSeries
 } from '@keneth80/k-chart';
+import type {KChartGeoDrilldownController} from '@keneth80/k-chart';
 import {
     advanceGlobeCenter,
     bindGlobeDrag,
@@ -18,6 +19,7 @@ import {
     prepareGlobeMarkers,
     rotationFor,
     shortestLongitudeDelta,
+    wrapLon,
     type KThreeFlatMapConfiguration,
     type KThreeFlatMapLighting,
     type KThreeFlatMapView,
@@ -187,6 +189,14 @@ export interface KThreeGlobeAtmosphereConfiguration {
     power?: number;
 }
 
+export interface KThreeGlobeMarkerClickContext<T = unknown> {
+    data: T;
+    index: number;
+    lat: number;
+    lon: number;
+    event: MouseEvent;
+}
+
 export interface KThreeGlobeSeriesConfiguration<T = unknown> {
     selector: string;
     displayName?: string;
@@ -204,6 +214,8 @@ export interface KThreeGlobeSeriesConfiguration<T = unknown> {
     atmosphere?: boolean | KThreeGlobeAtmosphereConfiguration;
     globeScale?: number;
     markers?: KThreeGlobeMarkerConfiguration<T>;
+    onMarkerClick?: (context: KThreeGlobeMarkerClickContext<T>) => void;
+    geoDrilldown?: false | KChartGeoDrilldownController;
 }
 
 export interface KThreeGlobeTransitionOptions {
@@ -224,6 +236,7 @@ export interface KThreeGlobeSeriesHandle<T = unknown> extends KChartSeries<T> {
     setFlatView(view: KThreeFlatMapConfiguration): void;
     setSubsolar(point: LatLon | null): void;
     setDate(date: Date | null): void;
+    projectLocation(point: LatLon): {x: number; y: number; visible: boolean} | null;
 }
 
 const DEFAULT_STATUS_COLORS: Record<string, string> = {
@@ -477,6 +490,7 @@ interface KThreeGlobeObject<T> extends KThreeObject<T> {
     setProjectionProgress(progress: number): void;
     setFlatView(view: KThreeFlatMapView): void;
     setSubsolar(point: LatLon | null): void;
+    projectLocation(point: LatLon): {x: number; y: number; visible: boolean} | null;
 }
 
 const GLOBE_VERTEX_SHADER = `
@@ -509,12 +523,23 @@ const GLOBE_FRAGMENT_SHADER = `
     varying vec2 vUv;
     varying vec3 vDir;
 
+    vec3 sampleEarthTexture(sampler2D source, vec2 earthUv) {
+        // Derive the mip footprint before fract() crosses the dateline.
+        #if __VERSION__ >= 300
+            return textureGrad(source, earthUv, dFdx(vUv), dFdy(vUv)).rgb;
+        #elif defined(GL_EXT_shader_texture_lod) && defined(GL_OES_standard_derivatives)
+            return texture2DGradEXT(source, earthUv, dFdx(vUv), dFdy(vUv)).rgb;
+        #else
+            return texture2D(source, earthUv).rgb;
+        #endif
+    }
+
     void main() {
         vec2 earthUv = vec2(fract(vUv.x), vUv.y);
-        vec3 dayColor = texture2D(uDayTexture, earthUv).rgb;
+        vec3 dayColor = sampleEarthTexture(uDayTexture, earthUv);
         vec3 fallbackNight = dayColor * 0.16 + vec3(0.004, 0.008, 0.020);
         vec3 nightColor = uHasNightTexture > 0.5
-            ? texture2D(uNightTexture, earthUv).rgb
+            ? sampleEarthTexture(uNightTexture, earthUv)
             : fallbackNight;
         float daylight = uHasSubsolar > 0.5
             ? smoothstep(-0.08, 0.12, dot(normalize(vDir), normalize(uSubsolarDirection)))
@@ -571,7 +596,8 @@ const createThreeGlobeObject = <T>(
     initialSubsolar: LatLon | null,
     initialProjection: KThreeGlobeProjection,
     initialFlatView: KThreeFlatMapView,
-    requestRender: () => void
+    requestRender: () => void,
+    canOpenGeoDrilldown: () => boolean
 ): KThreeGlobeObject<T> => {
     const globeScale = Number.isFinite(configuration.globeScale)
         ? Math.max(0.1, configuration.globeScale as number)
@@ -581,6 +607,7 @@ const createThreeGlobeObject = <T>(
     let rootGroup: THREE.Group | undefined;
     let globeGroup: THREE.Group | undefined;
     let globeGeometry: THREE.PlaneGeometry | undefined;
+    let globeMesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> | undefined;
     let earthMaterial: THREE.ShaderMaterial | undefined;
     let atmosphereGeometry: THREE.SphereGeometry | undefined;
     let atmosphereMaterial: THREE.ShaderMaterial | undefined;
@@ -836,7 +863,10 @@ const createThreeGlobeObject = <T>(
                 side: THREE.DoubleSide,
                 toneMapped: false
             });
-            const globeMesh = new THREE.Mesh(globeGeometry, earthMaterial);
+            // Three r160's WebGL1 renderer enables the gradient extensions
+            // through these flags; newer WebGL2 renderers need neither flag.
+            Object.assign(earthMaterial.extensions, {derivatives: true, shaderTextureLOD: true});
+            globeMesh = new THREE.Mesh(globeGeometry, earthMaterial);
             globeMesh.name = 'kchart-three-globe-surface';
             globeMesh.frustumCulled = false;
             globeGroup.add(globeMesh);
@@ -918,6 +948,100 @@ const createThreeGlobeObject = <T>(
             subsolar = nextSubsolar ? normalizeCenter(nextSubsolar, 90) : null;
             updateSubsolarUniform();
         },
+        projectLocation(point) {
+            if (!context || !globeGroup || !point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon) || Math.abs(point.lat) > 90) return null;
+            const bounds = context.canvas.getBoundingClientRect();
+            if (bounds.width <= 0 || bounds.height <= 0) return null;
+            context.scene.updateMatrixWorld(true);
+            context.camera.updateMatrixWorld(true);
+            const local = projectionProgress === 0 ? latLonToVector(point, globeScale)
+                : createGlobeSurfaceProjector(projectionProgress, center, flatView, globeScale)({
+                    lat: point.lat, lon: flatView.center.lon + shortestLongitudeDelta(flatView.center.lon, point.lon)
+                });
+            const world = local.clone().applyMatrix4(globeGroup.matrixWorld);
+            const screen = world.project(context.camera);
+            const localCamera = globeGroup.worldToLocal(context.camera.getWorldPosition(new THREE.Vector3()));
+            const front = projectionProgress !== 0 || local.dot(localCamera.sub(local)) > 0;
+            return {x: (screen.x + 1) * bounds.width / 2, y: (1 - screen.y) * bounds.height / 2,
+                visible: (projectionProgress === 0 || projectionProgress === 1) && front && globeGroup.visible && Boolean(rootGroup?.visible)
+                    && Math.abs(screen.x) <= 1 && Math.abs(screen.y) <= 1 && screen.z >= -1 && screen.z <= 1};
+        },
+        click(event, nextContext) {
+            if ((!configuration.geoDrilldown && !configuration.onMarkerClick) || !canOpenGeoDrilldown() || event.defaultPrevented
+                || event.button !== 0 || !globeMesh?.visible || !globeGroup?.visible || !rootGroup?.visible) return;
+            const bounds = nextContext.canvas.getBoundingClientRect();
+            if (bounds.width <= 0 || bounds.height <= 0 || event.clientX < bounds.left || event.clientY < bounds.top
+                || event.clientX > bounds.left + bounds.width || event.clientY > bounds.top + bounds.height) return;
+            nextContext.scene.updateMatrixWorld(true);
+            nextContext.camera.updateMatrixWorld(true);
+            setPointerFromEvent(nextContext.pointer, nextContext.canvas, event);
+            nextContext.raycaster.setFromCamera(nextContext.pointer, nextContext.camera);
+            const hit = nextContext.raycaster.intersectObject(globeMesh, false)[0];
+            if (markerMesh?.visible && markers.length) {
+                const actualHits = nextContext.raycaster.intersectObject(markerMesh, false);
+                const actualHitOrder = new Map<number, number>();
+                actualHits.forEach(hit => {
+                    if (hit.instanceId !== undefined && !actualHitOrder.has(hit.instanceId)) actualHitOrder.set(hit.instanceId, hit.distance);
+                });
+                const cameraPosition = nextContext.camera.getWorldPosition(new THREE.Vector3());
+                const matrix = new THREE.Matrix4();
+                const worldMatrix = new THREE.Matrix4();
+                const scale = new THREE.Vector3();
+                const candidates: {marker: KThreePreparedGlobeMarker<T>; instance: number; screen: THREE.Vector3;
+                    distance: number; pixelDistance: number; radius: number; actualDistance: number}[] = [];
+                markers.forEach((marker, instance) => {
+                    markerMesh!.getMatrixAt(instance, matrix);
+                    worldMatrix.multiplyMatrices(markerMesh!.matrixWorld, matrix);
+                    const position = new THREE.Vector3().setFromMatrixPosition(worldMatrix);
+                    const screen = position.clone().project(nextContext.camera);
+                    if (screen.z < -1 || screen.z > 1 || Math.abs(screen.x) > 1 || Math.abs(screen.y) > 1) return;
+                    scale.setFromMatrixScale(worldMatrix);
+                    const radius = Math.max(scale.x, scale.y, scale.z);
+                    const view = position.clone().applyMatrix4(nextContext.camera.matrixWorldInverse);
+                    const pixelRadius = radius * nextContext.camera.projectionMatrix.elements[5] * bounds.height / (2 * -view.z);
+                    const pixelDistance = Math.hypot((screen.x - nextContext.pointer.x) * bounds.width / 2,
+                        (screen.y - nextContext.pointer.y) * bounds.height / 2);
+                    if (pixelDistance > Math.max(8, pixelRadius) && !actualHitOrder.has(instance)) return;
+                    candidates.push({marker, instance, screen, radius, pixelDistance,
+                        distance: cameraPosition.distanceTo(position), actualDistance: actualHitOrder.get(instance) ?? Infinity});
+                });
+                // Real mesh hits win; enlarged hit areas choose the closest visible
+                // screen center, never a record inferred from a geographic radius.
+                candidates.sort((a, b) => a.actualDistance - b.actualDistance
+                    || a.pixelDistance - b.pixelDistance || a.distance - b.distance);
+                const visibilityRay = new THREE.Raycaster();
+                for (const candidate of candidates) {
+                    if (Number.isFinite(candidate.actualDistance)) {
+                        if (hit && hit.distance < candidate.actualDistance - 1e-5) continue;
+                        if (actualHits[0]?.instanceId !== candidate.instance
+                            && actualHits[0].distance < candidate.actualDistance - 1e-5) continue;
+                    } else {
+                        visibilityRay.setFromCamera(new THREE.Vector2(candidate.screen.x, candidate.screen.y), nextContext.camera);
+                        const earthHit = visibilityRay.intersectObject(globeMesh, false)[0];
+                        if (earthHit && earthHit.distance < candidate.distance - candidate.radius - 1e-5) continue;
+                        const markerHit = visibilityRay.intersectObject(markerMesh, false)[0];
+                        if (markerHit && markerHit.instanceId !== candidate.instance
+                            && markerHit.distance < candidate.distance - candidate.radius - 1e-5) continue;
+                    }
+                    const marker = candidate.marker;
+                    configuration.onMarkerClick?.({data: marker.datum, index: marker.index,
+                        lat: marker.lat, lon: marker.lon, event});
+                    if (destroyed) return;
+                    if (!event.defaultPrevented && configuration.geoDrilldown) {
+                        configuration.geoDrilldown.openAt({lat: marker.lat, lon: marker.lon});
+                    }
+                    return;
+                }
+            }
+            if (!configuration.geoDrilldown) return;
+            if (!hit?.uv) return;
+            if (projectionProgress === 0) {
+                const localHit = globeGroup.worldToLocal(hit.point.clone());
+                const localCamera = globeGroup.worldToLocal(nextContext.camera.getWorldPosition(new THREE.Vector3()));
+                if (localHit.dot(localCamera.sub(localHit)) <= 0) return;
+            }
+            configuration.geoDrilldown.openAt({lat: (hit.uv.y - 0.5) * 180, lon: wrapLon(hit.uv.x * 360 - 180)});
+        },
         destroy() {
             destroyed = true;
             if (rootGroup) {
@@ -935,6 +1059,7 @@ const createThreeGlobeObject = <T>(
             rootGroup = undefined;
             globeGroup = undefined;
             globeGeometry = undefined;
+            globeMesh = undefined;
             earthMaterial = undefined;
             atmosphereGeometry = undefined;
             atmosphereMaterial = undefined;
@@ -963,6 +1088,8 @@ export const createThreeGlobeSeries = <T = unknown>(
     let globeObject: KThreeGlobeObject<T> | undefined;
     let canvas: HTMLCanvasElement | undefined;
     let removeDragListeners: (() => void) | undefined;
+    let removeGeoListeners: (() => void) | undefined;
+    let geoClickSuppressed = false;
     let animationFrame = 0;
     let lastTime: number | undefined;
     let dragging = false;
@@ -1061,6 +1188,9 @@ export const createThreeGlobeSeries = <T = unknown>(
         motionQuery = undefined;
         removeDragListeners?.();
         removeDragListeners = undefined;
+        removeGeoListeners?.();
+        removeGeoListeners = undefined;
+        geoClickSuppressed = false;
         controller?.destroy();
         controller = undefined;
         globeObject = undefined;
@@ -1171,7 +1301,9 @@ export const createThreeGlobeSeries = <T = unknown>(
                     subsolar,
                     projection,
                     flatView,
-                    requestRender
+                    requestRender,
+                    () => !geoClickSuppressed && !dragging && !centerTween && !projectionTween && !isHidden()
+                        && (projectionProgress === 0 || projectionProgress === 1)
                 );
                 controller.add(globeObject);
                 globeObject.setProjectionProgress(projectionProgress);
@@ -1190,6 +1322,41 @@ export const createThreeGlobeSeries = <T = unknown>(
                     },
                     onCenterChange: configuration.onCenterChange
                 });
+                if (configuration.geoDrilldown || configuration.onMarkerClick) {
+                    let press: {id: number; x: number; y: number} | undefined;
+                    const down = (event: PointerEvent): void => {
+                        if (press) {geoClickSuppressed = true; return;}
+                        geoClickSuppressed = event.button !== 0 || Boolean(centerTween || projectionTween)
+                            || (projectionProgress !== 0 && projectionProgress !== 1) || isHidden();
+                        press = {id: event.pointerId, x: event.clientX, y: event.clientY};
+                    };
+                    const move = (event: PointerEvent): void => {
+                        if (press?.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) >= 3) {
+                            geoClickSuppressed = true;
+                        }
+                    };
+                    const up = (event: PointerEvent): void => {
+                        move(event);
+                        if (press?.id === event.pointerId) press = undefined;
+                    };
+                    const cancel = (): void => {press = undefined; geoClickSuppressed = true;};
+                    const lostCapture = (event: PointerEvent): void => {
+                        if (press?.id === event.pointerId) cancel();
+                    };
+                    // Observe tween state before the existing drag handler cancels it.
+                    nextCanvas.addEventListener('pointerdown', down, true);
+                    nextCanvas.addEventListener('pointermove', move);
+                    nextCanvas.addEventListener('pointerup', up, true);
+                    nextCanvas.addEventListener('pointercancel', cancel);
+                    nextCanvas.addEventListener('lostpointercapture', lostCapture);
+                    removeGeoListeners = () => {
+                        nextCanvas.removeEventListener('pointerdown', down, true);
+                        nextCanvas.removeEventListener('pointermove', move);
+                        nextCanvas.removeEventListener('pointerup', up, true);
+                        nextCanvas.removeEventListener('pointercancel', cancel);
+                        nextCanvas.removeEventListener('lostpointercapture', lostCapture);
+                    };
+                }
                 syncCanvasInteraction();
             }
             if (configuration.markers && currentData !== data) {
@@ -1273,6 +1440,9 @@ export const createThreeGlobeSeries = <T = unknown>(
             subsolar = date ? calculateSubsolarPoint(date) : null;
             globeObject?.setSubsolar(subsolar);
             requestRender();
+        },
+        projectLocation(point: LatLon): {x: number; y: number; visible: boolean} | null {
+            return globeObject?.projectLocation(point) ?? null;
         }
     });
 };

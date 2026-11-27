@@ -13,6 +13,183 @@ const inspect = page => page.evaluate(() => window.globeHarness.inspect());
 const waitProjection = (page, progress) => page.waitForFunction(
     value => Math.abs(window.globeHarness.series().getProjectionProgress() - value) < 1e-8, progress);
 
+for (const projection of ['globe', 'flat']) {
+    test(`tiny coastal marker picks exact original record in ${projection} projection`, async ({page}) => {
+        await page.evaluate(() => window.globeHarness.mountMarkerPick());
+        await page.evaluate(projection => window.globeHarness.series().setProjection(projection, {animate: false}), projection);
+        await waitProjection(page, projection === 'flat' ? 1 : 0);
+        const target = await page.evaluate(() => window.globeHarness.markerPickTarget(1));
+        // Six CSS pixels exceeds the real tiny sphere but stays inside its hit area.
+        await page.mouse.click(target.x + 6, target.y);
+        const state = await page.evaluate(() => window.globeHarness.markerPickState());
+        expect(state.callbacks).toHaveLength(1);
+        expect(state.callbacks[0]).toMatchObject({name: 'coast', index: 2, lat: 37.45});
+        expect(state.callbacks[0].lon).toBeCloseTo(126.4, 10);
+        expect(state.picks).toEqual([{lat: state.callbacks[0].lat, lon: state.callbacks[0].lon}]);
+        await page.mouse.move(target.x, target.y);
+        await page.mouse.down();
+        await page.mouse.move(target.x + 4, target.y, {steps: 2});
+        await page.mouse.up();
+        expect((await page.evaluate(() => window.globeHarness.markerPickState())).callbacks).toHaveLength(1);
+        const afterDrag = await page.evaluate(() => window.globeHarness.markerPickTarget(1));
+        await page.mouse.click(afterDrag.x, afterDrag.y);
+        expect((await page.evaluate(() => window.globeHarness.markerPickState())).callbacks).toHaveLength(2);
+    });
+}
+
+test('marker callback cancellation, background and synchronous chart destruction do not fall through', async ({page}) => {
+    await page.evaluate(() => window.globeHarness.mountMarkerPick({geo: false}));
+    let target = await page.evaluate(() => window.globeHarness.markerPickTarget(1));
+    await page.mouse.click(target.x + 14, target.y);
+    expect((await page.evaluate(() => window.globeHarness.markerPickState())).callbacks).toHaveLength(0);
+    await page.evaluate(() => window.globeHarness.mountMarkerPick({cancel: true}));
+    target = await page.evaluate(() => window.globeHarness.markerPickTarget(1));
+    await page.mouse.click(target.x, target.y);
+    let state = await page.evaluate(() => window.globeHarness.markerPickState());
+    expect(state.callbacks).toHaveLength(1);
+    expect(state.picks).toEqual([]);
+    await page.evaluate(() => window.globeHarness.mountMarkerPick({destroy: true}));
+    target = await page.evaluate(() => window.globeHarness.markerPickTarget(1));
+    await page.mouse.click(target.x, target.y);
+    state = await page.evaluate(() => window.globeHarness.markerPickState());
+    expect(state.callbacks).toHaveLength(1);
+    expect(state.picks).toEqual([]);
+    await expect(page.locator('#chart canvas')).toHaveCount(0);
+});
+
+test('raised limb markers and exposed edges use the actual click ray, not center-facing heuristics', async ({page}) => {
+    await page.evaluate(() => window.globeHarness.mountMarkerVisibility('raised'));
+    let point = await page.evaluate(() => window.globeHarness.markerPickTarget(0));
+    await page.mouse.click(point.x, point.y);
+    let state = await page.evaluate(() => window.globeHarness.markerPickState());
+    expect(state.callbacks.map(context => context.name)).toEqual(['raised']);
+    await page.evaluate(() => {
+        window.globeHarness.mountMarkerVisibility('edge');
+        window.globeHarness.series().setProjection('flat', {animate: false});
+    });
+    await waitProjection(page, 1);
+    point = await page.evaluate(() => window.globeHarness.markerPickTarget(0));
+    const width = await page.locator('#chart canvas').evaluate(canvas => canvas.getBoundingClientRect().width);
+    await page.mouse.click(point.x + 10 * width / 240, point.y);
+    state = await page.evaluate(() => window.globeHarness.markerPickState());
+    expect(state.callbacks.map(context => context.name)).toEqual(['large']);
+    expect(state.callbacks[0].index).toBe(0);
+});
+
+for (const kind of ['three', 'region', 'svg-globe']) {
+    test(`shared geo controller opens from real ${kind} clicks, not drags`, async ({page}) => {
+        await page.evaluate(kind => window.globeHarness.mountGeo(kind), kind);
+        await page.waitForFunction(() => window.globeHarness.geoTarget());
+        const target = await page.evaluate(() => window.globeHarness.geoTarget());
+        const hitTarget = await page.evaluate(({x, y}) => ({
+            hit: document.elementFromPoint(x, y)?.outerHTML.slice(0, 250),
+            overlay: document.querySelector('rect.kchart-tooltip-overlay')?.getAttribute('style')
+        }), target);
+        await page.mouse.click(target.x, target.y);
+        let state = await page.evaluate(() => window.globeHarness.geoState());
+        expect(state.picks, JSON.stringify(hitTarget)).toHaveLength(1);
+        expect(state.picks[0].lat).toBeGreaterThan(47);
+        expect(state.picks[0].lat).toBeLessThan(55);
+        expect(state.picks[0].lon).toBeGreaterThan(5);
+        expect(state.picks[0].lon).toBeLessThan(16);
+        if (kind === 'region') expect(state.regions).toEqual(['276']);
+        await page.mouse.move(target.x, target.y);
+        await page.mouse.down();
+        await page.mouse.move(target.x + 20, target.y + 12, {steps: 4});
+        await page.mouse.up();
+        state = await page.evaluate(() => window.globeHarness.geoState());
+        expect(state.picks).toHaveLength(1);
+        await page.mouse.wheel(0, -60);
+        await page.waitForTimeout(200);
+        expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(1);
+        const nextTarget = await page.evaluate(() => window.globeHarness.geoTarget());
+        await page.mouse.click(nextTarget.x, nextTarget.y);
+        expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(2);
+        if (kind === 'three') {
+            await page.evaluate(() => window.globeHarness.series().setProjection('flat', {animate: false}));
+            await waitProjection(page, 1);
+            const seoul = await page.evaluate(() => window.globeHarness.geoMarkerTarget(0));
+            await page.mouse.click(seoul.x, seoul.y);
+            const flatState = await page.evaluate(() => window.globeHarness.geoState());
+            expect(flatState.picks).toHaveLength(3);
+            const coordinateTolerance = Math.max(0.5, seoul.degreesPerPixel);
+            expect(Math.abs(flatState.picks[2].lat - 37.5665)).toBeLessThan(coordinateTolerance);
+            expect(Math.abs(flatState.picks[2].lon - 126.978)).toBeLessThan(coordinateTolerance);
+            await page.mouse.move(seoul.x, seoul.y);
+            await page.mouse.down();
+            await page.mouse.move(seoul.x + 4, seoul.y, {steps: 2});
+            await page.mouse.up();
+            expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(3);
+            await page.mouse.click(seoul.x, seoul.y);
+            expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(4);
+            await page.evaluate(() => window.globeHarness.series().setProjection('globe', {duration: 1000}));
+            const transitioningTarget = await page.evaluate(() => window.globeHarness.geoTarget());
+            await page.mouse.click(transitioningTarget.x, transitioningTarget.y);
+            expect((await page.evaluate(() => window.globeHarness.geoState())).picks).toHaveLength(4);
+        }
+        await page.evaluate(kind => window.globeHarness.mountGeo(kind, false), kind);
+        const disabledTarget = await page.evaluate(() => window.globeHarness.geoTarget());
+        await page.mouse.click(disabledTarget.x, disabledTarget.y);
+        state = await page.evaluate(() => window.globeHarness.geoState());
+        expect(state.picks).toHaveLength(0);
+        expect(state.destroyed).toBe(0);
+    });
+}
+
+test('region country clicks traverse the core tooltip overlay without map zoom', async ({page}) => {
+    await page.evaluate(() => window.globeHarness.mountGeo('region', true, false));
+    const target = await page.evaluate(() => window.globeHarness.geoTarget());
+    await page.mouse.click(target.x, target.y);
+    const state = await page.evaluate(() => window.globeHarness.geoState());
+    expect(state.picks).toHaveLength(1);
+    expect(state.regions).toEqual(['276']);
+});
+
+test('SVG marker drilldown remains separate from country popup', async ({page}) => {
+    await page.evaluate(() => window.globeHarness.mountGeo('svg-marker'));
+    await page.locator('.kchart-globe-marker').click();
+    const state = await page.evaluate(() => window.globeHarness.geoState());
+    expect(state.markers).toBe(1);
+    expect(state.picks).toHaveLength(0);
+    await expect(page.locator('rect.kchart-globe-map-background')).toBeVisible();
+});
+
+test('earth sampling compiles in WebGL1 with and without gradient extensions', async ({page}) => {
+    const result = await page.evaluate(() => window.globeHarness.compileWebGL1Sampling());
+    expect(result.fallback.compiled, result.fallback.log).toBe(true);
+    // This browser supplies both extensions; exercise the r160 shader path too.
+    expect(result.gradients).not.toBeNull();
+    expect(result.gradients.compiled, result.gradients.log).toBe(true);
+});
+
+for (const nightSide of [false, true]) {
+    test(`closing the map does not select coarse white mips at the dateline (${nightSide ? 'night' : 'day'})`, async ({page}, testInfo) => {
+        // Negative control: prove this pixel test detects the original shader,
+        // rather than merely passing because the seam is offscreen.
+        await page.evaluate(nightSide => window.globeHarness.mountSeam(nightSide, true), nightSide);
+        const legacy = await page.evaluate(() => window.globeHarness.capture());
+        expect(legacy.pixels.seamBright).toBeGreaterThan(0);
+        await page.evaluate(nightSide => window.globeHarness.mountSeam(nightSide), nightSide);
+        await page.evaluate(() => window.globeHarness.series().setProjection('flat', {animate: false}));
+        await waitProjection(page, 1);
+        await page.evaluate(() => window.globeHarness.series().setProjection('globe', {duration: 1200}));
+        await page.waitForFunction(() => {
+            const progress = window.globeHarness.series().getProjectionProgress();
+            return progress > 0 && progress < 0.03;
+        });
+        const closing = await page.evaluate(() => window.globeHarness.capture());
+        await waitProjection(page, 0);
+        const closed = await page.evaluate(() => window.globeHarness.capture());
+        await page.screenshot({path: testInfo.outputPath('dateline-closed.png')});
+        for (const frame of [closing, closed]) {
+            expect(frame.pixels.colored).toBeGreaterThan(10);
+            expect(frame.pixels.seamTotal).toBeGreaterThan(100);
+            expect(frame.pixels.seamBright).toBe(0);
+            expect(frame.surfaces).toHaveLength(1);
+        }
+    });
+}
+
 test('wide desktop maps draw one world with empty side gutters at every longitude', async ({page}, testInfo) => {
     await page.evaluate(() => window.globeHarness.mount({autoRotate: false}));
     for (const [width, height] of [[1440, 420], [2560, 700], [3440, 900]]) {

@@ -1,5 +1,6 @@
 import type {Selection} from 'd3-selection';
 import type {ZoomTransform} from 'd3-zoom';
+import type {KChartGeoDrilldownController} from '../options/geo-drilldown';
 
 export type KChartScaleType = 'number' | 'time' | 'string' | 'point';
 export type KChartPlacement = 'top' | 'right' | 'bottom' | 'left';
@@ -697,6 +698,7 @@ export interface KChartSvgGlobeSeriesConfiguration<T = any> {
     globeScale?: number;
     zoom?: boolean | KChartGlobeZoomConfiguration;
     drilldown?: boolean | KChartGlobeDrilldownConfiguration<T>;
+    geoDrilldown?: false | KChartGeoDrilldownController;
     sphereFill?: string;
     sphereStroke?: string;
     graticuleVisible?: boolean;
@@ -820,6 +822,7 @@ export interface KChartGeoRegionMapBubble {
 export interface KChartGeoRegionMapSeriesConfiguration<T = any> {
     selector: string;
     displayName?: string;
+    geoDrilldown?: false | KChartGeoDrilldownController;
     geoJson?: any | any[];
     topoObjectName?: string;
     dataKey?: keyof T & string;

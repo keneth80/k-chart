@@ -1,6 +1,6 @@
 {
     "name": "@keneth80/k-chart",
-    "version": "1.29.0",
+    "version": "1.30.0",
     "description": "Lightweight TypeScript D3 chart runtime with functional SVG, Canvas, and WebGL series renderers.",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
@@ -63,6 +63,7 @@
         "docs/ai/**/*",
         "docs/code-graph-handoff.md",
         "docs/configuration-reference.md",
+        "docs/geo-drilldown.md",
         "docs/functional-api.md",
         "docs/core-usability.md",
         "docs/preset-usability.md",
@@ -95,7 +96,7 @@
         "typecheck": "tsc --noEmit",
         "test:browser": "npm run build:lib && node scripts/build-browser-fixture.cjs && playwright test",
         "test:usability": "npm run build:lib && node tests/core-lifecycle-regression.test.cjs && node tests/canvas-names.test.cjs && node tests/usability.test.cjs && node tests/demo-usability.test.cjs && node tests/preset-usability.test.cjs",
-        "test:unit": "npm run build:lib && npm run build:adapters && npm test --prefix packages/k-chart-three && npm test --prefix packages/k-chart-maplibre && npm test --prefix packages/k-chart-cesium && node scripts/generate-ai-artifacts.cjs --check && node tests/package-exports.test.cjs && node tests/ai-plan.test.cjs && node tests/ai-compiler.test.cjs && node tests/domain.test.cjs && node tests/downsample-lttb.test.cjs && node tests/ticks.test.cjs && node tests/range-navigator.test.cjs && node tests/svg-bar.test.cjs && node tests/svg-region-map.test.cjs && node tests/map-move-end.test.cjs && node tests/animation.test.cjs && node tests/zoom-scheduling.test.cjs && node tests/render-complete.test.cjs && node tests/worker-backpressure.test.cjs && node tests/worker-webgl.test.cjs && node tests/worker-lifecycle.test.cjs && node tests/graph.test.cjs && node tests/tree.test.cjs && node tests/sankey.test.cjs",
+        "test:unit": "npm run build:lib && npm run build:adapters && npm test --prefix packages/k-chart-three && npm test --prefix packages/k-chart-maplibre && npm test --prefix packages/k-chart-cesium && node scripts/generate-ai-artifacts.cjs --check && node tests/package-exports.test.cjs && node tests/ai-plan.test.cjs && node tests/ai-compiler.test.cjs && node tests/domain.test.cjs && node tests/downsample-lttb.test.cjs && node tests/ticks.test.cjs && node tests/range-navigator.test.cjs && node tests/svg-bar.test.cjs && node tests/svg-region-map.test.cjs && node tests/map-move-end.test.cjs && node tests/geo-drilldown.test.cjs && node tests/animation.test.cjs && node tests/zoom-scheduling.test.cjs && node tests/render-complete.test.cjs && node tests/worker-backpressure.test.cjs && node tests/worker-webgl.test.cjs && node tests/worker-lifecycle.test.cjs && node tests/graph.test.cjs && node tests/tree.test.cjs && node tests/sankey.test.cjs",
         "dev": "webpack-dev-server --host 127.0.0.1 --port 9003 --mode development",
         "prepublishOnly": "npm run typecheck",
         "prepack": "npm run generate:ai",
@@ -177,6 +178,7 @@
         "webpack-merge": "^6.0.1"
     },
     "dependencies": {
+        "@types/geojson": "^7946.0.16",
         "d3-array": "^3.2.4",
         "d3-axis": "^3.0.0",
         "d3-brush": "^3.0.0",

@@ -10,7 +10,7 @@ bundle.
 npm install @keneth80/k-chart @keneth80/k-chart-three three
 ```
 
-Requires KChart 1.17.0 or later for series-owned pointer interaction and Three.js
+Requires KChart 1.30.0 or later for geographic drilldown types and Three.js
 0.160.0 or later. Browser bundlers are supported; direct CommonJS loading in
 Node needs a version with synchronous ESM support (20.19+, 22.12+, or 24+).
 
@@ -21,6 +21,19 @@ import "@keneth80/k-chart-three/style.css";
 ```
 
 ## Textured Day / Night Globe and Flat Map
+
+For optional country / city / region map dialogs, pass a caller-owned
+`createGeoDrilldown(...)` controller from KChart as `geoDrilldown`. The same
+controller works with both Three.js projections and the SVG map series.
+It is disabled by omission and does not replace the existing rotation or
+projection controls. See the [shared hierarchy guide](../../docs/geo-drilldown.md).
+
+`onMarkerClick({data, index, lat, lon, event})` supports direct marker selection
+in both settled globe and world-map views. Small markers have an 8 CSS pixel
+minimum hit radius; hidden or occluded markers and drag gestures are excluded.
+When `geoDrilldown` is connected, selection opens the marker's country unless
+the callback calls `event.preventDefault()`. The example's optional textured
+detail presenter reuses this same renderer and solar lighting.
 
 `createThreeGlobeSeries` rotates around the geographic polar axis by default.
 Latitude stays fixed while longitude advances at six degrees per second; the

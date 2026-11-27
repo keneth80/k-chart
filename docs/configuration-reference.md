@@ -22,6 +22,11 @@ createKChart({
 
 ## Core Chart Configuration
 
+Geographic series also accept an optional caller-owned `geoDrilldown` controller
+for country / city / region navigation. This is a series-level option, not an
+entry in `chart.options`. See the [geographic hierarchy guide](geo-drilldown.md)
+for the shared data model, renderer support, and lifecycle.
+
 | Field | Type | Required | Default | Description |
 | --- | --- | ---: | --- | --- |
 | `selector` | `string \| HTMLElement` | yes | - | 차트를 붙일 DOM container입니다. 문자열이면 CSS selector로 찾습니다. |
